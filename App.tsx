@@ -1,28 +1,24 @@
-import { StatusBar } from 'expo-status-bar';
+/**
+ * Finly - Premium Personal Finance Tracker
+ * Purpose: Main application entry point
+ * Features: Expense tracking, AI insights, budget management
+ */
+
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ThemeProvider } from './src/contexts/ThemeContext';
+import AppNavigator from './src/navigation/AppNavigator';
 
 /**
- * Main application component
- * Purpose: Serves as the root component of the Finly mobile application
- * @returns {React.FC} The main app component with status bar and welcome text
+ * App component - Root of the application
+ * Wraps the app with necessary providers and navigation
  */
 export default function App(): React.ReactElement {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <Text>Hello World :)</Text>
-      <StatusBar style="auto" />
-    </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <AppNavigator />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
-

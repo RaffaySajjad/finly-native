@@ -239,6 +239,59 @@ export const apiService = {
       mockExpenses.splice(index, 1);
     }
   },
+
+  /**
+   * Mock AI expense generator
+   * Simulates AI-powered expense recognition and categorization
+   * @returns Promise<Expense> Auto-generated expense with smart categorization
+   */
+  mockAIExpense: async (): Promise<Expense> => {
+    await new Promise(resolve => setTimeout(resolve, 1200)); // Simulate AI processing
+    
+    const aiGeneratedExpenses = [
+      {
+        amount: 42.50,
+        category: 'food' as const,
+        description: '🤖 Coffee & breakfast at Cafe Luna',
+        type: 'expense' as const,
+      },
+      {
+        amount: 89.99,
+        category: 'shopping' as const,
+        description: '🤖 Amazon package delivery',
+        type: 'expense' as const,
+      },
+      {
+        amount: 15.00,
+        category: 'transport' as const,
+        description: '🤖 Uber ride to downtown',
+        type: 'expense' as const,
+      },
+      {
+        amount: 12.50,
+        category: 'entertainment' as const,
+        description: '🤖 Netflix subscription',
+        type: 'expense' as const,
+      },
+      {
+        amount: 65.00,
+        category: 'health' as const,
+        description: '🤖 Pharmacy - vitamins',
+        type: 'expense' as const,
+      },
+    ];
+
+    const randomExpense = aiGeneratedExpenses[Math.floor(Math.random() * aiGeneratedExpenses.length)];
+    
+    const newExpense: Expense = {
+      ...randomExpense,
+      id: Date.now().toString(),
+      date: new Date().toISOString(),
+    };
+    
+    mockExpenses.unshift(newExpense);
+    return newExpense;
+  },
 };
 
 export default apiService;

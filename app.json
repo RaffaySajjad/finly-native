@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "finly",
+    "slug": "finly",
+    "version": "1.0.0",
+    "android": {
+      "package": "com.plantoraffay.finly"
+    },
+    "ios": {
+      "bundleIdentifier": "com.plantoraffay.finly"
+    }
+  }
+}

@@ -1,12 +1,13 @@
 /**
  * ExpenseCard component
  * Purpose: Displays individual expense item with category icon, amount, and description
- * Features smooth press animation and swipe-to-delete gesture
+ * Features smooth press animation and long press for edit/delete
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Expense } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -14,15 +15,25 @@ import { typography, spacing, borderRadius, elevation } from '../theme';
 interface ExpenseCardProps {
   expense: Expense;
   onPress?: () => void;
+  onLongPress?: () => void;
 }
 
 /**
  * ExpenseCard component renders a single expense item
  * @param expense - The expense object to display
  * @param onPress - Optional callback when card is pressed
+ * @param onLongPress - Optional callback when card is long pressed
  */
-export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onPress }) => {
+export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onPress, onLongPress }) => {
   const { theme } = useTheme();
+
+  const handleLongPress = () => {
+    // Haptic feedback on iOS
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    onLongPress?.();
+  };
 
   const getCategoryIcon = (category: string): string => {
     const icons: Record<string, string> = {
@@ -63,6 +74,8 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onPress }) =>
         elevation.sm,
       ]}
       onPress={onPress}
+      onLongPress={handleLongPress}
+      delayLongPress={500}
       activeOpacity={0.7}
     >
       <View style={[styles.iconContainer, { backgroundColor: categoryColor + '20' }]}>

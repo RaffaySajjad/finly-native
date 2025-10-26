@@ -1,10 +1,10 @@
 /**
  * AddExpenseScreen component
- * Purpose: Modal screen for adding new expenses or income
+ * Purpose: Modal screen for adding new expenses or income, or editing existing ones
  * Features category selection, amount input, and smooth animations
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,13 +18,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import { apiService } from '../services/api';
 import { CategoryType } from '../types';
+import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
 type TransactionType = 'expense' | 'income';
+type AddExpenseRouteProp = RouteProp<RootStackParamList, 'AddExpense'>;
 
 const CATEGORIES: Array<{ id: CategoryType; name: string; icon: string }> = [
   { id: 'food', name: 'Food', icon: 'food' },
@@ -37,11 +39,15 @@ const CATEGORIES: Array<{ id: CategoryType; name: string; icon: string }> = [
 ];
 
 /**
- * AddExpenseScreen - Modal for creating new transactions
+ * AddExpenseScreen - Modal for creating or editing transactions
  */
 const AddExpenseScreen: React.FC = () => {
   const navigation = useNavigation();
+  const route = useRoute<AddExpenseRouteProp>();
   const { theme } = useTheme();
+
+  const editingExpense = route.params?.expense;
+  const isEditing = !!editingExpense;
 
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
@@ -49,8 +55,18 @@ const AddExpenseScreen: React.FC = () => {
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Pre-fill form when editing
+  useEffect(() => {
+    if (editingExpense) {
+      setType(editingExpense.type);
+      setAmount(editingExpense.amount.toString());
+      setCategory(editingExpense.category);
+      setDescription(editingExpense.description);
+    }
+  }, [editingExpense]);
+
   /**
-   * Handles transaction creation
+   * Handles transaction creation or update
    */
   const handleSave = async (): Promise<void> => {
     if (!amount || parseFloat(amount) <= 0) {
@@ -66,19 +82,36 @@ const AddExpenseScreen: React.FC = () => {
     setSaving(true);
 
     try {
-      await apiService.createExpense({
-        amount: parseFloat(amount),
-        category,
-        description: description.trim(),
-        date: new Date().toISOString(),
-        type,
-      });
+      if (isEditing && editingExpense) {
+        // Update existing expense
+        await apiService.editExpense(editingExpense.id, {
+          amount: parseFloat(amount),
+          category,
+          description: description.trim(),
+          type,
+        });
 
-      Alert.alert(
-        'Success',
-        `${type === 'expense' ? 'Expense' : 'Income'} added successfully!`,
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+        Alert.alert(
+          'Success',
+          'Transaction updated successfully!',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      } else {
+      // Create new expense
+        await apiService.createExpense({
+          amount: parseFloat(amount),
+          category,
+          description: description.trim(),
+          date: new Date().toISOString(),
+          type,
+        });
+
+        Alert.alert(
+          'Success',
+          `${type === 'expense' ? 'Expense' : 'Income'} added successfully!`,
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      }
     } catch (error) {
       Alert.alert('Error', 'Failed to save transaction. Please try again.');
       console.error('Error saving transaction:', error);
@@ -239,7 +272,7 @@ const AddExpenseScreen: React.FC = () => {
             disabled={saving}
           >
             <Text style={styles.saveButtonText}>
-              {saving ? 'Saving...' : 'Save Transaction'}
+              {saving ? 'Saving...' : isEditing ? 'Update Transaction' : 'Save Transaction'}
             </Text>
           </TouchableOpacity>
         </View>

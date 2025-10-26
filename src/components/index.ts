@@ -7,4 +7,5 @@ export * from './ExpenseCard';
 export * from './CategoryCard';
 export * from './InsightCard';
 export * from './StatCard';
+export * from './ExpenseOptionsSheet';
 

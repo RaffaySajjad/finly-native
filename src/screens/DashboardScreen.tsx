@@ -1,7 +1,7 @@
 /**
  * DashboardScreen - Premium Home Dashboard
- * Purpose: Beautiful home screen inspired by Apple Wallet, Revolut, and Qapital
- * Features: Balance card, spending chart, transactions, bottom sheet for adding expenses
+ * Purpose: Beautiful home screen with balance, chart, transactions, and AI insights
+ * Features: Real-time updates, edit/delete transactions, smart insights
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -16,43 +16,45 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'react-native-linear-gradient';
 import { PieChart } from 'react-native-chart-kit';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import Animated, {
-  useAnimatedStyle,
-  withSpring,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 
 import { useTheme } from '../contexts/ThemeContext';
-import { ExpenseCard } from '../components';
+import { ExpenseCard, ExpenseOptionsSheet } from '../components';
 import { apiService } from '../services/api';
-import { Expense, MonthlyStats, CategoryType } from '../types';
+import { Expense, MonthlyStats, CategoryType, Insight } from '../types';
+import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
 const { width } = Dimensions.get('window');
+
+type DashboardNavigationProp = StackNavigationProp<RootStackParamList, 'MainTabs'>;
 
 /**
  * DashboardScreen - Main home screen
  */
 const DashboardScreen: React.FC = () => {
   const { theme } = useTheme();
+  const navigation = useNavigation<DashboardNavigationProp>();
   const bottomSheetRef = useRef<BottomSheet>(null);
+  const optionsSheetRef = useRef<BottomSheet>(null);
   
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
+  const [insights, setInsights] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
 
-  // Bottom sheet state
+  // Bottom sheet state for adding expenses
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
   const [newExpenseCategory, setNewExpenseCategory] = useState<CategoryType>('food');
   const [newExpenseDescription, setNewExpenseDescription] = useState('');
@@ -60,27 +62,67 @@ const DashboardScreen: React.FC = () => {
   const [isUsingAI, setIsUsingAI] = useState(false);
 
   // Animation values
-  const gradientAnimation = useSharedValue(0);
-  const fabScale = useSharedValue(1);
+  const gradientAnimation = useRef(new Animated.Value(0)).current;
+  const fabScale = useRef(new Animated.Value(1)).current;
+  const insightOpacity = useRef(new Animated.Value(0)).current;
+
+  // Initialize app data on mount
+  useEffect(() => {
+    initializeApp();
+  }, []);
+
+  // Refresh data when screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
 
   useEffect(() => {
-    loadData();
     // Start gradient animation
-    gradientAnimation.value = withRepeat(
-      withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(gradientAnimation, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(gradientAnimation, {
+          toValue: 0,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Fade in insights
+    Animated.timing(insightOpacity, {
+      toValue: 1,
+      duration: 800,
+      delay: 500,
+      useNativeDriver: true,
+    }).start();
   }, []);
+
+  const initializeApp = async (): Promise<void> => {
+    try {
+      await apiService.initialize();
+      await loadData();
+    } catch (error) {
+      console.error('Error initializing app:', error);
+    }
+  };
 
   const loadData = async (): Promise<void> => {
     try {
-      const [expensesData, statsData] = await Promise.all([
+      const [expensesData, statsData, insightsData] = await Promise.all([
         apiService.getExpenses(),
         apiService.getMonthlyStats(),
+        apiService.getInsights(),
       ]);
       setExpenses(expensesData.slice(0, 5));
       setStats(statsData);
+      setInsights(insightsData);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -91,12 +133,18 @@ const DashboardScreen: React.FC = () => {
 
   const handleOpenBottomSheet = useCallback(() => {
     bottomSheetRef.current?.expand();
-    fabScale.value = withSpring(0);
+    Animated.spring(fabScale, {
+      toValue: 0,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
   const handleCloseBottomSheet = useCallback(() => {
     bottomSheetRef.current?.close();
-    fabScale.value = withSpring(1);
+    Animated.spring(fabScale, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
     // Reset form
     setNewExpenseAmount('');
     setNewExpenseCategory('food');
@@ -125,7 +173,7 @@ const DashboardScreen: React.FC = () => {
         type: 'expense',
       });
 
-      await loadData();
+      await loadData(); // Refresh all data
       handleCloseBottomSheet();
       Alert.alert('Success', 'Expense added successfully! 🎉');
     } catch (error) {
@@ -141,7 +189,7 @@ const DashboardScreen: React.FC = () => {
 
     try {
       const aiExpense = await apiService.mockAIExpense();
-      await loadData();
+      await loadData(); // Refresh all data
       handleCloseBottomSheet();
       Alert.alert(
         'AI Expense Added! 🤖',
@@ -152,6 +200,26 @@ const DashboardScreen: React.FC = () => {
       console.error(error);
     } finally {
       setIsUsingAI(false);
+    }
+  };
+
+  const handleExpenseLongPress = (expense: Expense) => {
+    setSelectedExpense(expense);
+    optionsSheetRef.current?.expand();
+  };
+
+  const handleEditExpense = (expense: Expense) => {
+    navigation.navigate('AddExpense', { expense });
+  };
+
+  const handleDeleteExpense = async (expense: Expense) => {
+    try {
+      await apiService.deleteExpense(expense.id);
+      await loadData(); // Refresh all data
+      Alert.alert('Deleted', 'Transaction deleted successfully');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to delete transaction');
+      console.error(error);
     }
   };
 
@@ -193,20 +261,6 @@ const DashboardScreen: React.FC = () => {
     ];
   }, [stats, theme]);
 
-  // Animated gradient style
-  const animatedGradientStyle = useAnimatedStyle(() => {
-    return {
-      opacity: 0.9 + gradientAnimation.value * 0.1,
-    };
-  });
-
-  // Animated FAB style
-  const animatedFabStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: fabScale.value }],
-    };
-  });
-
   const categories: Array<{ id: CategoryType; name: string; icon: string }> = [
     { id: 'food', name: 'Food', icon: 'food' },
     { id: 'transport', name: 'Transport', icon: 'car' },
@@ -237,7 +291,12 @@ const DashboardScreen: React.FC = () => {
           {/* Premium Balance Card */}
           {stats && (
             <View style={styles.balanceCardContainer}>
-              <Animated.View style={[styles.balanceCard, animatedGradientStyle]}>
+              <Animated.View style={[styles.balanceCard, {
+                opacity: gradientAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1],
+                })
+              }]}>
                 <LinearGradient
                   colors={[theme.primary, theme.primaryDark, theme.primaryLight]}
                   start={{ x: 0, y: 0 }}
@@ -281,6 +340,31 @@ const DashboardScreen: React.FC = () => {
             </View>
           )}
 
+          {/* Smart Insight Section */}
+          {insights.length > 0 && (
+            <Animated.View style={[styles.smartInsightContainer, { opacity: insightOpacity }]}>
+              <Text style={[styles.smartInsightTitle, { color: theme.text }]}>💡 Smart Insight</Text>
+              <TouchableOpacity
+                style={[
+                  styles.smartInsightCard,
+                  { backgroundColor: insights[0].color + '15', borderColor: insights[0].color },
+                  elevation.sm,
+                ]}
+                activeOpacity={0.8}
+              >
+                <Icon name={insights[0].icon as any} size={28} color={insights[0].color} />
+                <View style={styles.smartInsightContent}>
+                  <Text style={[styles.smartInsightCardTitle, { color: theme.text }]}>
+                    {insights[0].title}
+                  </Text>
+                  <Text style={[styles.smartInsightCardDescription, { color: theme.textSecondary }]}>
+                    {insights[0].description}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
           {/* Spending Breakdown Chart */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Spending Breakdown</Text>
@@ -313,7 +397,11 @@ const DashboardScreen: React.FC = () => {
 
             {expenses.length > 0 ? (
               expenses.map((expense) => (
-                <ExpenseCard key={expense.id} expense={expense} />
+                <ExpenseCard
+                  key={expense.id}
+                  expense={expense}
+                  onLongPress={() => handleExpenseLongPress(expense)}
+                />
               ))
             ) : (
               <View style={styles.emptyState}>
@@ -327,7 +415,7 @@ const DashboardScreen: React.FC = () => {
         </ScrollView>
 
         {/* Floating Action Button */}
-        <Animated.View style={[styles.fabContainer, animatedFabStyle]}>
+        <Animated.View style={[styles.fabContainer, { transform: [{ scale: fabScale }] }]}>
           <TouchableOpacity
             style={[styles.fab, { backgroundColor: theme.primary }, elevation.lg]}
             onPress={handleOpenBottomSheet}
@@ -346,7 +434,10 @@ const DashboardScreen: React.FC = () => {
           backgroundStyle={{ backgroundColor: theme.card }}
           handleIndicatorStyle={{ backgroundColor: theme.textTertiary }}
           onClose={() => {
-            fabScale.value = withSpring(1);
+            Animated.spring(fabScale, {
+              toValue: 1,
+              useNativeDriver: true,
+            }).start();
           }}
         >
           <BottomSheetScrollView style={styles.bottomSheetContent}>
@@ -453,6 +544,16 @@ const DashboardScreen: React.FC = () => {
             <View style={{ height: 40 }} />
           </BottomSheetScrollView>
         </BottomSheet>
+
+        {/* Expense Options Sheet */}
+        {selectedExpense && (
+          <ExpenseOptionsSheet
+            expense={selectedExpense}
+            onEdit={handleEditExpense}
+            onDelete={handleDeleteExpense}
+            onClose={() => setSelectedExpense(null)}
+          />
+        )}
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -531,6 +632,35 @@ const styles = StyleSheet.create({
     width: 1,
     height: 40,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  smartInsightContainer: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  smartInsightTitle: {
+    ...typography.titleMedium,
+    marginBottom: spacing.sm,
+    fontWeight: '600',
+  },
+  smartInsightCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 2,
+    gap: spacing.md,
+  },
+  smartInsightContent: {
+    flex: 1,
+  },
+  smartInsightCardTitle: {
+    ...typography.titleMedium,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
+  smartInsightCardDescription: {
+    ...typography.bodySmall,
+    lineHeight: 18,
   },
   section: {
     marginBottom: spacing.lg,

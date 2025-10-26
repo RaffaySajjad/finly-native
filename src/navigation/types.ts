@@ -3,9 +3,11 @@
  * Purpose: Type-safe navigation parameters for React Navigation
  */
 
+import { Expense } from '../types';
+
 export type RootStackParamList = {
   MainTabs: undefined;
-  AddExpense: undefined;
+  AddExpense: { expense?: Expense } | undefined;
 };
 
 export type MainTabsParamList = {

@@ -4,10 +4,15 @@
     "slug": "finly",
     "version": "1.0.0",
     "android": {
-      "package": "com.plantoraffay.finly"
+      "package": "com.raffay.finly"
     },
     "ios": {
-      "bundleIdentifier": "com.plantoraffay.finly"
+      "bundleIdentifier": "com.raffay.finly",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Finly needs access to your camera to scan receipts and capture expense photos.",
+        "NSPhotoLibraryUsageDescription": "Finly needs access to your photo library to select receipt images.",
+        "NSPhotoLibraryAddUsageDescription": "Finly needs permission to save receipt photos to your library."
+      }
     }
   }
 }

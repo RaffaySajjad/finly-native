@@ -1,4 +1,4 @@
-package com.plantoraffay.finly
+package com.raffay.finly
 
 import android.os.Build
 import android.os.Bundle

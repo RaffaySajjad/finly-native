@@ -18,9 +18,9 @@ import {
   Alert,
   Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
-import { LinearGradient } from 'react-native-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { PieChart } from 'react-native-chart-kit';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -28,7 +28,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 import { useTheme } from '../contexts/ThemeContext';
-import { ExpenseCard, ExpenseOptionsSheet } from '../components';
+import { ExpenseCard, ExpenseOptionsSheet, SkeletonCard, ConfettiCelebration, BottomSheetBackground } from '../components';
 import { apiService } from '../services/api';
 import { Expense, MonthlyStats, CategoryType, Insight } from '../types';
 import { RootStackParamList } from '../navigation/types';
@@ -44,6 +44,7 @@ type DashboardNavigationProp = StackNavigationProp<RootStackParamList, 'MainTabs
 const DashboardScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<DashboardNavigationProp>();
+  const insets = useSafeAreaInsets();
   const bottomSheetRef = useRef<BottomSheet>(null);
   const optionsSheetRef = useRef<BottomSheet>(null);
   
@@ -53,6 +54,7 @@ const DashboardScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   // Bottom sheet state for adding expenses
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
@@ -123,6 +125,12 @@ const DashboardScreen: React.FC = () => {
       setExpenses(expensesData.slice(0, 5));
       setStats(statsData);
       setInsights(insightsData);
+
+      // Trigger confetti for achievements
+      const hasAchievement = insightsData.some(insight => insight.type === 'achievement');
+      if (hasAchievement && !loading) {
+        setTimeout(() => setShowConfetti(true), 500);
+      }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -132,7 +140,7 @@ const DashboardScreen: React.FC = () => {
   };
 
   const handleOpenBottomSheet = useCallback(() => {
-    bottomSheetRef.current?.expand();
+    bottomSheetRef.current?.snapToIndex(0); // Open at 85%
     Animated.spring(fabScale, {
       toValue: 0,
       useNativeDriver: true,
@@ -347,12 +355,14 @@ const DashboardScreen: React.FC = () => {
               <TouchableOpacity
                 style={[
                   styles.smartInsightCard,
-                  { backgroundColor: insights[0].color + '15', borderColor: insights[0].color },
+                  { backgroundColor: theme.card, borderColor: insights[0].color + '40' },
                   elevation.sm,
                 ]}
                 activeOpacity={0.8}
               >
-                <Icon name={insights[0].icon as any} size={28} color={insights[0].color} />
+                <View style={[styles.insightIconContainer, { backgroundColor: insights[0].color + '15' }]}>
+                  <Icon name={insights[0].icon as any} size={24} color={insights[0].color} />
+                </View>
                 <View style={styles.smartInsightContent}>
                   <Text style={[styles.smartInsightCardTitle, { color: theme.text }]}>
                     {insights[0].title}
@@ -395,7 +405,14 @@ const DashboardScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            {expenses.length > 0 ? (
+            {loading ? (
+              // Show skeleton loaders while loading
+              <>
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+              </>
+            ) : expenses.length > 0 ? (
               expenses.map((expense) => (
                 <ExpenseCard
                   key={expense.id}
@@ -415,7 +432,15 @@ const DashboardScreen: React.FC = () => {
         </ScrollView>
 
         {/* Floating Action Button */}
-        <Animated.View style={[styles.fabContainer, { transform: [{ scale: fabScale }] }]}>
+        <Animated.View
+          style={[
+            styles.fabContainer,
+            {
+              bottom: 60 + Math.max(insets.bottom, 8) + 16,
+              transform: [{ scale: fabScale }]
+            }
+          ]}
+        >
           <TouchableOpacity
             style={[styles.fab, { backgroundColor: theme.primary }, elevation.lg]}
             onPress={handleOpenBottomSheet}
@@ -431,8 +456,8 @@ const DashboardScreen: React.FC = () => {
           index={-1}
           snapPoints={['85%']}
           enablePanDownToClose
-          backgroundStyle={{ backgroundColor: theme.card }}
-          handleIndicatorStyle={{ backgroundColor: theme.textTertiary }}
+          backgroundComponent={BottomSheetBackground}
+          handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
           onClose={() => {
             Animated.spring(fabScale, {
               toValue: 1,
@@ -440,31 +465,49 @@ const DashboardScreen: React.FC = () => {
             }).start();
           }}
         >
-          <BottomSheetScrollView style={styles.bottomSheetContent}>
+          <BottomSheetScrollView
+            style={styles.bottomSheetContent}
+            contentContainerStyle={styles.bottomSheetContentContainer}
+          >
             <Text style={[styles.sheetTitle, { color: theme.text }]}>Add Expense</Text>
 
-            {/* AI Quick Add Button */}
-            <TouchableOpacity
-              style={[styles.aiButton, { backgroundColor: theme.primary + '15', borderColor: theme.primary }]}
-              onPress={handleAIExpense}
-              disabled={isUsingAI}
-            >
-              {isUsingAI ? (
-                <ActivityIndicator color={theme.primary} />
-              ) : (
-                <>
-                  <Icon name="robot" size={24} color={theme.primary} />
-                  <Text style={[styles.aiButtonText, { color: theme.primary }]}>
-                    ✨ AI Quick Add
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {/* Quick Add Options */}
+            <View style={styles.quickAddButtons}>
+              <TouchableOpacity
+                style={[styles.aiButton, { backgroundColor: theme.primary }]}
+                onPress={handleAIExpense}
+                disabled={isUsingAI}
+              >
+                {isUsingAI ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Icon name="robot" size={22} color="#FFFFFF" />
+                    <Text style={styles.aiButtonText}>
+                      ✨ AI Quick Add
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.scanButton, { backgroundColor: theme.income }]}
+                onPress={() => {
+                  bottomSheetRef.current?.close();
+                  setTimeout(() => navigation.navigate('ReceiptUpload'), 300);
+                }}
+              >
+                <Icon name="camera-outline" size={22} color="#FFFFFF" />
+                <Text style={styles.scanButtonText}>
+                  📸 Scan Receipt
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.divider}>
-              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-              <Text style={[styles.dividerText, { color: theme.textTertiary }]}>or add manually</Text>
-              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+              <View style={[styles.dividerLine, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]} />
+              <Text style={styles.dividerText}>OR ADD MANUALLY</Text>
+              <View style={[styles.dividerLine, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]} />
             </View>
 
             {/* Amount Input */}
@@ -540,8 +583,6 @@ const DashboardScreen: React.FC = () => {
                 <Text style={styles.addButtonText}>Add Expense</Text>
               )}
             </TouchableOpacity>
-
-            <View style={{ height: 40 }} />
           </BottomSheetScrollView>
         </BottomSheet>
 
@@ -554,6 +595,12 @@ const DashboardScreen: React.FC = () => {
             onClose={() => setSelectedExpense(null)}
           />
         )}
+
+        {/* Confetti Celebration */}
+        <ConfettiCelebration
+          active={showConfetti}
+          onAnimationEnd={() => setShowConfetti(false)}
+        />
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -647,7 +694,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: spacing.md,
     borderRadius: borderRadius.lg,
-    borderWidth: 2,
+    borderWidth: 1,
     gap: spacing.md,
   },
   smartInsightContent: {
@@ -698,7 +745,6 @@ const styles = StyleSheet.create({
   },
   fabContainer: {
     position: 'absolute',
-    bottom: 90,
     right: spacing.lg,
   },
   fab: {
@@ -709,30 +755,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bottomSheetContent: {
+    flex: 1,
+  },
+  bottomSheetContentContainer: {
     padding: spacing.lg,
+    paddingBottom: spacing.xxl,
   },
   sheetTitle: {
     ...typography.headlineSmall,
-    marginBottom: spacing.lg,
+    fontWeight: '700',
+    marginBottom: spacing.md,
   },
   aiButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.md,
     borderRadius: borderRadius.md,
-    borderWidth: 2,
-    marginBottom: spacing.lg,
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   aiButtonText: {
-    ...typography.titleMedium,
+    ...typography.labelMedium,
     fontWeight: '600',
+    color: '#FFFFFF',
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: spacing.lg,
+    marginVertical: spacing.md,
   },
   dividerLine: {
     flex: 1,
@@ -742,10 +793,12 @@ const styles = StyleSheet.create({
     ...typography.caption,
     marginHorizontal: spacing.md,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   inputGroup: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   inputLabel: {
     ...typography.labelMedium,
@@ -774,12 +827,12 @@ const styles = StyleSheet.create({
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -spacing.xs,
+    marginHorizontal: -spacing.xs / 2,
   },
   categoryButton: {
     width: '31%',
     aspectRatio: 1,
-    margin: spacing.xs,
+    margin: spacing.xs / 2,
     borderRadius: borderRadius.md,
     borderWidth: 2,
     alignItems: 'center',
@@ -806,6 +859,25 @@ const styles = StyleSheet.create({
     ...typography.labelLarge,
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  quickAddButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  scanButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.xs,
+  },
+  scanButtonText: {
+    ...typography.labelMedium,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 

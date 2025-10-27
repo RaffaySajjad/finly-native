@@ -47,7 +47,8 @@ const AddExpenseScreen: React.FC = () => {
   const { theme } = useTheme();
 
   const editingExpense = route.params?.expense;
-  const isEditing = !!editingExpense;
+  // Only treat as editing if the expense has an ID (receipt scanning pre-fills data without ID)
+  const isEditing = !!editingExpense?.id;
 
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
@@ -55,13 +56,13 @@ const AddExpenseScreen: React.FC = () => {
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Pre-fill form when editing
+  // Pre-fill form when editing or when data is passed from receipt scanner
   useEffect(() => {
     if (editingExpense) {
-      setType(editingExpense.type);
-      setAmount(editingExpense.amount.toString());
-      setCategory(editingExpense.category);
-      setDescription(editingExpense.description);
+      if (editingExpense.type) setType(editingExpense.type);
+      if (editingExpense.amount) setAmount(editingExpense.amount.toString());
+      if (editingExpense.category) setCategory(editingExpense.category);
+      if (editingExpense.description) setDescription(editingExpense.description);
     }
   }, [editingExpense]);
 
@@ -82,7 +83,7 @@ const AddExpenseScreen: React.FC = () => {
     setSaving(true);
 
     try {
-      if (isEditing && editingExpense) {
+      if (isEditing && editingExpense?.id) {
         // Update existing expense
         await apiService.editExpense(editingExpense.id, {
           amount: parseFloat(amount),

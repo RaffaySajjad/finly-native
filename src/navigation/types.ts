@@ -7,13 +7,15 @@ import { Expense } from '../types';
 
 export type RootStackParamList = {
   MainTabs: undefined;
-  AddExpense: { expense?: Expense } | undefined;
+  AddExpense: { expense?: Partial<Expense> } | undefined;
+  ReceiptUpload: undefined;
 };
 
 export type MainTabsParamList = {
   Dashboard: undefined;
   Categories: undefined;
   Insights: undefined;
+  Trends: undefined;
   Profile: undefined;
 };
 

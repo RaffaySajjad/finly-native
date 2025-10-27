@@ -257,9 +257,84 @@ const updateStats = (): MonthlyStats => {
 
 /**
  * Generates dynamic AI insights based on current spending patterns
+ * Now with personality and achievement tracking
  */
 const generateAIInsights = (): Insight[] => {
   const insights: Insight[] = [];
+
+  // AI Personality intro messages (rotate these)
+  const personalityIntros = [
+    "Let's save smartly this week 👀",
+    "Time to check in on your finances! 💰",
+    "Hey there, money master! 🌟",
+    "Your financial assistant here! 👋",
+  ];
+
+  // Check for achievements/streaks
+  const allRecentExpenses = mockExpenses.filter(e => e.type === 'expense');
+  const last7Days = allRecentExpenses.filter(e => {
+    const daysDiff = (Date.now() - new Date(e.date).getTime()) / (1000 * 60 * 60 * 24);
+    return daysDiff <= 7;
+  });
+
+  // Achievement: 7-day budget streak
+  const budgetCategoriesForStreakCheck = mockCategories.filter(c => c.budgetLimit);
+  const allUnderBudget = budgetCategoriesForStreakCheck.every(c => 
+    c.budgetLimit && c.totalSpent <= c.budgetLimit
+  );
+  
+  if (allUnderBudget && budgetCategoriesForStreakCheck.length > 0) {
+    insights.push({
+      id: 'streak_achievement',
+      type: 'achievement',
+      title: '🏆 Budget Master Streak!',
+      description: '7 days under budget across all categories. You\'re crushing it!',
+      icon: 'trophy-award',
+      color: '#F59E0B',
+    });
+  }
+
+  // Trend-aware insights (week-over-week comparisons)
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+  const thisWeek = mockExpenses.filter(e => 
+    e.type === 'expense' && new Date(e.date) >= sevenDaysAgo
+  );
+  
+  const lastWeek = mockExpenses.filter(e => {
+    const date = new Date(e.date);
+    return e.type === 'expense' && date >= fourteenDaysAgo && date < sevenDaysAgo;
+  });
+
+  // Entertainment trend
+  const entertainmentThisWeek = thisWeek.filter(e => e.category === 'entertainment')
+    .reduce((sum, e) => sum + e.amount, 0);
+  const entertainmentLastWeek = lastWeek.filter(e => e.category === 'entertainment')
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  if (entertainmentLastWeek > 0) {
+    const entertainmentChange = ((entertainmentThisWeek - entertainmentLastWeek) / entertainmentLastWeek) * 100;
+    if (entertainmentChange > 25) {
+      insights.push({
+        id: 'entertainment_trend',
+        type: 'warning',
+        title: '📈 Entertainment Spike',
+        description: `Your entertainment spending increased by ${Math.round(entertainmentChange)}% this week. ${personalityIntros[0]}`,
+        icon: 'chart-line',
+        color: '#8B5CF6',
+      });
+    } else if (entertainmentChange < -20) {
+      insights.push({
+        id: 'entertainment_improvement',
+        type: 'achievement',
+        title: '🎯 Entertainment Savings!',
+        description: `You cut entertainment costs by ${Math.abs(Math.round(entertainmentChange))}% this week. Well done!`,
+        icon: 'trending-down',
+        color: '#10B981',
+      });
+    }
+  }
 
   // Analyze spending by category
   const foodCategory = mockCategories.find(c => c.id === 'food');
@@ -385,14 +460,14 @@ const generateAIInsights = (): Insight[] => {
   }
 
   // Recent spending trend
-  const recentExpenses = mockExpenses
+  const latest5Expenses = mockExpenses
     .filter(e => e.type === 'expense')
     .slice(0, 5);
 
-  if (recentExpenses.length >= 3) {
+  if (latest5Expenses.length >= 3) {
     const avgRecent =
-      recentExpenses.reduce((sum, e) => sum + e.amount, 0) /
-      recentExpenses.length;
+      latest5Expenses.reduce((sum, e) => sum + e.amount, 0) /
+      latest5Expenses.length;
     if (avgRecent < 30) {
       insights.push({
         id: 'spending_achievement',
@@ -608,7 +683,168 @@ export const apiService = {
     await storage.saveExpenses(mockExpenses);
 
     return newExpense;
-  }
+  },
+
+  /**
+   * Mock receipt OCR extraction
+   * Simulates extracting data from a receipt image
+   */
+  async extractReceiptData(imageUri: string): Promise<Omit<Expense, 'id' | 'date'>> {
+    // Simulate OCR processing time
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 600 + 1200));
+
+    // Mock receipt data variations
+    const mockReceipts = [
+      {
+        amount: 5.75,
+        category: 'food' as CategoryType,
+        description: 'Starbucks - Latte and croissant',
+        type: 'expense' as const,
+      },
+      {
+        amount: 45.30,
+        category: 'food' as CategoryType,
+        description: 'Whole Foods Market - Groceries',
+        type: 'expense' as const,
+      },
+      {
+        amount: 18.99,
+        category: 'transport' as CategoryType,
+        description: 'Shell Gas Station - Fuel',
+        type: 'expense' as const,
+      },
+      {
+        amount: 12.50,
+        category: 'entertainment' as CategoryType,
+        description: 'AMC Theaters - Movie ticket',
+        type: 'expense' as const,
+      },
+      {
+        amount: 89.95,
+        category: 'shopping' as CategoryType,
+        description: 'Nike Store - Running shoes',
+        type: 'expense' as const,
+      },
+      {
+        amount: 32.40,
+        category: 'food' as CategoryType,
+        description: 'Chipotle - Burrito bowl and chips',
+        type: 'expense' as const,
+      },
+      {
+        amount: 67.80,
+        category: 'health' as CategoryType,
+        description: 'CVS Pharmacy - Prescription',
+        type: 'expense' as const,
+      },
+      {
+        amount: 125.00,
+        category: 'utilities' as CategoryType,
+        description: 'Pacific Gas & Electric - Monthly bill',
+        type: 'expense' as const,
+      },
+    ];
+
+    // Return random mock receipt data
+    const randomReceipt = mockReceipts[Math.floor(Math.random() * mockReceipts.length)];
+    return randomReceipt;
+  },
+
+  /**
+   * Get spending trends for visualization
+   * Returns daily, weekly, and category-wise spending data
+   */
+  async getSpendingTrends(): Promise<{
+    dailySpending: Array<{ date: string; amount: number }>;
+    categoryTotals: Array<{ category: string; amount: number; color: string }>;
+    weeklyComparison: { thisWeek: number; lastWeek: number; percentChange: number };
+    topCategory: { name: string; amount: number; emoji: string };
+  }> {
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Calculate daily spending for current month
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const dailySpending: Array<{ date: string; amount: number }> = [];
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(now.getFullYear(), now.getMonth(), day);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      // Calculate actual spending for this day from mockExpenses
+      const dayExpenses = mockExpenses.filter(e => {
+        if (e.type !== 'expense') return false;
+        const expenseDate = new Date(e.date).toISOString().split('T')[0];
+        return expenseDate === dateStr;
+      });
+      
+      const amount = dayExpenses.reduce((sum, e) => sum + e.amount, 0);
+      dailySpending.push({ date: dateStr, amount });
+    }
+
+    // Calculate category totals
+    const categoryMap = new Map<string, number>();
+    mockExpenses
+      .filter(e => e.type === 'expense')
+      .forEach(e => {
+        const current = categoryMap.get(e.category) || 0;
+        categoryMap.set(e.category, current + e.amount);
+      });
+
+    const categoryTotals = Array.from(categoryMap.entries()).map(([category, amount]) => ({
+      category: category.charAt(0).toUpperCase() + category.slice(1),
+      amount,
+      color: mockCategories.find(c => c.id === category)?.color || '#6B7280',
+    }));
+
+    // Calculate weekly comparison
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const thisWeekExpenses = mockExpenses
+      .filter(e => e.type === 'expense' && new Date(e.date) >= sevenDaysAgo)
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const lastWeekExpenses = mockExpenses
+      .filter(e => {
+        const date = new Date(e.date);
+        return e.type === 'expense' && date >= fourteenDaysAgo && date < sevenDaysAgo;
+      })
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const percentChange = lastWeekExpenses > 0
+      ? Math.round(((thisWeekExpenses - lastWeekExpenses) / lastWeekExpenses) * 100)
+      : 0;
+
+    // Find top category
+    const sortedCategories = [...categoryTotals].sort((a, b) => b.amount - a.amount);
+    const topCat = sortedCategories[0] || { category: 'Other', amount: 0 };
+    
+    const categoryEmojis: Record<string, string> = {
+      Food: '🍔',
+      Transport: '🚗',
+      Shopping: '🛍️',
+      Entertainment: '🎬',
+      Health: '💊',
+      Utilities: '⚡',
+      Other: '📦',
+    };
+
+    return {
+      dailySpending,
+      categoryTotals,
+      weeklyComparison: {
+        thisWeek: thisWeekExpenses,
+        lastWeek: lastWeekExpenses,
+        percentChange,
+      },
+      topCategory: {
+        name: topCat.category,
+        amount: topCat.amount,
+        emoji: categoryEmojis[topCat.category] || '📦',
+      },
+    };
+  },
 };
 
 export default apiService;

@@ -18,6 +18,7 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../contexts/ThemeContext';
 import { Expense } from '../types';
+import { BottomSheetBackground } from './BottomSheetBackground';
 import { typography, spacing, borderRadius } from '../theme';
 
 interface ExpenseOptionsSheetProps {
@@ -92,7 +93,7 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
       index={0}
       snapPoints={['30%']}
       enablePanDownToClose
-      backgroundStyle={{ backgroundColor: theme.card }}
+      backgroundComponent={BottomSheetBackground}
       handleIndicatorStyle={{ backgroundColor: theme.textTertiary }}
       onClose={onClose}
     >

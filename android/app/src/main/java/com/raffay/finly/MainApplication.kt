@@ -1,4 +1,4 @@
-package com.plantoraffay.finly
+package com.raffay.finly
 
 import android.app.Application
 import android.content.res.Configuration

@@ -27,7 +27,7 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>com.plantoraffay.finly</string>
+          <string>com.raffay.finly</string>
         </array>
       </dict>
     </array>
@@ -44,6 +44,14 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSCameraUsageDescription</key>
+    <string>Finly needs access to your camera to scan receipts and capture expense photos.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to access your microphone</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Finly needs permission to save receipt photos to your library.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Finly needs access to your photo library to select receipt images.</string>
     <key>RCTNewArchEnabled</key>
     <true/>
     <key>UILaunchStoryboardName</key>

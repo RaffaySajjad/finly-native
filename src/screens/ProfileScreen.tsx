@@ -82,7 +82,7 @@ const ProfileScreen: React.FC = () => {
         <Text style={[styles.title, { color: theme.text }]}>Profile</Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 90 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
         {/* User Profile Card */}
         {user && (
           <View style={styles.profileCard}>

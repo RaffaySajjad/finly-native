@@ -8,8 +8,10 @@ import React from 'react';
 import { Platform } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createNativeBottomTabNavigator } from '@bottom-tabs/react-navigation';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { RootStackParamList, MainTabsParamList } from './types';
 
@@ -23,80 +25,147 @@ import AddExpenseScreen from '../screens/AddExpenseScreen';
 import ReceiptUploadScreen from '../screens/ReceiptUploadScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
-const Tab = createNativeBottomTabNavigator<MainTabsParamList>();
+// Use native tabs on iOS for liquid glass, JS tabs on Android for reliable theming
+const NativeTab = createNativeBottomTabNavigator<MainTabsParamList>();
+const JSTab = createBottomTabNavigator<MainTabsParamList>();
 
 /**
  * MainTabs component - Bottom tab navigation
  * Provides access to main app sections
+ * Uses native tabs on iOS (liquid glass) and JS tabs on Android (reliable theming)
  */
 const MainTabs: React.FC = () => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
-  // Platform-specific icon configuration
-  const getTabIcon = (iosSymbol: string, androidIcon: string) => {
-    if (Platform.OS === 'ios') {
-      return { sfSymbol: iosSymbol };
-    }
-    // For Android, return the Material Community Icon name
-    return { androidIcon };
-  };
+  // iOS version with native tabs and SF Symbols
+  if (Platform.OS === 'ios') {
+    return (
+      <NativeTab.Navigator
+        tabBarActiveTintColor={theme.primary}
+        tabBarInactiveTintColor={theme.textTertiary}
+      >
+        <NativeTab.Screen
+          name="Dashboard"
+          component={DashboardScreen}
+          options={{
+            title: 'Home',
+            tabBarIcon: () => ({ sfSymbol: 'house.fill' }),
+          }}
+        />
+        <NativeTab.Screen
+          name="Categories"
+          component={CategoriesScreen}
+          options={{
+            title: 'Categories',
+            tabBarIcon: () => ({ sfSymbol: 'square.grid.2x2.fill' }),
+          }}
+        />
+        <NativeTab.Screen
+          name="Insights"
+          component={InsightsScreen}
+          options={{
+            title: 'Insights',
+            tabBarIcon: () => ({ sfSymbol: 'lightbulb.fill' }),
+          }}
+        />
+        <NativeTab.Screen
+          name="Trends"
+          component={TrendsScreen}
+          options={{
+            title: 'Trends',
+            tabBarIcon: () => ({ sfSymbol: 'chart.line.uptrend.xyaxis' }),
+          }}
+        />
+        <NativeTab.Screen
+          name="Profile"
+          component={ProfileScreen}
+          options={{
+            title: 'Profile',
+            tabBarIcon: () => ({ sfSymbol: 'person.fill' }),
+          }}
+        />
+      </NativeTab.Navigator>
+    );
+  }
 
+  // Android version with JS tabs and Material Icons
   return (
-    <Tab.Navigator
+    <JSTab.Navigator
       screenOptions={{
+        headerShown: false,
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.textTertiary,
-        ...(Platform.OS === 'android' && {
-          tabBarStyle: {
-            backgroundColor: theme.isDark ? theme.surface : '#FFFFFF',
-            borderTopColor: theme.border,
-            borderTopWidth: 1,
-            elevation: 8,
-          },
-        }),
+        tabBarStyle: {
+          backgroundColor: theme.surface,
+          borderTopColor: theme.border,
+          borderTopWidth: 1,
+          elevation: 8,
+          height: 60 + Math.max(insets.bottom, 12),
+          paddingBottom: Math.max(insets.bottom, 12),
+          paddingTop: 4,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginBottom: 2,
+        },
+        tabBarIconStyle: {
+          marginTop: 2,
+        },
       }}
     >
-      <Tab.Screen
+      <JSTab.Screen
         name="Dashboard"
         component={DashboardScreen}
         options={{
           title: 'Home',
-          tabBarIcon: () => getTabIcon('house.fill', 'home') as any,
+          tabBarIcon: ({ color, size }) => (
+            <Icon name="home" size={size} color={color} />
+          ),
         }}
       />
-      <Tab.Screen
+      <JSTab.Screen
         name="Categories"
         component={CategoriesScreen}
         options={{
           title: 'Categories',
-          tabBarIcon: () => getTabIcon('square.grid.2x2.fill', 'shape') as any,
+          tabBarIcon: ({ color, size }) => (
+            <Icon name="shape" size={size} color={color} />
+          ),
         }}
       />
-      <Tab.Screen
+      <JSTab.Screen
         name="Insights"
         component={InsightsScreen}
         options={{
           title: 'Insights',
-          tabBarIcon: () => getTabIcon('lightbulb.fill', 'lightbulb-on') as any,
+          tabBarIcon: ({ color, size }) => (
+            <Icon name="lightbulb-on" size={size} color={color} />
+          ),
         }}
       />
-      <Tab.Screen
+      <JSTab.Screen
         name="Trends"
         component={TrendsScreen}
         options={{
           title: 'Trends',
-          tabBarIcon: () => getTabIcon('chart.line.uptrend.xyaxis', 'chart-line') as any,
+          tabBarIcon: ({ color, size }) => (
+            <Icon name="chart-line" size={size} color={color} />
+          ),
         }}
       />
-      <Tab.Screen
+      <JSTab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
           title: 'Profile',
-          tabBarIcon: () => getTabIcon('person.fill', 'account') as any,
+          tabBarIcon: ({ color, size }) => (
+            <Icon name="account" size={size} color={color} />
+          ),
         }}
       />
-    </Tab.Navigator>
+    </JSTab.Navigator>
   );
 };
 

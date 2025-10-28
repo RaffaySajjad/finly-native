@@ -17,6 +17,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -436,7 +437,7 @@ const DashboardScreen: React.FC = () => {
           style={[
             styles.fabContainer,
             {
-              bottom: 60 + Math.max(insets.bottom, 8) + 16,
+              bottom: Math.max(insets.bottom, 12) + (Platform.select({ ios: 70, android: 10 }) ?? 70),
               transform: [{ scale: fabScale }]
             }
           ]}
@@ -597,10 +598,10 @@ const DashboardScreen: React.FC = () => {
         )}
 
         {/* Confetti Celebration */}
-        <ConfettiCelebration
+        {/* <ConfettiCelebration
           active={showConfetti}
           onAnimationEnd={() => setShowConfetti(false)}
-        />
+        /> */}
       </SafeAreaView>
     </GestureHandlerRootView>
   );

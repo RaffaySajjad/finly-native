@@ -1,11 +1,11 @@
 /**
  * AppNavigator component
- * Purpose: Main navigation structure with bottom tabs and stack navigation
- * Implements smooth transitions and premium navigation UI
+ * Purpose: Main navigation structure with auth, bottom tabs, and stack navigation
+ * Implements smooth transitions, premium navigation UI, and authentication flow
  */
 
-import React from 'react';
-import { Platform } from 'react-native';
+import React, { useEffect } from 'react';
+import { Platform, ActivityIndicator, View } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createNativeBottomTabNavigator } from '@bottom-tabs/react-navigation';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -13,7 +13,9 @@ import { NavigationContainer } from '@react-navigation/native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
-import { RootStackParamList, MainTabsParamList } from './types';
+import { useAppDispatch, useAppSelector } from '../store';
+import { checkAuthStatus } from '../store/slices/authSlice';
+import { RootStackParamList, MainTabsParamList, AuthStackParamList } from './types';
 
 // Import screens
 import DashboardScreen from '../screens/DashboardScreen';
@@ -23,11 +25,41 @@ import TrendsScreen from '../screens/TrendsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AddExpenseScreen from '../screens/AddExpenseScreen';
 import ReceiptUploadScreen from '../screens/ReceiptUploadScreen';
+import TransactionDetailsScreen from '../screens/TransactionDetailsScreen';
+import CategoryDetailsScreen from '../screens/CategoryDetailsScreen';
+import LoginScreen from '../screens/LoginScreen';
+import SignupScreen from '../screens/SignupScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
+const AuthStack = createStackNavigator<AuthStackParamList>();
 // Use native tabs on iOS for liquid glass, JS tabs on Android for reliable theming
 const NativeTab = createNativeBottomTabNavigator<MainTabsParamList>();
 const JSTab = createBottomTabNavigator<MainTabsParamList>();
+
+/**
+ * AuthNavigator component - Authentication flow
+ * Handles login, signup, and password recovery
+ */
+const AuthNavigator: React.FC = () => {
+  return (
+    <AuthStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: 'transparent' },
+        cardStyleInterpolator: ({ current: { progress } }) => ({
+          cardStyle: {
+            opacity: progress,
+          },
+        }),
+      }}
+    >
+      <AuthStack.Screen name="Login" component={LoginScreen} />
+      <AuthStack.Screen name="Signup" component={SignupScreen} />
+      <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+    </AuthStack.Navigator>
+  );
+};
 
 /**
  * MainTabs component - Bottom tab navigation
@@ -171,10 +203,26 @@ const MainTabs: React.FC = () => {
 
 /**
  * AppNavigator component - Root navigation structure
- * Manages stack navigation with modal presentations
+ * Manages authentication state and navigation flow
  */
 export const AppNavigator: React.FC = () => {
   const { theme, isDark } = useTheme();
+  const dispatch = useAppDispatch();
+  const { isAuthenticated, isLoading } = useAppSelector((state) => state.auth);
+
+  // Check auth status on mount
+  useEffect(() => {
+    dispatch(checkAuthStatus());
+  }, [dispatch]);
+
+  // Show loading screen while checking auth state
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
+        <ActivityIndicator size="large" color={theme.primary} />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer
@@ -227,29 +275,59 @@ export const AppNavigator: React.FC = () => {
           },
         }}
       >
-        <Stack.Screen
-          name="MainTabs"
-          component={MainTabs}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="AddExpense"
-          component={AddExpenseScreen}
-          options={{
-            title: 'Add Transaction',
-            presentation: 'modal',
-            headerShown: true,
-          }}
-        />
-        <Stack.Screen
-          name="ReceiptUpload"
-          component={ReceiptUploadScreen}
-          options={{
-            title: 'Scan Receipt',
-            presentation: 'modal',
-            headerShown: false,
-          }}
-        />
+        {!isAuthenticated ? (
+          // Auth Stack - shown when user is not authenticated
+          <Stack.Screen
+            name="Auth"
+            component={AuthNavigator}
+            options={{ headerShown: false }}
+          />
+        ) : (
+          // Main App Stack - shown when user is authenticated
+          <>
+              <Stack.Screen
+                name="MainTabs"
+                component={MainTabs}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="AddExpense"
+                component={AddExpenseScreen}
+                options={{
+                  title: 'Add Transaction',
+                  presentation: 'modal',
+                  headerShown: true,
+                }}
+              />
+              <Stack.Screen
+                name="ReceiptUpload"
+                component={ReceiptUploadScreen}
+                options={{
+                  title: 'Scan Receipt',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+            <Stack.Screen
+              name="TransactionDetails"
+              component={TransactionDetailsScreen}
+              options={{
+                title: 'Transaction Details',
+                presentation: 'modal',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="CategoryDetails"
+              component={CategoryDetailsScreen}
+              options={{
+                title: 'Category Details',
+                presentation: 'modal',
+                headerShown: false,
+              }}
+            />
+          </>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );

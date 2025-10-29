@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { Insight } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
@@ -13,23 +13,50 @@ import { typography, spacing, borderRadius, elevation } from '../theme';
 
 interface InsightCardProps {
   insight: Insight;
+  onPress?: () => void;
 }
 
 /**
  * InsightCard component renders an AI insight with icon and description
  * @param insight - The insight object to display
+ * @param onPress - Optional callback when card is pressed
  */
-export const InsightCard: React.FC<InsightCardProps> = ({ insight }) => {
+export const InsightCard: React.FC<InsightCardProps> = ({ insight, onPress }) => {
   const { theme } = useTheme();
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.98,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 3,
+      tension: 40,
+      useNativeDriver: true,
+    }).start();
+  };
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: theme.card, borderColor: theme.border },
-        elevation.sm,
-      ]}
+    <TouchableOpacity
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      activeOpacity={onPress ? 0.9 : 1}
+      disabled={!onPress}
     >
+      <Animated.View
+        style={[
+          styles.container,
+          { backgroundColor: theme.card, borderColor: theme.border },
+          elevation.sm,
+          { transform: [{ scale: scaleAnim }] },
+        ]}
+      >
       <View style={[styles.iconContainer, { backgroundColor: insight.color + '20' }]}>
         <Icon name={insight.icon as any} size={28} color={insight.color} />
       </View>
@@ -40,7 +67,8 @@ export const InsightCard: React.FC<InsightCardProps> = ({ insight }) => {
           {insight.description}
         </Text>
       </View>
-    </View>
+      </Animated.View>
+    </TouchableOpacity>
   );
 };
 

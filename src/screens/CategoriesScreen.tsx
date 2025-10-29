@@ -14,23 +14,31 @@ import {
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { CategoryCard } from '../components';
 import { apiService } from '../services/api';
 import { Category } from '../types';
+import { RootStackParamList } from '../navigation/types';
 import { typography, spacing } from '../theme';
+
+type CategoriesNavigationProp = StackNavigationProp<RootStackParamList>;
 
 /**
  * CategoriesScreen - Shows all spending categories
  */
 const CategoriesScreen: React.FC = () => {
   const { theme } = useTheme();
+  const navigation = useNavigation<CategoriesNavigationProp>();
   const [categories, setCategories] = useState<Category[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadCategories();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadCategories();
+    }, [])
+  );
 
   /**
    * Loads categories from API
@@ -77,7 +85,11 @@ const CategoriesScreen: React.FC = () => {
       >
         <View style={styles.content}>
           {categories.map((category) => (
-            <CategoryCard key={category.id} category={category} />
+            <CategoryCard
+              key={category.id}
+              category={category}
+              onPress={() => navigation.navigate('CategoryDetails', { categoryId: category.id })}
+            />
           ))}
         </View>
 

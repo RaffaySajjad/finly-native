@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { Category } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
@@ -13,13 +13,15 @@ import { typography, spacing, borderRadius, elevation } from '../theme';
 
 interface CategoryCardProps {
   category: Category;
+  onPress?: () => void;
 }
 
 /**
  * CategoryCard component renders a category spending overview
  * @param category - The category object to display
+ * @param onPress - Optional callback when card is pressed
  */
-export const CategoryCard: React.FC<CategoryCardProps> = ({ category }) => {
+export const CategoryCard: React.FC<CategoryCardProps> = ({ category, onPress }) => {
   const { theme } = useTheme();
 
   const percentage = category.budgetLimit
@@ -29,12 +31,15 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({ category }) => {
   const isOverBudget = category.budgetLimit && category.totalSpent > category.budgetLimit;
 
   return (
-    <View
+    <TouchableOpacity
       style={[
         styles.container,
         { backgroundColor: theme.card, borderColor: theme.border },
         elevation.sm,
       ]}
+      onPress={onPress}
+      activeOpacity={onPress ? 0.7 : 1}
+      disabled={!onPress}
     >
       <View style={styles.header}>
         <View style={[styles.iconContainer, { backgroundColor: category.color + '20' }]}>
@@ -76,7 +81,7 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({ category }) => {
           </Text>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 };
 

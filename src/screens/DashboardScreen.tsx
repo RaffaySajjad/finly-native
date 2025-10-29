@@ -418,6 +418,7 @@ const DashboardScreen: React.FC = () => {
                 <ExpenseCard
                   key={expense.id}
                   expense={expense}
+                  onPress={() => navigation.navigate('TransactionDetails', { expense })}
                   onLongPress={() => handleExpenseLongPress(expense)}
                 />
               ))

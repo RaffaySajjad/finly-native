@@ -12,6 +12,7 @@ import authReducer from './slices/authSlice';
 import expensesReducer from './slices/expensesSlice';
 import categoriesReducer from './slices/categoriesSlice';
 import insightsReducer from './slices/insightsSlice';
+import subscriptionReducer from './slices/subscriptionSlice';
 
 /**
  * Configure Redux store with all reducers
@@ -22,14 +23,15 @@ export const store = configureStore({
     expenses: expensesReducer,
     categories: categoriesReducer,
     insights: insightsReducer,
+    subscription: subscriptionReducer
   },
-  middleware: (getDefaultMiddleware) =>
+  middleware: getDefaultMiddleware =>
     getDefaultMiddleware({
       serializableCheck: {
         // Ignore these action types for serialization checks
-        ignoredActions: ['auth/login/fulfilled', 'auth/signup/fulfilled'],
-      },
-    }),
+        ignoredActions: ['auth/login/fulfilled', 'auth/signup/fulfilled']
+      }
+    })
 });
 
 // Infer the `RootState` and `AppDispatch` types from the store itself

@@ -25,6 +25,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 
 import { useTheme } from '../contexts/ThemeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
 import { ExpenseCard, BottomSheetBackground } from '../components';
 import { Expense, Category } from '../types';
@@ -39,6 +40,7 @@ type CategoryDetailsNavigationProp = StackNavigationProp<RootStackParamList, 'Ca
  */
 const CategoryDetailsScreen: React.FC = () => {
   const { theme } = useTheme();
+  const { formatCurrency, getCurrencySymbol } = useCurrency();
   const navigation = useNavigation<CategoryDetailsNavigationProp>();
   const route = useRoute<CategoryDetailsRouteProp>();
 
@@ -93,8 +95,8 @@ const CategoryDetailsScreen: React.FC = () => {
         setNewBudget(cat.budgetLimit?.toString() || '');
       }
 
-      // Filter expenses for this category
-      const categoryExpenses = expensesData.filter(e => e.category === categoryId && e.type === 'expense');
+      // Filter expenses for this category (all expenses are expenses now)
+      const categoryExpenses = expensesData.filter(e => e.category === categoryId);
       setExpenses(categoryExpenses);
     } catch (error) {
       console.error('Error loading category data:', error);
@@ -195,7 +197,7 @@ const CategoryDetailsScreen: React.FC = () => {
           <Text style={[styles.categoryName, { color: theme.text }]}>{category.name}</Text>
 
           <Text style={[styles.totalSpent, { color: categoryColor }]}>
-            ${category.totalSpent.toFixed(2)}
+            {formatCurrency(category.totalSpent)}
           </Text>
           <Text style={[styles.totalLabel, { color: theme.textSecondary }]}>Total Spent</Text>
 
@@ -207,7 +209,7 @@ const CategoryDetailsScreen: React.FC = () => {
                   Budget
                 </Text>
                 <Text style={[styles.budgetValue, { color: theme.text }]}>
-                  ${category.budgetLimit.toFixed(2)}
+                  {formatCurrency(category.budgetLimit)}
                 </Text>
               </View>
 
@@ -237,7 +239,7 @@ const CategoryDetailsScreen: React.FC = () => {
                     { color: remaining >= 0 ? theme.income : theme.expense },
                   ]}
                 >
-                  ${Math.abs(remaining).toFixed(2)} {remaining >= 0 ? 'remaining' : 'over'}
+                  {formatCurrency(Math.abs(remaining))} {remaining >= 0 ? 'remaining' : 'over'}
                 </Text>
               </View>
             </View>
@@ -289,7 +291,7 @@ const CategoryDetailsScreen: React.FC = () => {
               Monthly Budget Limit
             </Text>
             <View style={[styles.budgetInput, { backgroundColor: theme.background, borderColor: theme.border }]}>
-              <Text style={[styles.currencySymbol, { color: theme.text }]}>$</Text>
+              <Text style={[styles.currencySymbol, { color: theme.text }]}>{getCurrencySymbol()}</Text>
               <TextInput
                 style={[styles.budgetField, { color: theme.text }]}
                 placeholder="0.00"

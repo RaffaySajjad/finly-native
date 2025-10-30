@@ -8,6 +8,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
 interface StatCardProps {
@@ -34,6 +35,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   subtitle,
 }) => {
   const { theme } = useTheme();
+  const { formatCurrency } = useCurrency();
   const cardColor = color || theme.primary;
 
   return (
@@ -51,7 +53,7 @@ export const StatCard: React.FC<StatCardProps> = ({
       <View style={styles.content}>
         <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text>
         <Text style={[styles.amount, { color: theme.text }]}>
-          ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {formatCurrency(amount)}
         </Text>
         {subtitle && (
           <Text style={[styles.subtitle, { color: theme.textTertiary }]}>{subtitle}</Text>

@@ -24,33 +24,91 @@ import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { useAppDispatch, useAppSelector } from '../store';
 import { logout as logoutAction, updateProfile as updateProfileAction } from '../store/slices/authSlice';
+import { useSubscription } from '../hooks/useSubscription';
 import { BottomSheetBackground } from '../components';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../navigation/types';
+import {
+  getCurrencies,
+  getUserCurrency,
+  saveUserCurrency,
+  getLastUsedCurrency,
+  Currency,
+} from '../services/currencyService';
 
 /**
  * ProfileScreen - User settings and preferences
  */
 const ProfileScreen: React.FC = () => {
   const { theme, isDark, toggleTheme } = useTheme();
+  const { currency: currencyState, setCurrency: setCurrencyGlobal, showDecimals, setShowDecimals } = useCurrency();
   const dispatch = useAppDispatch();
   const { user, isLoading } = useAppSelector((state) => state.auth);
+  const { isPremium, subscription } = useSubscription();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
 
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [currency, setCurrency] = useState('USD');
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [lastUsedCurrency, setLastUsedCurrency] = useState<string | null>(null);
+  const [loadingCurrencies, setLoadingCurrencies] = useState(false);
+  const [budgetPeriod, setBudgetPeriod] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   const editProfileSheetRef = useRef<BottomSheet>(null);
   const currencySheetRef = useRef<BottomSheet>(null);
+  const budgetPeriodSheetRef = useRef<BottomSheet>(null);
+  const helpSheetRef = useRef<BottomSheet>(null);
+  const aboutSheetRef = useRef<BottomSheet>(null);
 
   useEffect(() => {
     if (user) {
       setEditName(user.name);
       setEditEmail(user.email);
     }
+    loadCurrency();
   }, [user]);
+
+  const loadCurrency = async () => {
+    try {
+      const savedCurrency = await getUserCurrency();
+      setCurrency(savedCurrency);
+      const lastUsed = await getLastUsedCurrency();
+      setLastUsedCurrency(lastUsed);
+    } catch (error) {
+      console.error('Error loading currency:', error);
+    }
+  };
+
+  const loadCurrencies = async () => {
+    setLoadingCurrencies(true);
+    try {
+      const currencyList = await getCurrencies();
+      const lastUsed = await getLastUsedCurrency();
+
+      // Sort currencies: last used at top, then alphabetical
+      if (lastUsed) {
+        const lastUsedIndex = currencyList.findIndex(c => c.code === lastUsed);
+        if (lastUsedIndex > 0) {
+          const [lastUsedCurrency] = currencyList.splice(lastUsedIndex, 1);
+          currencyList.unshift(lastUsedCurrency);
+        }
+      }
+
+      setCurrencies(currencyList);
+      setLastUsedCurrency(lastUsed);
+    } catch (error) {
+      console.error('Error loading currencies:', error);
+    } finally {
+      setLoadingCurrencies(false);
+    }
+  };
 
   const handleEditProfile = () => {
     if (Platform.OS === 'ios') {
@@ -77,12 +135,41 @@ const ProfileScreen: React.FC = () => {
     }
   };
 
-  const handleCurrencySelect = (curr: string) => {
+  const handleCurrencySelect = async (curr: string) => {
     setCurrency(curr);
+    await saveUserCurrency(curr);
+    await setCurrencyGlobal(curr); // Update global currency context
     if (Platform.OS === 'ios') {
       Haptics.selectionAsync();
     }
     currencySheetRef.current?.close();
+  };
+
+  const handleOpenCurrencySheet = () => {
+    loadCurrencies();
+    currencySheetRef.current?.expand();
+  };
+
+  const handleBudgetPeriodSelect = (period: 'weekly' | 'monthly' | 'yearly') => {
+    setBudgetPeriod(period);
+    if (Platform.OS === 'ios') {
+      Haptics.selectionAsync();
+    }
+    budgetPeriodSheetRef.current?.close();
+  };
+
+  const handleOpenHelp = () => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    helpSheetRef.current?.expand();
+  };
+
+  const handleOpenAbout = () => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    aboutSheetRef.current?.expand();
   };
 
   const handleLogout = () => {
@@ -209,8 +296,14 @@ const ProfileScreen: React.FC = () => {
           <SettingItem
             icon="currency-usd"
             title="Currency"
-            subtitle={`${currency} - ${currency === 'USD' ? 'US Dollar' : currency === 'EUR' ? 'Euro' : 'Pakistani Rupee'}`}
-            onPress={() => currencySheetRef.current?.expand()}
+            subtitle={`${currency} - ${currencies.find(c => c.code === currency)?.name || 'US Dollar'}`}
+            onPress={handleOpenCurrencySheet}
+          />
+          <SettingItem
+            icon="cash-multiple"
+            title="Income Management"
+            subtitle="Manage your income sources and auto-scheduling"
+            onPress={() => navigation.navigate('IncomeManagement')}
           />
           <SettingItem
             icon="bell-outline"
@@ -226,10 +319,77 @@ const ProfileScreen: React.FC = () => {
             }
           />
           <SettingItem
+            icon="decimal"
+            title="Show Decimals"
+            subtitle={showDecimals ? 'Decimal points enabled' : 'Whole numbers only'}
+            rightComponent={
+              <Switch
+                value={showDecimals}
+                onValueChange={setShowDecimals}
+                trackColor={{ false: theme.border, true: theme.primary + '60' }}
+                thumbColor={showDecimals ? theme.primary : theme.surface}
+              />
+            }
+          />
+          <SettingItem
             icon="calendar-month"
             title="Budget Period"
-            subtitle="Monthly"
-            onPress={() => {}}
+            subtitle={budgetPeriod.charAt(0).toUpperCase() + budgetPeriod.slice(1)}
+            onPress={() => budgetPeriodSheetRef.current?.expand()}
+          />
+        </View>
+
+        {/* Subscription Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>SUBSCRIPTION</Text>
+          <SettingItem
+            icon="crown"
+            title={isPremium ? 'Premium' : 'Free Plan'}
+            subtitle={
+              isPremium
+                ? subscription.trialEndDate
+                  ? `Trial ends ${new Date(subscription.trialEndDate).toLocaleDateString()}`
+                  : subscription.endDate
+                    ? `Renews ${new Date(subscription.endDate).toLocaleDateString()}`
+                    : 'Active'
+                : 'Upgrade to unlock Premium features'
+            }
+            onPress={() => navigation.navigate('Subscription')}
+            rightComponent={
+              isPremium ? (
+                <Icon name="check-circle" size={24} color={theme.success} />
+              ) : (
+                <Icon name="chevron-right" size={24} color={theme.textTertiary} />
+              )
+            }
+          />
+        </View>
+
+        {/* Support Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>SUPPORT</Text>
+          <SettingItem
+            icon="file-import"
+            title="Import Transactions"
+            subtitle="Import from Wallet by BudgetBakers CSV"
+            onPress={() => navigation.navigate('CSVImport')}
+          />
+          <SettingItem
+            icon="shield-check"
+            title="Privacy & Data"
+            subtitle="Export or delete your data"
+            onPress={() => navigation.navigate('PrivacySettings')}
+          />
+          <SettingItem
+            icon="help-circle-outline"
+            title="Help & Support"
+            onPress={handleOpenHelp}
+          />
+          <SettingItem
+            icon="information-outline"
+            title="About Finly"
+            subtitle="Version 1.0.0"
+            onPress={handleOpenAbout}
           />
         </View>
 
@@ -248,23 +408,7 @@ const ProfileScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Support Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>SUPPORT</Text>
-          <SettingItem
-            icon="help-circle-outline"
-            title="Help & Support"
-            onPress={() => {}}
-          />
-          <SettingItem
-            icon="information-outline"
-            title="About Finly"
-            subtitle="Version 1.0.0"
-            onPress={() => {}}
-          />
-        </View>
-
-        <View style={{ height: spacing.xl }} />
+        {/* <View style={{ height: spacing.xl }} /> */}
       </ScrollView>
 
       {/* Edit Profile Bottom Sheet */}
@@ -324,7 +468,7 @@ const ProfileScreen: React.FC = () => {
       <BottomSheet
         ref={currencySheetRef}
         index={-1}
-        snapPoints={['40%']}
+        snapPoints={['70%']}
         enablePanDownToClose
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
@@ -335,29 +479,223 @@ const ProfileScreen: React.FC = () => {
         >
           <Text style={[styles.sheetTitle, { color: theme.text }]}>Select Currency</Text>
 
-          {['USD', 'EUR', 'PKR'].map((curr) => (
+          {loadingCurrencies ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.primary} />
+            </View>
+          ) : (
+            <>
+              {lastUsedCurrency && lastUsedCurrency !== currency && (
+                <>
+                  <Text style={[styles.currencySectionTitle, { color: theme.textSecondary }]}>Recently Used</Text>
+                  {currencies
+                    .filter(c => c.code === lastUsedCurrency)
+                    .map((curr) => (
+                      <TouchableOpacity
+                        key={curr.code}
+                        style={[
+                          styles.currencyOption,
+                          {
+                            backgroundColor: currency === curr.code ? theme.primary + '20' : theme.card,
+                            borderColor: currency === curr.code ? theme.primary : theme.border,
+                          },
+                        ]}
+                        onPress={() => handleCurrencySelect(curr.code)}
+                      >
+                        <View style={styles.currencyInfo}>
+                          <View style={styles.currencyHeader}>
+                            <Text style={styles.currencyFlag}>{curr.flag}</Text>
+                            <Text style={[styles.currencyCode, { color: theme.text }]}>{curr.code}</Text>
+                          </View>
+                          <Text style={[styles.currencyName, { color: theme.textSecondary }]}>
+                            {curr.name}
+                          </Text>
+                        </View>
+                        {currency === curr.code && (
+                          <Icon name="check-circle" size={24} color={theme.primary} />
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  <Text style={[styles.currencySectionTitle, { color: theme.textSecondary, marginTop: spacing.md }]}>All Currencies</Text>
+                </>
+              )}
+              {currencies
+                .filter(c => !lastUsedCurrency || c.code !== lastUsedCurrency || c.code === currency)
+                .map((curr) => (
+                  <TouchableOpacity
+                    key={curr.code}
+                    style={[
+                      styles.currencyOption,
+                      {
+                        backgroundColor: currency === curr.code ? theme.primary + '20' : theme.card,
+                        borderColor: currency === curr.code ? theme.primary : theme.border,
+                      },
+                    ]}
+                    onPress={() => handleCurrencySelect(curr.code)}
+                  >
+                    <View style={styles.currencyInfo}>
+                      <View style={styles.currencyHeader}>
+                        <Text style={styles.currencyFlag}>{curr.flag}</Text>
+                        <Text style={[styles.currencyCode, { color: theme.text }]}>{curr.code}</Text>
+                      </View>
+                      <Text style={[styles.currencyName, { color: theme.textSecondary }]}>
+                        {curr.name}
+                      </Text>
+                    </View>
+                    {currency === curr.code && (
+                      <Icon name="check-circle" size={24} color={theme.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+            </>
+          )}
+        </BottomSheetScrollView>
+      </BottomSheet>
+
+      {/* Budget Period Selection Bottom Sheet */}
+      <BottomSheet
+        ref={budgetPeriodSheetRef}
+        index={-1}
+        snapPoints={['35%']}
+        enablePanDownToClose
+        backgroundComponent={BottomSheetBackground}
+        handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+      >
+        <BottomSheetScrollView
+          style={styles.bottomSheetContent}
+          contentContainerStyle={styles.bottomSheetContentContainer}
+        >
+          <Text style={[styles.sheetTitle, { color: theme.text }]}>Budget Period</Text>
+          <Text style={[styles.sheetSubtitle, { color: theme.textSecondary }]}>
+            Choose how often your budget resets
+          </Text>
+
+          {(['weekly', 'monthly', 'yearly'] as const).map((period) => (
             <TouchableOpacity
-              key={curr}
+              key={period}
               style={[
-                styles.currencyOption,
+                styles.budgetPeriodOption,
                 {
-                  backgroundColor: currency === curr ? theme.primary + '20' : theme.card,
-                  borderColor: currency === curr ? theme.primary : theme.border,
+                  backgroundColor: budgetPeriod === period ? theme.primary + '20' : theme.card,
+                  borderColor: budgetPeriod === period ? theme.primary : theme.border,
                 },
               ]}
-              onPress={() => handleCurrencySelect(curr)}
+              onPress={() => handleBudgetPeriodSelect(period)}
             >
               <View style={styles.currencyInfo}>
-                <Text style={[styles.currencyCode, { color: theme.text }]}>{curr}</Text>
+                <Text style={[styles.currencyCode, { color: theme.text }]}>
+                  {period.charAt(0).toUpperCase() + period.slice(1)}
+                </Text>
                 <Text style={[styles.currencyName, { color: theme.textSecondary }]}>
-                  {curr === 'USD' ? 'US Dollar' : curr === 'EUR' ? 'Euro' : 'Pakistani Rupee'}
+                  {period === 'weekly' ? 'Budget resets every week' :
+                    period === 'monthly' ? 'Budget resets every month' :
+                      'Budget resets every year'}
                 </Text>
               </View>
-              {currency === curr && (
+              {budgetPeriod === period && (
                 <Icon name="check-circle" size={24} color={theme.primary} />
               )}
             </TouchableOpacity>
           ))}
+        </BottomSheetScrollView>
+      </BottomSheet>
+
+      {/* Help & Support Bottom Sheet */}
+      <BottomSheet
+        ref={helpSheetRef}
+        index={-1}
+        snapPoints={['50%']}
+        enablePanDownToClose
+        backgroundComponent={BottomSheetBackground}
+        handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+      >
+        <BottomSheetScrollView
+          style={styles.bottomSheetContent}
+          contentContainerStyle={styles.bottomSheetContentContainer}
+        >
+          <Text style={[styles.sheetTitle, { color: theme.text }]}>Help & Support</Text>
+
+          <View style={styles.helpSection}>
+            <Text style={[styles.helpSectionTitle, { color: theme.text }]}>Frequently Asked Questions</Text>
+            <Text style={[styles.helpText, { color: theme.textSecondary }]}>
+              • How do I add an expense?{'\n'}
+              Tap the + button on the Dashboard and choose your preferred method.
+            </Text>
+            <Text style={[styles.helpText, { color: theme.textSecondary }]}>
+              • How do I set a budget?{'\n'}
+              Go to Categories, select a category, and set your monthly budget limit.
+            </Text>
+            <Text style={[styles.helpText, { color: theme.textSecondary }]}>
+              • Can I export my data?{'\n'}
+              Yes! Go to Privacy & Data to export your transaction history.
+            </Text>
+          </View>
+
+          <View style={styles.helpSection}>
+            <Text style={[styles.helpSectionTitle, { color: theme.text }]}>Contact Support</Text>
+            <TouchableOpacity
+              style={[styles.helpContactButton, { backgroundColor: theme.primary + '20', borderColor: theme.primary }]}
+              onPress={() => {
+                Alert.alert('Contact Support', 'Email: support@finly.app\n\nWe typically respond within 24 hours.');
+              }}
+            >
+              <Icon name="email-outline" size={20} color={theme.primary} />
+              <Text style={[styles.helpContactText, { color: theme.primary }]}>Email Support</Text>
+            </TouchableOpacity>
+          </View>
+        </BottomSheetScrollView>
+      </BottomSheet>
+
+      {/* About Finly Bottom Sheet */}
+      <BottomSheet
+        ref={aboutSheetRef}
+        index={-1}
+        snapPoints={['45%']}
+        enablePanDownToClose
+        backgroundComponent={BottomSheetBackground}
+        handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+      >
+        <BottomSheetScrollView
+          style={styles.bottomSheetContent}
+          contentContainerStyle={styles.bottomSheetContentContainer}
+        >
+          <View style={styles.aboutHeader}>
+            <View style={[styles.aboutIcon, { backgroundColor: theme.primary + '20' }]}>
+              <Icon name="wallet" size={48} color={theme.primary} />
+            </View>
+            <Text style={[styles.aboutTitle, { color: theme.text }]}>Finly</Text>
+            <Text style={[styles.aboutVersion, { color: theme.textSecondary }]}>Version 1.0.0</Text>
+          </View>
+
+          <Text style={[styles.aboutDescription, { color: theme.textSecondary }]}>
+            Finly is your personal expense tracking companion. Track your spending, manage budgets, and gain insights into your financial habits—all while keeping your data private and secure.
+          </Text>
+
+          <View style={styles.aboutLinks}>
+            <TouchableOpacity
+              style={[styles.aboutLink, { borderColor: theme.border }]}
+              onPress={() => {
+                Alert.alert('Privacy Policy', 'Our privacy policy is available at finly.app/privacy');
+              }}
+            >
+              <Icon name="shield-check-outline" size={20} color={theme.textSecondary} />
+              <Text style={[styles.aboutLinkText, { color: theme.textSecondary }]}>Privacy Policy</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.aboutLink, { borderColor: theme.border }]}
+              onPress={() => {
+                Alert.alert('Terms of Service', 'Our terms of service are available at finly.app/terms');
+              }}
+            >
+              <Icon name="file-document-outline" size={20} color={theme.textSecondary} />
+              <Text style={[styles.aboutLinkText, { color: theme.textSecondary }]}>Terms of Service</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={[styles.aboutCopyright, { color: theme.textTertiary }]}>
+            © 2024 Finly. All rights reserved.
+          </Text>
         </BottomSheetScrollView>
       </BottomSheet>
     </SafeAreaView>
@@ -532,6 +870,118 @@ const styles = StyleSheet.create({
   },
   currencyName: {
     ...typography.bodySmall,
+  },
+  currencyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: 2,
+  },
+  currencyFlag: {
+    fontSize: 24,
+  },
+  currencySectionTitle: {
+    ...typography.labelMedium,
+    fontWeight: '600',
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  currencyBadge: {
+    ...typography.caption,
+    fontSize: 10,
+    marginLeft: spacing.xs,
+    fontStyle: 'italic',
+  },
+  loadingContainer: {
+    padding: spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetSubtitle: {
+    ...typography.bodySmall,
+    marginBottom: spacing.lg,
+  },
+  budgetPeriodOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+  },
+  helpSection: {
+    marginBottom: spacing.xl,
+  },
+  helpSectionTitle: {
+    ...typography.titleMedium,
+    fontWeight: '600',
+    marginBottom: spacing.md,
+  },
+  helpText: {
+    ...typography.bodySmall,
+    marginBottom: spacing.md,
+    lineHeight: 20,
+  },
+  helpContactButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+    gap: spacing.sm,
+  },
+  helpContactText: {
+    ...typography.labelMedium,
+    fontWeight: '600',
+  },
+  aboutHeader: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  aboutIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  aboutTitle: {
+    ...typography.headlineMedium,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  aboutVersion: {
+    ...typography.bodySmall,
+  },
+  aboutDescription: {
+    ...typography.bodyMedium,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    lineHeight: 22,
+  },
+  aboutLinks: {
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  aboutLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+  },
+  aboutLinkText: {
+    ...typography.bodyMedium,
+    flex: 1,
+  },
+  aboutCopyright: {
+    ...typography.caption,
+    textAlign: 'center',
+    marginTop: spacing.md,
   },
 });
 

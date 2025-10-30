@@ -40,6 +40,15 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
   const { theme } = useTheme();
   const bottomSheetRef = useRef<BottomSheet>(null);
 
+  // Auto-expand when expense is set
+  React.useEffect(() => {
+    if (expense) {
+      bottomSheetRef.current?.expand();
+    } else {
+      bottomSheetRef.current?.close();
+    }
+  }, [expense]);
+
   const handleEdit = useCallback(() => {
     if (Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -90,7 +99,7 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
   return (
     <BottomSheet
       ref={bottomSheetRef}
-      index={0}
+      index={-1}
       snapPoints={['30%']}
       enablePanDownToClose
       backgroundComponent={BottomSheetBackground}

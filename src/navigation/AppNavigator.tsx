@@ -4,7 +4,7 @@
  * Implements smooth transitions, premium navigation UI, and authentication flow
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Platform, ActivityIndicator, View } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createNativeBottomTabNavigator } from '@bottom-tabs/react-navigation';
@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppDispatch, useAppSelector } from '../store';
 import { checkAuthStatus } from '../store/slices/authSlice';
+import { checkSubscriptionStatus } from '../store/slices/subscriptionSlice';
 import { RootStackParamList, MainTabsParamList, AuthStackParamList } from './types';
 
 // Import screens
@@ -27,9 +28,25 @@ import AddExpenseScreen from '../screens/AddExpenseScreen';
 import ReceiptUploadScreen from '../screens/ReceiptUploadScreen';
 import TransactionDetailsScreen from '../screens/TransactionDetailsScreen';
 import CategoryDetailsScreen from '../screens/CategoryDetailsScreen';
+import SubscriptionScreen from '../screens/SubscriptionScreen';
+import VoiceTransactionScreen from '../screens/VoiceTransactionScreen';
+import BulkTransactionScreen from '../screens/BulkTransactionScreen';
+import PrivacySettingsScreen from '../screens/PrivacySettingsScreen';
+import ReceiptGalleryScreen from '../screens/ReceiptGalleryScreen';
+import AnalyticsScreen from '../screens/AnalyticsScreen';
+import BalanceHistoryScreen from '../screens/BalanceHistoryScreen';
+import TransactionsListScreen from '../screens/TransactionsListScreen';
+import CategoryOnboardingScreen from '../screens/CategoryOnboardingScreen';
+import IncomeManagementScreen from '../screens/IncomeManagementScreen';
+import CSVImportScreen from '../screens/CSVImportScreen';
+import IncomeSetupScreen, { hasCompletedIncomeSetup } from '../screens/IncomeSetupScreen';
+import OnboardingScreen, { hasCompletedOnboarding } from '../screens/OnboardingScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const IMPORT_SHOWN_KEY = '@finly_import_shown';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
@@ -205,18 +222,83 @@ const MainTabs: React.FC = () => {
  * AppNavigator component - Root navigation structure
  * Manages authentication state and navigation flow
  */
-export const AppNavigator: React.FC = () => {
+const AppNavigator: React.FC = () => {
   const { theme, isDark } = useTheme();
   const dispatch = useAppDispatch();
   const { isAuthenticated, isLoading } = useAppSelector((state) => state.auth);
+  const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
+  const [incomeSetupComplete, setIncomeSetupComplete] = useState<boolean | null>(null);
+  const [importShown, setImportShown] = useState<boolean | null>(null);
+
+  // Check onboarding status
+  const checkOnboarding = useCallback(async () => {
+    const completed = await hasCompletedOnboarding();
+    setOnboardingComplete(completed);
+  }, []);
+
+  // Check income setup status
+  const checkIncomeSetup = useCallback(async () => {
+    const completed = await hasCompletedIncomeSetup();
+    setIncomeSetupComplete(completed);
+  }, []);
+
+  // Check if import modal has been shown
+  const checkImportShown = useCallback(async () => {
+    try {
+      const shown = await AsyncStorage.getItem(IMPORT_SHOWN_KEY);
+      setImportShown(shown === 'true');
+    } catch {
+      setImportShown(false);
+    }
+  }, []);
 
   // Check auth status on mount
   useEffect(() => {
     dispatch(checkAuthStatus());
-  }, [dispatch]);
+    dispatch(checkSubscriptionStatus());
+    checkOnboarding();
+  }, [dispatch, checkOnboarding]);
 
-  // Show loading screen while checking auth state
-  if (isLoading) {
+  // Check income setup after onboarding completes
+  useEffect(() => {
+    if (onboardingComplete) {
+      checkIncomeSetup();
+    }
+  }, [onboardingComplete, checkIncomeSetup]);
+
+  // Check import shown status after income setup completes
+  useEffect(() => {
+    if (incomeSetupComplete) {
+      checkImportShown();
+    }
+  }, [incomeSetupComplete, checkImportShown]);
+
+  // Re-check onboarding and income setup periodically to catch completion
+  useEffect(() => {
+    // Check immediately first
+    if (!onboardingComplete) {
+      checkOnboarding();
+    } else if (!incomeSetupComplete) {
+      checkIncomeSetup();
+    } else if (incomeSetupComplete && importShown === null) {
+      checkImportShown();
+    }
+
+    const interval = setInterval(() => {
+      if (!onboardingComplete) {
+        checkOnboarding();
+      } else if (!incomeSetupComplete) {
+        checkIncomeSetup();
+      } else if (incomeSetupComplete && importShown === null) {
+        checkImportShown();
+      }
+    }, 200); // Check every 200ms for faster response
+
+    return () => clearInterval(interval);
+  }, [checkOnboarding, checkIncomeSetup, checkImportShown, onboardingComplete, incomeSetupComplete, importShown]);
+
+  // Show loading screen while checking auth state and onboarding
+  if (isLoading || onboardingComplete === null || (onboardingComplete && incomeSetupComplete === null) || (incomeSetupComplete && importShown === null)) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
         <ActivityIndicator size="large" color={theme.primary} />
@@ -282,8 +364,45 @@ export const AppNavigator: React.FC = () => {
             component={AuthNavigator}
             options={{ headerShown: false }}
           />
+        ) : !onboardingComplete ? (
+          // Onboarding - shown for first-time users
+          <>
+            <Stack.Screen
+              name="Onboarding"
+              component={OnboardingScreen}
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="CSVImport"
+              component={CSVImportScreen}
+              options={{
+                title: 'Import Transactions',
+                presentation: 'modal',
+                headerShown: false,
+              }}
+            />
+          </>
+        ) : !incomeSetupComplete ? (
+          // Income Setup - shown after onboarding for first-time users
+          <Stack.Screen
+            name="IncomeSetup"
+            component={IncomeSetupScreen}
+            options={{ headerShown: false, gestureEnabled: false }}
+          />
+        ) : !importShown ? (
+          // Import Modal - shown after income setup completes (first time only)
+          <Stack.Screen
+            name="CSVImport"
+            component={(props: any) => <CSVImportScreen {...props} route={{ ...props.route, params: { firstTime: true } }} />}
+            options={{
+              title: 'Import Transactions',
+              presentation: 'modal',
+              headerShown: false,
+              gestureEnabled: false,
+            }}
+          />
         ) : (
-          // Main App Stack - shown when user is authenticated
+                  // Main App Stack - shown when user is authenticated, onboarded, and income setup is complete
           <>
               <Stack.Screen
                 name="MainTabs"
@@ -326,6 +445,105 @@ export const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             />
+                    <Stack.Screen
+                      name="Subscription"
+                      component={SubscriptionScreen}
+                      options={{
+                        title: 'Subscription',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="VoiceTransaction"
+                      component={VoiceTransactionScreen}
+                      options={{
+                        title: 'AI Transaction Entry',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="BulkTransaction"
+                      component={BulkTransactionScreen}
+                      options={{
+                        title: 'Bulk Transaction Entry',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="PrivacySettings"
+                      component={PrivacySettingsScreen}
+                      options={{
+                        title: 'Privacy & Data',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="ReceiptGallery"
+                      component={ReceiptGalleryScreen}
+                      options={{
+                        title: 'Receipt Gallery',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="Analytics"
+                      component={AnalyticsScreen}
+                      options={{
+                        title: 'Analytics',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="BalanceHistory"
+                      component={BalanceHistoryScreen}
+                      options={{
+                        title: 'Balance History',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="TransactionsList"
+                      component={TransactionsListScreen}
+                      options={{
+                        title: 'All Transactions',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="CategoryOnboarding"
+                      component={CategoryOnboardingScreen}
+                      options={{
+                        title: 'Set Up Categories',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="IncomeManagement"
+                      component={IncomeManagementScreen}
+                      options={{
+                        title: 'Income Management',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="CSVImport"
+                      component={CSVImportScreen}
+                      options={{
+                        title: 'Import Transactions',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
           </>
         )}
       </Stack.Navigator>

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "finly",
-    "slug": "finly",
+    "name": "Finly",
+    "slug": "Finly",
     "version": "1.0.0",
     "android": {
       "package": "com.raffay.finly"

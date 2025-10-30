@@ -9,6 +9,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { Category } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
 interface CategoryCardProps {
@@ -23,6 +24,7 @@ interface CategoryCardProps {
  */
 export const CategoryCard: React.FC<CategoryCardProps> = ({ category, onPress }) => {
   const { theme } = useTheme();
+  const { formatCurrency } = useCurrency();
 
   const percentage = category.budgetLimit
     ? Math.min((category.totalSpent / category.budgetLimit) * 100, 100)
@@ -48,10 +50,10 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({ category, onPress })
         <View style={styles.headerText}>
           <Text style={[styles.categoryName, { color: theme.text }]}>{category.name}</Text>
           <Text style={[styles.spent, { color: theme.textSecondary }]}>
-            ${category.totalSpent.toFixed(2)}
+            {formatCurrency(category.totalSpent)}
             {category.budgetLimit && (
               <Text style={{ color: theme.textTertiary }}>
-                {' '}/ ${category.budgetLimit.toFixed(2)}
+                {' '}/ {formatCurrency(category.budgetLimit)}
               </Text>
             )}
           </Text>

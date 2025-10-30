@@ -6,6 +6,7 @@
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiService } from '../../services/api';
 
 const AUTH_TOKEN_KEY = '@finly_user_token';
 const USER_DATA_KEY = '@finly_user_data';
@@ -72,13 +73,18 @@ export const login = createAsyncThunk(
       const mockToken = `mock_token_${Date.now()}`;
       const mockUser: User = {
         id: Date.now().toString(),
-        name: email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1),
-        email,
+        name:
+          email.split('@')[0].charAt(0).toUpperCase() +
+          email.split('@')[0].slice(1),
+        email
       };
 
       // Save to AsyncStorage
       await AsyncStorage.setItem(AUTH_TOKEN_KEY, mockToken);
       await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(mockUser));
+
+      // Initialize user data (empty for new user)
+      await apiService.initializeUser(mockUser.id);
 
       return { token: mockToken, user: mockUser };
     } catch (error) {

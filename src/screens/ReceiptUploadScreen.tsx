@@ -25,11 +25,14 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 import { useTheme } from '../contexts/ThemeContext';
+import { useSubscription } from '../hooks/useSubscription';
+import { UpgradePrompt, PremiumBadge } from '../components';
 import { apiService } from '../services/api';
+import receiptService from '../services/receiptService';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
-type ReceiptUploadNavigationProp = StackNavigationProp<RootStackParamList, 'AddExpense'>;
+type ReceiptUploadNavigationProp = StackNavigationProp<RootStackParamList, 'ReceiptUpload'>;
 
 /**
  * ReceiptUploadScreen - Scan and process receipts
@@ -37,27 +40,18 @@ type ReceiptUploadNavigationProp = StackNavigationProp<RootStackParamList, 'AddE
 const ReceiptUploadScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<ReceiptUploadNavigationProp>();
+  const { isPremium, requiresUpgrade, trackUsage, getRemainingUsage } = useSubscription();
 
   const [image, setImage] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
   // Animation values
   const scanLinePosition = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    // Request camera permissions
-    (async () => {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Camera Permission',
-          'Sorry, we need camera permissions to scan receipts!'
-        );
-      }
-    })();
-  }, []);
+  // Removed automatic permission request - permissions will be requested on demand
 
   useEffect(() => {
     if (scanning) {
@@ -110,6 +104,16 @@ const ReceiptUploadScreen: React.FC = () => {
 
   const pickImageFromGallery = async () => {
     try {
+      // Request media library permissions only when user chooses gallery
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Sorry, we need access to your photo library to select receipts!'
+        );
+        return;
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
@@ -131,6 +135,16 @@ const ReceiptUploadScreen: React.FC = () => {
 
   const captureImage = async () => {
     try {
+      // Request camera permissions only when user chooses to take photo
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Sorry, we need camera permissions to take photos of receipts!'
+        );
+        return;
+      }
+
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
         aspect: [4, 3],
@@ -155,6 +169,12 @@ const ReceiptUploadScreen: React.FC = () => {
       return;
     }
 
+    // Check premium access
+    if (requiresUpgrade('receiptScanning')) {
+      setShowUpgradePrompt(true);
+      return;
+    }
+
     setScanning(true);
     if (Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -164,6 +184,22 @@ const ReceiptUploadScreen: React.FC = () => {
       // Simulate OCR extraction
       const extractedData = await apiService.extractReceiptData(image);
 
+      // Track usage for free tier
+      trackUsage('receiptScanning');
+
+      // Save receipt to gallery (premium feature)
+      if (isPremium) {
+        await receiptService.saveReceipt({
+          imageUri: image,
+          extractedData: {
+            merchant: extractedData.description.split(' - ')[0] || extractedData.description,
+            date: new Date().toISOString(),
+            total: extractedData.amount,
+          },
+          category: extractedData.category,
+        });
+      }
+
       // Success haptic
       if (Platform.OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -172,7 +208,6 @@ const ReceiptUploadScreen: React.FC = () => {
       setScanning(false);
 
       // Navigate to Add Expense screen with pre-filled data
-      // Note: extractedData doesn't include 'id', so this will create a new expense
       navigation.navigate('AddExpense', {
         expense: extractedData,
       });
@@ -198,7 +233,15 @@ const ReceiptUploadScreen: React.FC = () => {
           <Icon name="arrow-left" size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Scan Receipt</Text>
-        <View style={{ width: 40 }} />
+        {isPremium && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ReceiptGallery')}
+            style={styles.galleryButton}
+          >
+            <Icon name="image-multiple" size={24} color={theme.primary} />
+          </TouchableOpacity>
+        )}
+        {!isPremium && <View style={{ width: 40 }} />}
       </View>
 
       <View style={styles.content}>
@@ -328,6 +371,18 @@ const ReceiptUploadScreen: React.FC = () => {
           </Animated.View>
         )}
       </View>
+
+      {/* Upgrade Prompt */}
+      <UpgradePrompt
+        visible={showUpgradePrompt}
+        onClose={() => setShowUpgradePrompt(false)}
+        feature="Receipt Scanning"
+        message={
+          !isPremium
+            ? `You've used ${Math.max(0, 3 - getRemainingUsage('receiptScanning'))} of 3 free scans this month. Upgrade to Premium for unlimited receipt scanning.`
+            : undefined
+        }
+      />
     </SafeAreaView>
   );
 };
@@ -352,6 +407,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     ...typography.titleLarge,
     fontWeight: '600',
+  },
+  galleryButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     flex: 1,

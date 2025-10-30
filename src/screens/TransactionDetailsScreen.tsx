@@ -4,7 +4,7 @@
  * Features: Elegant card display, haptic feedback, smooth animations
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Alert,
   Animated,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -21,7 +22,10 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 import { useTheme } from '../contexts/ThemeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
+import tagsService from '../services/tagsService';
+import { PaymentMethod, Tag } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { RootStackParamList } from '../navigation/types';
 
@@ -33,10 +37,28 @@ type TransactionDetailsNavigationProp = StackNavigationProp<RootStackParamList, 
  */
 const TransactionDetailsScreen: React.FC = () => {
   const { theme } = useTheme();
+  const { formatCurrency } = useCurrency();
   const navigation = useNavigation<TransactionDetailsNavigationProp>();
   const route = useRoute<TransactionDetailsRouteProp>();
 
   const { expense } = route.params;
+  const [tags, setTags] = useState<Tag[]>([]);
+
+  // Load tags if expense has tags
+  useEffect(() => {
+    const loadTags = async () => {
+      if (expense.tags && expense.tags.length > 0) {
+        try {
+          const allTags = await tagsService.getTags();
+          const expenseTags = allTags.filter(t => expense.tags?.includes(t.id));
+          setTags(expenseTags);
+        } catch (error) {
+          console.error('Error loading tags:', error);
+        }
+      }
+    };
+    loadTags();
+  }, [expense.tags]);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -57,6 +79,24 @@ const TransactionDetailsScreen: React.FC = () => {
       }),
     ]).start();
   }, []);
+
+  const getPaymentMethodName = (method?: PaymentMethod): string => {
+    if (!method) return 'Not specified';
+    return method.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  const getPaymentMethodIcon = (method?: PaymentMethod): string => {
+    const icons: Record<PaymentMethod, string> = {
+      credit_card: 'credit-card',
+      debit_card: 'card',
+      cash: 'cash',
+      check: 'receipt',
+      bank_transfer: 'bank-transfer',
+      digital_wallet: 'wallet',
+      other: 'dots-horizontal',
+    };
+    return method ? icons[method] : 'credit-card-outline';
+  };
 
   const getCategoryIcon = (category: string): string => {
     const icons: Record<string, string> = {
@@ -121,7 +161,6 @@ const TransactionDetailsScreen: React.FC = () => {
   };
 
   const categoryColor = theme.categories[expense.category as keyof typeof theme.categories] || theme.primary;
-  const isExpense = expense.type === 'expense';
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
@@ -138,7 +177,7 @@ const TransactionDetailsScreen: React.FC = () => {
       </View>
 
       {/* Content */}
-      <View style={styles.content}>
+      <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Animated.View
           style={[
             styles.card,
@@ -156,10 +195,10 @@ const TransactionDetailsScreen: React.FC = () => {
           <Text
             style={[
               styles.amount,
-              { color: isExpense ? theme.expense : theme.income },
+              { color: theme.expense },
             ]}
           >
-            {isExpense ? '-' : '+'}${expense.amount.toFixed(2)}
+            -{formatCurrency(expense.amount)}
           </Text>
 
           {/* Description */}
@@ -185,23 +224,56 @@ const TransactionDetailsScreen: React.FC = () => {
               <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Type</Text>
               <View style={styles.detailValueRow}>
                 <Icon
-                  name={isExpense ? 'arrow-up' : 'arrow-down'}
+                  name="arrow-up"
                   size={16}
-                  color={isExpense ? theme.expense : theme.income}
+                  color={theme.expense}
                 />
                 <Text style={[styles.detailValue, { color: theme.text }]}>
-                  {expense.type.charAt(0).toUpperCase() + expense.type.slice(1)}
+                  Expense
+                </Text>
+              </View>
+            </View>
+
+            {/* Payment Method */}
+            <View style={styles.detailItem}>
+              <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Payment Method</Text>
+              <View style={styles.detailValueRow}>
+                <Icon
+                  name={getPaymentMethodIcon(expense.paymentMethod) as any}
+                  size={16}
+                  color={theme.textSecondary}
+                />
+                <Text style={[styles.detailValue, { color: theme.text }]}>
+                  {getPaymentMethodName(expense.paymentMethod)}
                 </Text>
               </View>
             </View>
 
             {/* Date */}
-            <View style={[styles.detailItem, styles.detailItemFull]}>
+            <View style={styles.detailItem}>
               <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Date</Text>
               <Text style={[styles.detailValue, { color: theme.text }]}>
                 {formatDate(expense.date)}
               </Text>
             </View>
+
+            {/* Tags */}
+            {tags.length > 0 && (
+              <View style={styles.detailItemFull}>
+                <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Tags</Text>
+                <View style={styles.tagsContainer}>
+                  {tags.map((tag) => (
+                    <View
+                      key={tag.id}
+                      style={[styles.tagChip, { backgroundColor: tag.color + '20', borderColor: tag.color }]}
+                    >
+                      <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
+                      <Text style={[styles.tagChipText, { color: tag.color }]}>{tag.name}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
             {/* ID */}
             <View style={[styles.detailItem, styles.detailItemFull]}>
@@ -241,7 +313,7 @@ const TransactionDetailsScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         </Animated.View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -267,10 +339,8 @@ const styles = StyleSheet.create({
     ...typography.titleLarge,
     fontWeight: '600',
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     padding: spacing.lg,
-    justifyContent: 'center',
   },
   card: {
     borderRadius: borderRadius.xl,
@@ -328,6 +398,30 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    gap: spacing.xs,
+  },
+  tagDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  tagChipText: {
+    ...typography.labelSmall,
+    fontWeight: '600',
   },
   actionButtons: {
     width: '100%',

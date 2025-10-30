@@ -21,6 +21,9 @@ import { LineChart, BarChart } from 'react-native-chart-kit';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { useTheme } from '../contexts/ThemeContext';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../navigation/types';
 import { apiService } from '../services/api';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
@@ -38,6 +41,7 @@ interface TrendsData {
  */
 const TrendsScreen: React.FC = () => {
   const { theme } = useTheme();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const [loading, setLoading] = useState(true);
   const [trendsData, setTrendsData] = useState<TrendsData | null>(null);
 

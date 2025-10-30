@@ -4,12 +4,14 @@
  * Features smooth press animation and long press for edit/delete
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { Expense } from '../types';
+import { Expense, PaymentMethod } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
+import tagsService from '../services/tagsService';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
 interface ExpenseCardProps {
@@ -26,6 +28,24 @@ interface ExpenseCardProps {
  */
 export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onPress, onLongPress }) => {
   const { theme } = useTheme();
+  const { formatCurrency } = useCurrency();
+  const [tags, setTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
+
+  // Load tags if expense has tags
+  useEffect(() => {
+    const loadTags = async () => {
+      if (expense.tags && expense.tags.length > 0) {
+        try {
+          const allTags = await tagsService.getTags();
+          const expenseTags = allTags.filter(t => expense.tags?.includes(t.id));
+          setTags(expenseTags);
+        } catch (error) {
+          console.error('Error loading tags:', error);
+        }
+      }
+    };
+    loadTags();
+  }, [expense.tags]);
 
   const handleLongPress = () => {
     // Haptic feedback on iOS
@@ -48,6 +68,19 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onPress, onLo
     return icons[category] || 'cash';
   };
 
+  const getPaymentMethodIcon = (method?: PaymentMethod): string => {
+    const icons: Record<PaymentMethod, string> = {
+      credit_card: 'credit-card',
+      debit_card: 'card',
+      cash: 'cash',
+      check: 'receipt',
+      bank_transfer: 'bank-transfer',
+      digital_wallet: 'wallet',
+      other: 'dots-horizontal',
+    };
+    return method ? icons[method] : 'credit-card-outline';
+  };
+
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     const today = new Date();
@@ -64,7 +97,6 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onPress, onLo
   };
 
   const categoryColor = theme.categories[expense.category as keyof typeof theme.categories] || theme.primary;
-  const isExpense = expense.type === 'expense';
 
   return (
     <TouchableOpacity
@@ -84,17 +116,48 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onPress, onLo
 
       <View style={styles.contentContainer}>
         <Text style={[styles.description, { color: theme.text }]}>{expense.description}</Text>
-        <Text style={[styles.date, { color: theme.textSecondary }]}>{formatDate(expense.date)}</Text>
+        <View style={styles.metadataRow}>
+          <Text style={[styles.date, { color: theme.textSecondary }]}>{formatDate(expense.date)}</Text>
+          {expense.paymentMethod && (
+            <>
+              <Text style={[styles.metadataSeparator, { color: theme.textTertiary }]}>•</Text>
+              <View style={styles.paymentMethodBadge}>
+                <Icon name={getPaymentMethodIcon(expense.paymentMethod) as any} size={12} color={theme.textTertiary} />
+                <Text style={[styles.paymentMethodText, { color: theme.textTertiary }]}>
+                  {expense.paymentMethod.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </Text>
+              </View>
+            </>
+          )}
+        </View>
+        {tags.length > 0 && (
+          <View style={styles.tagsContainer}>
+            {tags.slice(0, 2).map((tag) => (
+              <View
+                key={tag.id}
+                style={[styles.tagBadge, { backgroundColor: tag.color + '15' }]}
+              >
+                <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
+                <Text style={[styles.tagBadgeText, { color: tag.color }]}>{tag.name}</Text>
+              </View>
+            ))}
+            {tags.length > 2 && (
+              <Text style={[styles.tagMoreText, { color: theme.textTertiary }]}>
+                +{tags.length - 2}
+              </Text>
+            )}
+          </View>
+        )}
       </View>
 
       <View style={styles.amountContainer}>
         <Text
           style={[
             styles.amount,
-            { color: isExpense ? theme.expense : theme.income },
+            { color: theme.expense },
           ]}
         >
-          {isExpense ? '-' : '+'}${expense.amount.toFixed(2)}
+          -{formatCurrency(expense.amount)}
         </Text>
       </View>
     </TouchableOpacity>
@@ -124,10 +187,57 @@ const styles = StyleSheet.create({
   },
   description: {
     ...typography.titleMedium,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   date: {
     ...typography.bodySmall,
+  },
+  metadataRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: 2,
+  },
+  metadataSeparator: {
+    fontSize: 10,
+  },
+  paymentMethodBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  paymentMethodText: {
+    ...typography.caption,
+    fontSize: 10,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  tagBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    gap: 4,
+  },
+  tagDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  tagBadgeText: {
+    ...typography.caption,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  tagMoreText: {
+    ...typography.caption,
+    fontSize: 10,
   },
   amountContainer: {
     alignItems: 'flex-end',

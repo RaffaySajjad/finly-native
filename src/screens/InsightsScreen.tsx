@@ -12,22 +12,30 @@ import {
   ScrollView,
   RefreshControl,
   StatusBar,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { InsightCard } from '../components';
+import { useSubscription } from '../hooks/useSubscription';
+import { InsightCard, PremiumBadge, UpgradePrompt } from '../components';
 import { apiService } from '../services/api';
 import { Insight } from '../types';
 import { typography, spacing } from '../theme';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../navigation/types';
 
 /**
  * InsightsScreen - Shows AI-powered financial insights
  */
 const InsightsScreen: React.FC = () => {
   const { theme } = useTheme();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+  const { isPremium, getRemainingUsage, requiresUpgrade, trackUsage } = useSubscription();
   const [insights, setInsights] = useState<Insight[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
   useEffect(() => {
     loadInsights();
@@ -37,9 +45,21 @@ const InsightsScreen: React.FC = () => {
    * Loads insights from API
    */
   const loadInsights = async (): Promise<void> => {
+    // Check if user has access to insights
+    if (requiresUpgrade('advancedInsights')) {
+      setShowUpgradePrompt(true);
+      setRefreshing(false);
+      return;
+    }
+
     try {
       const data = await apiService.getInsights();
       setInsights(data);
+
+      // Track usage for free tier
+      if (!isPremium) {
+        trackUsage('advancedInsights');
+      }
     } catch (error) {
       console.error('Error loading insights:', error);
     } finally {
@@ -61,11 +81,25 @@ const InsightsScreen: React.FC = () => {
       
       {/* Header */}
       <View style={styles.header}>
-        <Icon name="brain" size={32} color={theme.primary} />
-        <Text style={[styles.title, { color: theme.text }]}>AI Insights</Text>
-        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Personalized recommendations to help you save
-        </Text>
+        <View style={styles.headerContent}>
+          <Icon name="brain" size={32} color={theme.primary} />
+          <View style={styles.headerText}>
+            <Text style={[styles.title, { color: theme.text }]}>AI Insights</Text>
+            {!isPremium && (
+              <Text style={[styles.usageText, { color: theme.textSecondary }]}>
+                {getRemainingUsage('advancedInsights')} insights remaining this week
+              </Text>
+            )}
+          </View>
+        </View>
+        {!isPremium && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Subscription')}
+            style={styles.upgradeButton}
+          >
+            <PremiumBadge size="small" />
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView
@@ -95,6 +129,18 @@ const InsightsScreen: React.FC = () => {
 
         <View style={{ height: spacing.xl }} />
       </ScrollView>
+
+      {/* Upgrade Prompt */}
+      <UpgradePrompt
+        visible={showUpgradePrompt}
+        onClose={() => setShowUpgradePrompt(false)}
+        feature="Advanced Insights"
+        message={
+          !isPremium
+            ? `You've used ${3 - getRemainingUsage('advancedInsights')} of 3 free insights this week. Upgrade to Premium for unlimited AI-powered insights.`
+            : undefined
+        }
+      />
     </SafeAreaView>
   );
 };
@@ -106,16 +152,33 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flex: 1,
+  },
+  headerText: {
+    flex: 1,
+  },
   title: {
-    ...typography.headlineMedium,
-    marginTop: spacing.sm,
-    marginBottom: 4,
+    ...typography.titleLarge,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  usageText: {
+    ...typography.bodySmall,
+  },
+  upgradeButton: {
+    padding: spacing.xs,
   },
   subtitle: {
     ...typography.bodyMedium,
-    textAlign: 'center',
+    marginTop: spacing.xs,
   },
   content: {
     paddingTop: spacing.md,

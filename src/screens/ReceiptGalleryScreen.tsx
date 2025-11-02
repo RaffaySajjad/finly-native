@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
 import { PremiumBadge, UpgradePrompt } from '../components';
 import receiptService from '../services/receiptService';
@@ -33,6 +34,7 @@ type NavigationProp = StackNavigationProp<RootStackParamList>;
 
 const ReceiptGalleryScreen: React.FC = () => {
   const { theme } = useTheme();
+  const { formatCurrency } = useCurrency();
   const navigation = useNavigation<NavigationProp>();
   const { isPremium, requiresUpgrade } = useSubscription();
 
@@ -108,10 +110,6 @@ const ReceiptGalleryScreen: React.FC = () => {
         },
       ]
     );
-  };
-
-  const formatCurrency = (amount: number): string => {
-    return `$${amount.toFixed(2)}`;
   };
 
   const formatDate = (dateString: string): string => {

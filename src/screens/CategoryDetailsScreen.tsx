@@ -27,7 +27,7 @@ import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
-import { ExpenseCard, BottomSheetBackground } from '../components';
+import { ExpenseCard, BottomSheetBackground, CurrencyInput } from '../components';
 import { Expense, Category } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { RootStackParamList } from '../navigation/types';
@@ -275,7 +275,7 @@ const CategoryDetailsScreen: React.FC = () => {
       <BottomSheet
         ref={bottomSheetRef}
         index={-1}
-        snapPoints={['45%']}
+        snapPoints={['35%']}
         enablePanDownToClose
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
@@ -291,14 +291,14 @@ const CategoryDetailsScreen: React.FC = () => {
               Monthly Budget Limit
             </Text>
             <View style={[styles.budgetInput, { backgroundColor: theme.background, borderColor: theme.border }]}>
-              <Text style={[styles.currencySymbol, { color: theme.text }]}>{getCurrencySymbol()}</Text>
-              <TextInput
-                style={[styles.budgetField, { color: theme.text }]}
-                placeholder="0.00"
-                placeholderTextColor={theme.textTertiary}
-                keyboardType="decimal-pad"
+              <CurrencyInput
                 value={newBudget}
                 onChangeText={setNewBudget}
+                placeholder="0.00"
+                placeholderTextColor={theme.textTertiary}
+                showSymbol={true}
+                allowDecimals={true}
+                inputStyle={styles.currencyInputField}
               />
             </View>
           </View>
@@ -460,16 +460,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: spacing.md,
   },
-  currencySymbol: {
-    ...typography.headlineMedium,
-    fontWeight: '600',
-  },
-  budgetField: {
-    ...typography.headlineMedium,
-    fontWeight: '600',
-    flex: 1,
+  currencyInputField: {
     paddingVertical: spacing.md,
-    paddingLeft: spacing.xs,
   },
   saveButton: {
     paddingVertical: spacing.md + 4,

@@ -26,7 +26,7 @@ import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useAppDispatch, useAppSelector } from '../store';
-import { logout as logoutAction, updateProfile as updateProfileAction } from '../store/slices/authSlice';
+import { logout as logoutAction, updateProfile as updateProfileAction, deleteAccount as deleteAccountAction } from '../store/slices/authSlice';
 import { useSubscription } from '../hooks/useSubscription';
 import { BottomSheetBackground } from '../components';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -40,6 +40,11 @@ import {
   getLastUsedCurrency,
   Currency,
 } from '../services/currencyService';
+import {
+  isBiometricAvailable,
+  authenticateForAccountDeletion,
+  getBiometricName,
+} from '../services/biometricService';
 
 /**
  * ProfileScreen - User settings and preferences
@@ -203,6 +208,78 @@ const ProfileScreen: React.FC = () => {
     );
   };
 
+  const handleDeleteAccount = () => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    }
+
+    // First warning
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete all your data including:\n\n• All transactions\n• All categories and budgets\n• All income sources\n• All receipts\n• All tags\n• All preferences\n\nThis action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            // Second confirmation
+            Alert.alert(
+              'Final Confirmation',
+              'Are you absolutely sure? This will permanently delete your account and all data. You will be signed out immediately.',
+              [
+                {
+                  text: 'Cancel',
+                  style: 'cancel',
+                },
+                {
+                  text: 'Delete Account',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      // Check if biometric authentication is available
+                      const biometricAvailable = await isBiometricAvailable();
+
+                      if (biometricAvailable) {
+                        // Trigger biometric authentication
+                        if (Platform.OS === 'ios') {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        }
+
+                        const biometricName = await getBiometricName();
+                        const authenticated = await authenticateForAccountDeletion();
+
+                        if (!authenticated) {
+                          // Biometric authentication failed or was cancelled
+                          Alert.alert(
+                            'Authentication Required',
+                            `${biometricName} authentication is required to delete your account. Please try again.`
+                          );
+                          return;
+                        }
+                      }
+
+                      // Proceed with account deletion after successful authentication (or if biometric not available)
+                      await dispatch(deleteAccountAction()).unwrap();
+                      if (Platform.OS === 'ios') {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                      }
+                    } catch (error) {
+                      Alert.alert('Error', 'Failed to delete account. Please try again.');
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
   /**
    * SettingItem component for consistent setting rows
    */
@@ -238,7 +315,7 @@ const ProfileScreen: React.FC = () => {
       
       {/* Header */}
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Profile</Text>
+        <Text style={[styles.title, { color: theme.text }]}>Settings</Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
@@ -397,14 +474,27 @@ const ProfileScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>ACCOUNT</Text>
           <TouchableOpacity
-            style={[styles.logoutButton, { backgroundColor: theme.expense + '20', borderColor: theme.expense }]}
+            style={[styles.logoutButton, { backgroundColor: theme.card, borderColor: theme.border }]}
             onPress={handleLogout}
             activeOpacity={0.8}
           >
-            <View style={[styles.logoutIcon, { backgroundColor: theme.expense + '20' }]}>
-              <Icon name="logout" size={24} color={theme.expense} />
+            <View style={[styles.logoutIcon, { backgroundColor: theme.primary + '20' }]}>
+              <Icon name="logout" size={24} color={theme.primary} />
             </View>
-            <Text style={[styles.logoutText, { color: theme.expense }]}>Logout</Text>
+            <View style={styles.settingContent}>
+              <Text style={[styles.logoutText, { color: theme.text }]}>Logout</Text>
+            </View>
+            <Icon name="chevron-right" size={24} color={theme.textTertiary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.logoutButton, { backgroundColor: theme.expense + '20', borderColor: theme.expense }]}
+            onPress={handleDeleteAccount}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.logoutIcon, { backgroundColor: theme.expense + '20' }]}>
+              <Icon name="delete-forever" size={24} color={theme.expense} />
+            </View>
+            <Text style={[styles.logoutText, { color: theme.expense }]}>Delete Account</Text>
           </TouchableOpacity>
         </View>
 
@@ -694,7 +784,7 @@ const ProfileScreen: React.FC = () => {
           </View>
 
           <Text style={[styles.aboutCopyright, { color: theme.textTertiary }]}>
-            © 2024 Finly. All rights reserved.
+            © {new Date().getFullYear()} Finly. All rights reserved.
           </Text>
         </BottomSheetScrollView>
       </BottomSheet>
@@ -801,7 +891,7 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginVertical: spacing.xs,
     borderRadius: borderRadius.md,
-    borderWidth: 2,
+    borderWidth: 1,
   },
   logoutIcon: {
     width: 48,
@@ -838,7 +928,11 @@ const styles = StyleSheet.create({
     ...typography.bodyMedium,
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
+    minHeight: Platform.OS === 'ios' ? 52 : undefined,
+    paddingVertical: Platform.OS === 'ios' ? spacing.md : spacing.md,
+    textAlignVertical: 'center',
+    includeFontPadding: Platform.OS === 'android' ? false : undefined,
   },
   saveProfileButton: {
     paddingVertical: spacing.md + 4,

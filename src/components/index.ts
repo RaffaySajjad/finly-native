@@ -15,7 +15,11 @@ export * from './PremiumBadge';
 export * from './UpgradePrompt';
 export * from './platform/PlatformCard';
 export * from './FeatureTooltip';
+export * from './CurrencyInput';
+export * from './SpendingBreakdown';
+export * from './DatePickerInput';
 export { default as ErrorBoundary } from './ErrorBoundary';
 export { default as FeatureComparison } from './FeatureComparison';
 export { default as TrialBadge } from './TrialBadge';
+export { default as AIAssistantFAB } from './AIAssistantFAB';
 

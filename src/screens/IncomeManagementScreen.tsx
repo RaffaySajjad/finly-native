@@ -33,7 +33,7 @@ import {
   deleteIncomeSource,
 } from '../services/incomeService';
 import { IncomeSource, IncomeFrequency } from '../types';
-import { BottomSheetBackground } from '../components';
+import { BottomSheetBackground, CurrencyInput, DatePickerInput } from '../components';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
 type IncomeManagementNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -63,7 +63,7 @@ const IncomeManagementScreen: React.FC = () => {
   const [dayOfWeek, setDayOfWeek] = useState<number | undefined>(undefined);
   const [dayOfMonth, setDayOfMonth] = useState<number | undefined>(undefined);
   const [customDates, setCustomDates] = useState<number[]>([]);
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(new Date());
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   const customDatesInputRef = useRef<TextInput>(null);
@@ -82,7 +82,7 @@ const IncomeManagementScreen: React.FC = () => {
       setDayOfWeek(editingSource.dayOfWeek);
       setDayOfMonth(editingSource.dayOfMonth);
       setCustomDates(editingSource.customDates || []);
-      setStartDate(editingSource.startDate.split('T')[0]);
+      setStartDate(new Date(editingSource.startDate));
       bottomSheetRef.current?.expand();
     } else {
       resetForm();
@@ -111,7 +111,7 @@ const IncomeManagementScreen: React.FC = () => {
     setDayOfMonth(undefined);
     setCustomDates([]);
     setCustomDatesInput('');
-    setStartDate(new Date().toISOString().split('T')[0]);
+    setStartDate(new Date());
     setEditingSource(null);
   };
 
@@ -163,7 +163,7 @@ const IncomeManagementScreen: React.FC = () => {
         name: name.trim(),
         amount: parseFloat(amount),
         frequency,
-        startDate: new Date(startDate).toISOString(),
+        startDate: startDate.toISOString(),
         autoAdd,
         dayOfWeek: frequency === 'weekly' ? dayOfWeek : undefined,
         dayOfMonth: frequency === 'monthly' ? dayOfMonth : undefined,
@@ -332,12 +332,12 @@ const IncomeManagementScreen: React.FC = () => {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Info Card */}
-        <View style={[styles.infoCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
+        {/* <View style={[styles.infoCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
           <Icon name="information-outline" size={24} color={theme.primary} />
           <Text style={[styles.infoText, { color: theme.textSecondary }]}>
             Income will be automatically added to your balance on the scheduled dates. You can also manually add income entries anytime.
           </Text>
-        </View>
+        </View> */}
 
         {/* Income Sources List */}
         {incomeSources.length === 0 ? (
@@ -447,14 +447,14 @@ const IncomeManagementScreen: React.FC = () => {
           <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Amount</Text>
             <View style={[styles.amountInput, { backgroundColor: theme.background, borderColor: theme.border }]}>
-              <Text style={[styles.currencySymbol, { color: theme.text }]}>{getCurrencySymbol()}</Text>
-              <TextInput
-                style={[styles.amountInputField, { color: theme.text }]}
-                placeholder="0.00"
-                placeholderTextColor={theme.textTertiary}
-                keyboardType="decimal-pad"
+              <CurrencyInput
                 value={amount}
                 onChangeText={setAmount}
+                placeholder="0.00"
+                placeholderTextColor={theme.textTertiary}
+                showSymbol={true}
+                allowDecimals={true}
+                inputStyle={styles.currencyInputField}
               />
             </View>
           </View>
@@ -588,13 +588,11 @@ const IncomeManagementScreen: React.FC = () => {
 
           {/* Start Date */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Start Date</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={theme.textTertiary}
-              value={startDate}
-              onChangeText={setStartDate}
+            <DatePickerInput
+              date={startDate}
+              onDateChange={setStartDate}
+              label="Start Date"
+              minimumDate={new Date()}
             />
           </View>
 
@@ -805,13 +803,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: spacing.md,
   },
-  currencySymbol: {
-    ...typography.titleMedium,
-    marginRight: spacing.sm,
-  },
-  amountInputField: {
-    flex: 1,
-    ...typography.titleMedium,
+  currencyInputField: {
     paddingVertical: spacing.md,
   },
   frequencyGrid: {

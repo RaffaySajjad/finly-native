@@ -27,6 +27,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { AuthStackParamList } from '../navigation/types';
+import authService from '../services/authService';
 
 type ForgotPasswordNavigationProp = StackNavigationProp<AuthStackParamList, 'ForgotPassword'>;
 
@@ -39,7 +40,6 @@ const ForgotPasswordScreen: React.FC = () => {
 
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -76,23 +76,25 @@ const ForgotPasswordScreen: React.FC = () => {
 
     setLoading(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    setLoading(false);
-    setEmailSent(true);
+    try {
+      await authService.forgotPassword(email);
+      
+      setLoading(false);
 
-    // Show success message
-    Alert.alert(
-      'Email Sent! 📧',
-      'If an account exists with this email, you will receive password reset instructions.',
-      [
-        {
-          text: 'Back to Login',
-          onPress: () => navigation.navigate('Login'),
-        },
-      ]
-    );
+      // Navigate to reset password screen immediately
+      navigation.navigate('ResetPassword', { email });
+      
+      // Show success message after navigation
+      setTimeout(() => {
+        Alert.alert(
+          'OTP Sent! 📧',
+          'We\'ve sent a verification code to your email. Please check your inbox and enter the 6-digit code.'
+        );
+      }, 500);
+    } catch (error: any) {
+      setLoading(false);
+      Alert.alert('Error', error.message || 'Failed to send reset code. Please try again.');
+    }
   };
 
   return (
@@ -283,11 +285,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: spacing.md,
     gap: spacing.sm,
+    minHeight: Platform.OS === 'ios' ? 52 : undefined,
+    paddingVertical: Platform.OS === 'ios' ? spacing.sm : 0,
   },
   input: {
     ...typography.bodyMedium,
     flex: 1,
-    paddingVertical: spacing.md,
+    paddingVertical: Platform.OS === 'ios' ? 0 : spacing.md,
+    height: Platform.OS === 'ios' ? 52 : undefined,
+    textAlignVertical: 'center',
+    includeFontPadding: Platform.OS === 'android' ? false : undefined,
   },
   resetButton: {
     flexDirection: 'row',

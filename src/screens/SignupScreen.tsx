@@ -74,8 +74,41 @@ const SignupScreen: React.FC = () => {
       return false;
     }
 
-    if (password.length < 6) {
-      Alert.alert('Weak Password', 'Password must be at least 6 characters');
+    // Validate name (min 2 chars, max 100)
+    if (name.trim().length < 2) {
+      Alert.alert('Invalid Name', 'Name must be at least 2 characters long');
+      return false;
+    }
+
+    if (name.length > 100) {
+      Alert.alert('Invalid Name', 'Name must not exceed 100 characters');
+      return false;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address');
+      return false;
+    }
+
+    // Validate password (min 8 chars, must contain uppercase, lowercase, and number)
+    if (password.length < 8) {
+      Alert.alert('Weak Password', 'Password must be at least 8 characters long');
+      return false;
+    }
+
+    if (password.length > 128) {
+      Alert.alert('Password Too Long', 'Password must not exceed 128 characters');
+      return false;
+    }
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+    if (!passwordRegex.test(password)) {
+      Alert.alert(
+        'Weak Password',
+        'Password must contain at least one uppercase letter, one lowercase letter, and one number'
+      );
       return false;
     }
 
@@ -91,8 +124,18 @@ const SignupScreen: React.FC = () => {
     if (!validateForm()) return;
 
     try {
-      await dispatch(signupAction({ name, email, password })).unwrap();
-      // Navigation handled by root navigator after auth state changes
+      const result = await dispatch(signupAction({ name, email, password })).unwrap();
+      
+      // Navigate to email verification screen immediately
+      navigation.navigate('VerifyEmail', { email });
+      
+      // Show success message after navigation
+      setTimeout(() => {
+        Alert.alert(
+          'Check Your Email',
+          'We\'ve sent a verification code to your email address. Please check your inbox and enter the 6-digit code.'
+        );
+      }, 500);
     } catch (error) {
       Alert.alert('Signup Failed', error instanceof Error ? error.message : 'Please try again');
     }
@@ -182,7 +225,7 @@ const SignupScreen: React.FC = () => {
                   <Icon name="lock-outline" size={20} color={theme.textSecondary} />
                   <TextInput
                     style={[styles.input, { color: theme.text }]}
-                    placeholder="At least 6 characters"
+                    placeholder="At least 8 characters, uppercase, lowercase, number"
                     placeholderTextColor={theme.textTertiary}
                     value={password}
                     onChangeText={setPassword}
@@ -307,11 +350,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: spacing.md,
     gap: spacing.sm,
+    minHeight: Platform.OS === 'ios' ? 52 : undefined,
+    paddingVertical: Platform.OS === 'ios' ? spacing.sm : 0,
   },
   input: {
     ...typography.bodyMedium,
     flex: 1,
-    paddingVertical: spacing.md,
+    paddingVertical: Platform.OS === 'ios' ? 0 : spacing.md,
+    height: Platform.OS === 'ios' ? 52 : undefined,
+    textAlignVertical: 'center',
+    includeFontPadding: Platform.OS === 'android' ? false : undefined,
   },
   signupButton: {
     paddingVertical: spacing.md + 4,
@@ -340,4 +388,3 @@ const styles = StyleSheet.create({
 });
 
 export default SignupScreen;
-

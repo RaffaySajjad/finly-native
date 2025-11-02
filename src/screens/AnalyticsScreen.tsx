@@ -18,6 +18,7 @@ import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 import { Dimensions } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
 import { PremiumBadge, UpgradePrompt } from '../components';
 import { apiService } from '../services/api';
@@ -32,6 +33,7 @@ const { width } = Dimensions.get('window');
 
 const AnalyticsScreen: React.FC = () => {
   const { theme } = useTheme();
+  const { formatCurrency } = useCurrency();
   const navigation = useNavigation<NavigationProp>();
   const { isPremium, requiresUpgrade } = useSubscription();
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
@@ -213,7 +215,7 @@ const AnalyticsScreen: React.FC = () => {
                   />
                 </View>
                 <Text style={[styles.categoryAmount, { color: theme.text }]}>
-                  ${category.amount.toFixed(2)}
+                  {formatCurrency(category.amount)}
                 </Text>
               </View>
             </View>
@@ -226,12 +228,12 @@ const AnalyticsScreen: React.FC = () => {
           <View style={styles.comparisonRow}>
             <View style={styles.comparisonItem}>
               <Text style={[styles.comparisonLabel, { color: theme.textSecondary }]}>Last Year</Text>
-              <Text style={[styles.comparisonValue, { color: theme.text }]}>$1,200</Text>
+              <Text style={[styles.comparisonValue, { color: theme.text }]}>{formatCurrency(1200)}</Text>
             </View>
             <Icon name="arrow-right" size={24} color={theme.textTertiary} />
             <View style={styles.comparisonItem}>
               <Text style={[styles.comparisonLabel, { color: theme.textSecondary }]}>This Year</Text>
-              <Text style={[styles.comparisonValue, { color: theme.success }]}>$1,350</Text>
+              <Text style={[styles.comparisonValue, { color: theme.success }]}>{formatCurrency(1350)}</Text>
             </View>
           </View>
           <Text style={[styles.comparisonChange, { color: theme.expense }]}>
@@ -244,7 +246,7 @@ const AnalyticsScreen: React.FC = () => {
           <Icon name="crystal-ball" size={32} color={theme.primary} />
           <Text style={[styles.chartTitle, { color: theme.text }]}>Predictive Insights</Text>
           <Text style={[styles.predictionText, { color: theme.textSecondary }]}>
-            Based on your spending patterns, you're projected to spend approximately $1,400 next month.
+            Based on your spending patterns, you're projected to spend approximately {formatCurrency(1400)} next month.
           </Text>
         </View>
       </ScrollView>

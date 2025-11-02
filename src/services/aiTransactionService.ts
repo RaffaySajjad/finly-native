@@ -12,14 +12,21 @@ import { Expense, CategoryType } from '../types';
  * - "Lunch at Cafe Luna $42.50, Uber $15, Groceries $89.99"
  * - "Coffee $5.50 yesterday, Gas $30 today"
  * - "Starbucks $8.75, Target $67.50, Dinner $45"
+ * 
+ * @param input - The natural language input string
+ * @param currencySymbol - Optional currency symbol to use in parsing (defaults to $ for backwards compatibility)
  */
 export async function parseTransactionInput(
-  input: string
+  input: string,
+  currencySymbol: string = '$'
 ): Promise<Array<Omit<Expense, 'id' | 'date'>>> {
   // Simulate AI processing delay
   await new Promise(resolve => setTimeout(resolve, 800));
 
   const transactions: Array<Omit<Expense, 'id' | 'date'>> = [];
+
+  // Escape special regex characters in currency symbol for use in regex patterns
+  const escapedSymbol = currencySymbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   // Simple parsing logic (in production, use actual NLP)
   // Split by common delimiters
@@ -31,7 +38,7 @@ export async function parseTransactionInput(
   // Extract date mentions
   const now = new Date();
   let inferredDate = now.toISOString();
-  
+
   if (input.toLowerCase().includes('yesterday')) {
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -41,8 +48,9 @@ export async function parseTransactionInput(
   }
 
   for (const part of parts) {
-    // Extract amount (look for $XX.XX pattern)
-    const amountMatch = part.match(/\$?(\d+\.?\d*)/);
+    // Extract amount (look for currency symbol + amount pattern)
+    const amountRegex = new RegExp(`${escapedSymbol}?(\\d+\\.?\\d*)`);
+    const amountMatch = part.match(amountRegex);
     if (!amountMatch) continue;
 
     const amount = parseFloat(amountMatch[1]);
@@ -54,7 +62,9 @@ export async function parseTransactionInput(
 
     // Category detection
     if (
-      lowerPart.match(/\b(starbucks|coffee|cafe|restaurant|food|dining|mcdonalds|chipotle|subway|pizza)\b/)
+      lowerPart.match(
+        /\b(starbucks|coffee|cafe|restaurant|food|dining|mcdonalds|chipotle|subway|pizza)\b/
+      )
     ) {
       category = 'food';
     } else if (
@@ -70,7 +80,9 @@ export async function parseTransactionInput(
     ) {
       category = 'entertainment';
     } else if (
-      lowerPart.match(/\b(pharmacy|cvs|walgreens|doctor|hospital|health|medicine)\b/)
+      lowerPart.match(
+        /\b(pharmacy|cvs|walgreens|doctor|hospital|health|medicine)\b/
+      )
     ) {
       category = 'health';
     } else if (
@@ -79,31 +91,35 @@ export async function parseTransactionInput(
       category = 'utilities';
     }
 
-    // Clean up description
+    // Clean up description - remove currency symbol and amount
+    const cleanupRegex = new RegExp(`${escapedSymbol}?\\d+\\.?\\d*`, 'g');
     description = part
-      .replace(/\$?\d+\.?\d*/g, '')
+      .replace(cleanupRegex, '')
       .trim()
       .replace(/^at\s+/i, '')
       .replace(/^for\s+/i, '');
 
     if (!description) {
-      description = `${category.charAt(0).toUpperCase() + category.slice(1)} Expense`;
+      description = `${
+        category.charAt(0).toUpperCase() + category.slice(1)
+      } Expense`;
     }
 
     transactions.push({
       amount,
       category,
-      description,
+      description
     });
   }
 
   // If no transactions found, try to parse as single transaction
   if (transactions.length === 0) {
-    const amountMatch = input.match(/\$?(\d+\.?\d*)/);
+    const amountRegex = new RegExp(`${escapedSymbol}?(\\d+\\.?\\d*)`);
+    const amountMatch = input.match(amountRegex);
     if (amountMatch) {
       const amount = parseFloat(amountMatch[1]);
       let category: CategoryType = 'other';
-      
+
       const lowerInput = input.toLowerCase();
       if (lowerInput.match(/\b(food|restaurant|coffee|cafe)\b/)) {
         category = 'food';
@@ -113,10 +129,11 @@ export async function parseTransactionInput(
         category = 'shopping';
       }
 
+      const cleanupRegex = new RegExp(`${escapedSymbol}?\\d+\\.?\\d*`, 'g');
       transactions.push({
         amount,
         category,
-        description: input.replace(/\$?\d+\.?\d*/g, '').trim() || 'Transaction',
+        description: input.replace(cleanupRegex, '').trim() || 'Transaction'
       });
     }
   }

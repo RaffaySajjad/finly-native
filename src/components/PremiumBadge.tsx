@@ -72,6 +72,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: borderRadius.full,
     borderWidth: 0,
+    marginBottom: spacing.xs,
   },
   icon: {
     marginRight: spacing.xs / 2,

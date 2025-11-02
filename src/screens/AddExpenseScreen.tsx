@@ -27,6 +27,7 @@ import tagsService from '../services/tagsService';
 import { CategoryType, PaymentMethod, Tag } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { CurrencyInput, DatePickerInput } from '../components';
 
 type AddExpenseRouteProp = RouteProp<RootStackParamList, 'AddExpense'>;
 
@@ -66,6 +67,7 @@ const AddExpenseScreen: React.FC = () => {
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<CategoryType>('food');
   const [description, setDescription] = useState('');
+  const [date, setDate] = useState(new Date());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | undefined>(undefined);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -95,6 +97,7 @@ const AddExpenseScreen: React.FC = () => {
       if (editingExpense.amount) setAmount(editingExpense.amount.toString());
       if (editingExpense.category) setCategory(editingExpense.category);
       if (editingExpense.description) setDescription(editingExpense.description);
+      if (editingExpense.date) setDate(new Date(editingExpense.date));
       if (editingExpense.paymentMethod) setPaymentMethod(editingExpense.paymentMethod);
       if (editingExpense.tags) setSelectedTags(editingExpense.tags);
     }
@@ -123,6 +126,7 @@ const AddExpenseScreen: React.FC = () => {
           amount: parseFloat(amount),
           category,
           description: description.trim(),
+          date: date.toISOString(),
           paymentMethod: paymentMethod || undefined,
           tags: selectedTags.length > 0 ? selectedTags : undefined,
         });
@@ -138,7 +142,7 @@ const AddExpenseScreen: React.FC = () => {
           amount: parseFloat(amount),
           category,
           description: description.trim(),
-          date: new Date().toISOString(),
+          date: date.toISOString(),
           paymentMethod: paymentMethod || undefined,
           tags: selectedTags.length > 0 ? selectedTags : undefined,
         });
@@ -200,15 +204,16 @@ const AddExpenseScreen: React.FC = () => {
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>AMOUNT</Text>
             <View style={[styles.amountContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <Text style={[styles.currencySymbol, { color: theme.text }]}>{getCurrencySymbol()}</Text>
-              <TextInput
-                style={[styles.amountInput, { color: theme.text }]}
-                placeholder="0.00"
-                placeholderTextColor={theme.textTertiary}
-                keyboardType="decimal-pad"
+              <CurrencyInput
                 value={amount}
                 onChangeText={setAmount}
+                placeholder="0.00"
+                placeholderTextColor={theme.textTertiary}
                 autoFocus
+                large
+                showSymbol={true}
+                allowDecimals={true}
+                inputStyle={styles.amountInputField}
               />
             </View>
           </View>
@@ -261,6 +266,15 @@ const AddExpenseScreen: React.FC = () => {
               multiline
               numberOfLines={3}
               textAlignVertical="top"
+            />
+          </View>
+
+          {/* Date Picker */}
+          <View style={styles.section}>
+            <DatePickerInput
+              date={date}
+              onDateChange={setDate}
+              label="DATE"
             />
           </View>
 
@@ -591,16 +605,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: spacing.md,
   },
-  currencySymbol: {
-    ...typography.displayMedium,
-    fontWeight: '700',
-  },
-  amountInput: {
-    ...typography.displayMedium,
-    fontWeight: '700',
-    flex: 1,
+  amountInputField: {
     paddingVertical: spacing.md,
-    paddingLeft: spacing.xs,
   },
   categoriesGrid: {
     flexDirection: 'row',

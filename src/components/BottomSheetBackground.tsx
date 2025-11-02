@@ -14,8 +14,12 @@ interface BottomSheetBackgroundProps {
   style?: any;
 }
 
-// Detect if we should use the liquid glass effect (iOS 26+)
-const shouldUseLiquidGlass = (): boolean => {
+/**
+ * Detect if we should use the liquid glass effect (iOS 26+)
+ * Exported for reuse in components that need to adapt styling based on background type
+ * @returns {boolean} True if device supports translucent background
+ */
+export const shouldUseLiquidGlass = (): boolean => {
   if (Platform.OS !== 'ios') return false;
   
   // iOS 26.0 = version 26

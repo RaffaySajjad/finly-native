@@ -188,7 +188,7 @@ const SubscriptionScreen: React.FC = () => {
           ]}
         >
           <View style={styles.planHeader}>
-            <Text style={[styles.planTitle, { color: theme.text }]}><PremiumBadge size="medium" /></Text>
+            <PremiumBadge size="medium" />
             <View style={styles.priceContainer}>
               <Text style={[styles.price, { color: theme.text }]}>$4.99</Text>
               <Text style={[styles.pricePeriod, { color: theme.textSecondary }]}>/month</Text>
@@ -267,22 +267,6 @@ const SubscriptionScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Free Plan Info */}
-        {!isPremium && (
-          <View style={styles.freePlanInfo}>
-            <Text style={[styles.freePlanTitle, { color: theme.textSecondary }]}>
-              Free Plan Includes:
-            </Text>
-            <Text style={[styles.freePlanFeatures, { color: theme.textTertiary }]}>
-              • 3 receipt scans per month{'\n'}
-              • Basic insights (3 per week){'\n'}
-              • Manual transaction entry{'\n'}
-              • 5 categories max{'\n'}
-              • Current month trends
-            </Text>
-          </View>
-        )}
-
         <View style={{ height: spacing.xl }} />
       </ScrollView>
     </SafeAreaView>
@@ -348,6 +332,7 @@ const styles = StyleSheet.create({
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'baseline',
+    marginTop: spacing.sm,
   },
   price: {
     ...typography.displaySmall,

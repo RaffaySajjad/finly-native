@@ -8,7 +8,9 @@ import { Expense, CategoryType } from '../types';
 export type AuthStackParamList = {
   Login: undefined;
   Signup: undefined;
+  VerifyEmail: { email: string };
   ForgotPassword: undefined;
+  ResetPassword: { email: string };
 };
 
 export type RootStackParamList = {
@@ -31,13 +33,26 @@ export type RootStackParamList = {
   CategoryOnboarding: undefined;
   IncomeManagement: undefined;
   CSVImport: { firstTime?: boolean } | undefined;
+  AIAssistant:
+    | {
+        context?: {
+          transactionId?: string;
+          categoryId?: CategoryType;
+          screen?: string;
+        };
+        initialQuery?: string;
+      }
+    | undefined;
+  Insights: undefined;
+  Settings: undefined;
+  Trends: undefined;
 };
 
 export type MainTabsParamList = {
   Dashboard: undefined;
   Categories: undefined;
+  AIAssistant: undefined;
+  Settings: undefined;
   Insights: undefined;
-  Trends: undefined;
-  Profile: undefined;
 };
 

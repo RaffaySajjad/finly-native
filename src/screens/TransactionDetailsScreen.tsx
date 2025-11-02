@@ -289,6 +289,20 @@ const TransactionDetailsScreen: React.FC = () => {
             <TouchableOpacity
               style={[
                 styles.actionButton,
+                styles.aiButton,
+                { backgroundColor: theme.card, borderColor: theme.border },
+              ]}
+              onPress={() => navigation.navigate('AIAssistant', {
+                context: { transactionId: expense.id },
+                initialQuery: `Tell me about this transaction: ${expense.description}`,
+              })}
+            >
+              <Icon name="robot" size={18} color={theme.primary} />
+              <Text style={[styles.actionButtonText, { color: theme.primary }]}>Ask AI</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
                 styles.editButton,
                 { backgroundColor: theme.primary + '20', borderColor: theme.primary },
               ]}

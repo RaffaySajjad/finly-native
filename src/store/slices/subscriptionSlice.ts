@@ -1,11 +1,14 @@
 /**
  * Subscription Slice - Redux Toolkit
  * Purpose: Manages subscription state, tier, and usage limits
+ * 
+ * Integrated with native IAP service for real purchases
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Subscription, SubscriptionTier, UsageLimits } from '../../types';
+import { subscriptionService } from '../../services/subscriptionService';
 
 const SUBSCRIPTION_KEY = '@finly_subscription';
 const USAGE_LIMITS_KEY = '@finly_usage_limits';
@@ -45,66 +48,105 @@ const initialState: SubscriptionState = {
 
 /**
  * Async thunk to check subscription status on app launch
+ * Fetches from backend and updates local cache
  */
 export const checkSubscriptionStatus = createAsyncThunk(
   'subscription/checkStatus',
-  async () => {
-    const [subscriptionData, usageData] = await Promise.all([
-      AsyncStorage.getItem(SUBSCRIPTION_KEY),
-      AsyncStorage.getItem(USAGE_LIMITS_KEY),
-    ]);
+  async (_, { rejectWithValue }) => {
+    try {
+      // First, try to get from backend
+      const subscription = await subscriptionService.getSubscriptionStatus();
+      
+      // Generate usage limits based on tier
+      const usageLimits: UsageLimits = subscription.tier === 'premium' 
+        ? {
+            receiptScans: {
+              used: 0,
+              limit: Infinity,
+              resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            insights: {
+              used: 0,
+              limit: Infinity,
+              resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            categories: {
+              used: 5,
+              limit: Infinity,
+            },
+          }
+        : {
+            receiptScans: {
+              used: 0,
+              limit: 3,
+              resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            insights: {
+              used: 0,
+              limit: 3,
+              resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            categories: {
+              used: 5,
+              limit: 5,
+            },
+          };
 
-    const subscription: Subscription = subscriptionData
-      ? JSON.parse(subscriptionData)
-      : initialState.subscription;
+      // Cache locally
+      await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(subscription));
+      await AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(usageLimits));
 
-    const usageLimits: UsageLimits = usageData
-      ? JSON.parse(usageData)
-      : initialState.usageLimits;
+      return { subscription, usageLimits };
+    } catch (error: any) {
+      console.error('[SubscriptionSlice] Failed to check status:', error);
+      
+      // Fallback to local cache
+      const [subscriptionData, usageData] = await Promise.all([
+        AsyncStorage.getItem(SUBSCRIPTION_KEY),
+        AsyncStorage.getItem(USAGE_LIMITS_KEY),
+      ]);
 
-    // Check if subscription is expired
-    if (subscription.endDate && new Date(subscription.endDate) < new Date()) {
-      return {
-        subscription: { ...subscription, tier: 'free' as SubscriptionTier, isActive: false },
-        usageLimits,
-      };
+      const subscription: Subscription = subscriptionData
+        ? JSON.parse(subscriptionData)
+        : initialState.subscription;
+
+      const usageLimits: UsageLimits = usageData
+        ? JSON.parse(usageData)
+        : initialState.usageLimits;
+
+      return { subscription, usageLimits };
     }
-
-    return { subscription, usageLimits };
   }
 );
 
 /**
  * Async thunk to subscribe to premium tier
+ * Uses native IAP and backend validation
  */
 export const subscribeToPremium = createAsyncThunk(
   'subscription/subscribe',
-  async (_, { rejectWithValue }) => {
+  async (productType: 'monthly' | 'yearly' = 'monthly', { rejectWithValue }) => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Purchase via IAP service
+      const result = await subscriptionService.purchasePremium(productType);
+      
+      if (!result.success) {
+        return rejectWithValue('Purchase failed');
+      }
 
-      // Mock subscription data
-      const now = new Date();
-      const subscription: Subscription = {
-        tier: 'premium',
-        isActive: true,
-        startDate: now.toISOString(),
-        endDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
-        isTrial: false,
-      };
+      const subscription = result.subscription;
 
       // Update usage limits for premium
       const usageLimits: UsageLimits = {
         receiptScans: {
           used: 0,
           limit: Infinity, // Unlimited for premium
-          resetDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         },
         insights: {
           used: 0,
           limit: Infinity, // Unlimited for premium
-          resetDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         },
         categories: {
           used: 5,
@@ -112,46 +154,46 @@ export const subscribeToPremium = createAsyncThunk(
         },
       };
 
+      // Cache locally
       await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(subscription));
       await AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(usageLimits));
 
       return { subscription, usageLimits };
-    } catch (error) {
-      return rejectWithValue('Subscription failed');
+    } catch (error: any) {
+      console.error('[SubscriptionSlice] Purchase failed:', error);
+      return rejectWithValue(error.message || 'Subscription failed');
     }
   }
 );
 
 /**
  * Async thunk to start free trial
+ * Activates trial via backend (no IAP required)
  */
 export const startFreeTrial = createAsyncThunk(
   'subscription/startTrial',
   async (_, { rejectWithValue }) => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Start trial via service
+      const result = await subscriptionService.startFreeTrial();
+      
+      if (!result.success) {
+        return rejectWithValue('Trial start failed');
+      }
 
-      const now = new Date();
-      const subscription: Subscription = {
-        tier: 'premium',
-        isActive: true,
-        startDate: now.toISOString(),
-        trialEndDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7-day trial
-        endDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        isTrial: true,
-      };
+      const subscription = result.subscription;
 
+      // Update usage limits for trial (same as premium)
       const usageLimits: UsageLimits = {
         receiptScans: {
           used: 0,
           limit: Infinity,
-          resetDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         },
         insights: {
           used: 0,
           limit: Infinity,
-          resetDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         },
         categories: {
           used: 5,
@@ -159,49 +201,63 @@ export const startFreeTrial = createAsyncThunk(
         },
       };
 
+      // Cache locally
       await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(subscription));
       await AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(usageLimits));
 
       return { subscription, usageLimits };
-    } catch (error) {
-      return rejectWithValue('Trial start failed');
+    } catch (error: any) {
+      console.error('[SubscriptionSlice] Trial failed:', error);
+      return rejectWithValue(error.message || 'Trial start failed');
     }
   }
 );
 
 /**
  * Async thunk to cancel subscription
+ * Note: Actual cancellation happens via App Store/Play Store
+ * This marks the cancellation in our backend
  */
 export const cancelSubscription = createAsyncThunk(
   'subscription/cancel',
-  async () => {
-    const subscription: Subscription = {
-      tier: 'free',
-      isActive: true,
-      isTrial: false,
-    };
+  async (_, { rejectWithValue }) => {
+    try {
+      // Cancel via service
+      await subscriptionService.cancelSubscription();
 
-    const usageLimits: UsageLimits = {
-      receiptScans: {
-        used: 0,
-        limit: 3,
-        resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      insights: {
-        used: 0,
-        limit: 3,
-        resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      categories: {
-        used: 5,
-        limit: 5,
-      },
-    };
+      // Revert to free tier
+      const subscription: Subscription = {
+        tier: 'free',
+        isActive: true,
+        isTrial: false,
+      };
 
-    await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(subscription));
-    await AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(usageLimits));
+      const usageLimits: UsageLimits = {
+        receiptScans: {
+          used: 0,
+          limit: 3,
+          resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        insights: {
+          used: 0,
+          limit: 3,
+          resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        categories: {
+          used: 5,
+          limit: 5,
+        },
+      };
 
-    return { subscription, usageLimits };
+      // Cache locally
+      await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(subscription));
+      await AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(usageLimits));
+
+      return { subscription, usageLimits };
+    } catch (error: any) {
+      console.error('[SubscriptionSlice] Cancel failed:', error);
+      return rejectWithValue(error.message || 'Cancellation failed');
+    }
   }
 );
 

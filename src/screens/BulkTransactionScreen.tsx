@@ -24,7 +24,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
-import { UpgradePrompt, PremiumBadge } from '../components';
+import { UpgradePrompt, PremiumBadge, CurrencyInput } from '../components';
 import { apiService } from '../services/api';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -36,6 +36,7 @@ interface BulkTransaction {
   amount: string;
   category: CategoryType;
   description: string;
+  date: Date;
 }
 
 const BulkTransactionScreen: React.FC = () => {
@@ -45,7 +46,7 @@ const BulkTransactionScreen: React.FC = () => {
   const { isPremium, requiresUpgrade } = useSubscription();
 
   const [transactions, setTransactions] = useState<BulkTransaction[]>([
-    { amount: '', category: 'food', description: '' },
+    { amount: '', category: 'food', description: '', date: new Date() },
   ]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
@@ -71,7 +72,7 @@ const BulkTransactionScreen: React.FC = () => {
   };
 
   const handleAddRow = () => {
-    setTransactions([...transactions, { amount: '', category: 'food', description: '' }]);
+    setTransactions([...transactions, { amount: '', category: 'food', description: '', date: new Date() }]);
   };
 
   const handleRemoveRow = (index: number) => {
@@ -83,7 +84,7 @@ const BulkTransactionScreen: React.FC = () => {
   const handleUpdateTransaction = (
     index: number,
     field: keyof BulkTransaction,
-    value: string | CategoryType
+    value: string | CategoryType | Date
   ) => {
     const updated = [...transactions];
     updated[index] = { ...updated[index], [field]: value };
@@ -114,6 +115,7 @@ const BulkTransactionScreen: React.FC = () => {
         amount: parseFloat(tx.amount),
         category: tx.category,
         description: tx.description.trim(),
+        date: tx.date.toISOString(),
       });
     });
 
@@ -130,12 +132,8 @@ const BulkTransactionScreen: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      const now = new Date();
       const promises = validTransactions.map(tx =>
-        apiService.createExpense({
-          ...tx,
-          date: now.toISOString(),
-        })
+        apiService.createExpense(tx)
       );
 
       await Promise.all(promises);
@@ -227,14 +225,14 @@ const BulkTransactionScreen: React.FC = () => {
                     Amount
                   </Text>
                   <View style={[styles.amountInputContainer, { borderColor: theme.border }]}>
-                    <Text style={[styles.currencySymbol, { color: theme.text }]}>{getCurrencySymbol()}</Text>
-                    <TextInput
-                      style={[styles.amountField, { color: theme.text }]}
-                      placeholder="0.00"
-                      placeholderTextColor={theme.textTertiary}
-                      keyboardType="decimal-pad"
+                    <CurrencyInput
                       value={tx.amount}
                       onChangeText={(value) => handleUpdateTransaction(index, 'amount', value)}
+                      placeholder="0.00"
+                      placeholderTextColor={theme.textTertiary}
+                      showSymbol={true}
+                      allowDecimals={true}
+                      inputStyle={styles.currencyInputField}
                     />
                   </View>
                 </View>
@@ -286,6 +284,13 @@ const BulkTransactionScreen: React.FC = () => {
                     placeholderTextColor={theme.textTertiary}
                     value={tx.description}
                     onChangeText={(value) => handleUpdateTransaction(index, 'description', value)}
+                  />
+                </View>
+
+                <View style={styles.dateInput}>
+                  <DatePickerInput
+                    date={tx.date}
+                    onDateChange={(date) => handleUpdateTransaction(index, 'date', date)}
                   />
                 </View>
               </View>
@@ -449,15 +454,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
   },
-  currencySymbol: {
-    ...typography.titleMedium,
-    fontWeight: '600',
-    marginRight: spacing.xs,
-  },
-  amountField: {
-    ...typography.titleMedium,
-    fontWeight: '600',
-    flex: 1,
+  currencyInputField: {
     paddingVertical: spacing.sm,
   },
   categoryInput: {
@@ -485,6 +482,9 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     borderWidth: 1,
     padding: spacing.md,
+  },
+  dateInput: {
+    marginBottom: spacing.sm,
   },
   addRowButton: {
     flexDirection: 'row',

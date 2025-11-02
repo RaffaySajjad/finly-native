@@ -25,7 +25,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
-import { UpgradePrompt, PremiumBadge } from '../components';
+import { UpgradePrompt, PremiumBadge, DatePickerInput } from '../components';
 import { parseTransactionInput, validateTransactions } from '../services/aiTransactionService';
 import { apiService } from '../services/api';
 import { RootStackParamList } from '../navigation/types';
@@ -36,11 +36,12 @@ type NavigationProp = StackNavigationProp<RootStackParamList>;
 
 const VoiceTransactionScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, getCurrencySymbol } = useCurrency();
   const navigation = useNavigation<NavigationProp>();
   const { isPremium, requiresUpgrade } = useSubscription();
 
   const [input, setInput] = useState('');
+  const [transactionDate, setTransactionDate] = useState(new Date());
   const [isProcessing, setIsProcessing] = useState(false);
   const [parsedTransactions, setParsedTransactions] = useState<
     Array<Omit<Expense, 'id' | 'date'>>
@@ -62,7 +63,7 @@ const VoiceTransactionScreen: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      const transactions = await parseTransactionInput(input);
+      const transactions = await parseTransactionInput(input, getCurrencySymbol());
       const validation = validateTransactions(transactions);
 
       if (!validation.valid) {
@@ -90,11 +91,10 @@ const VoiceTransactionScreen: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      const now = new Date();
       const promises = parsedTransactions.map(tx =>
         apiService.createExpense({
           ...tx,
-          date: now.toISOString(),
+          date: transactionDate.toISOString(),
         })
       );
 
@@ -171,9 +171,9 @@ const VoiceTransactionScreen: React.FC = () => {
             </Text>
             <Text style={[styles.instructionsText, { color: theme.textSecondary }]}>
               Examples:{'\n'}
-              • "Lunch at Cafe Luna $42.50, Uber $15, Groceries $89.99"{'\n'}
-              • "Coffee $5.50, Gas $30, Target $67.50"{'\n'}
-              • "Starbucks $8.75 and Amazon $45.99"
+              • "Lunch at Cafe Luna {getCurrencySymbol()}42.50, Uber {getCurrencySymbol()}15, Groceries {getCurrencySymbol()}89.99"{'\n'}
+              • "Coffee {getCurrencySymbol()}5.50, Gas {getCurrencySymbol()}30, Target {getCurrencySymbol()}67.50"{'\n'}
+              • "Starbucks {getCurrencySymbol()}8.75 and Amazon {getCurrencySymbol()}45.99"
             </Text>
           </View>
         </View>
@@ -229,6 +229,18 @@ const VoiceTransactionScreen: React.FC = () => {
               )}
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Date Picker */}
+        <View style={styles.dateSection}>
+          <DatePickerInput
+            date={transactionDate}
+            onDateChange={setTransactionDate}
+            label="TRANSACTION DATE"
+          />
+          <Text style={[styles.dateHint, { color: theme.textTertiary }]}>
+            This date will apply to all transactions
+          </Text>
         </View>
 
         {/* Parsed Transactions Preview */}
@@ -356,6 +368,15 @@ const styles = StyleSheet.create({
   },
   inputSection: {
     marginBottom: spacing.lg,
+  },
+  dateSection: {
+    marginBottom: spacing.lg,
+  },
+  dateHint: {
+    ...typography.caption,
+    marginTop: spacing.xs,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
   label: {
     ...typography.labelMedium,

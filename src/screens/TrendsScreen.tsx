@@ -21,11 +21,13 @@ import { LineChart, BarChart } from 'react-native-chart-kit';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { useTheme } from '../contexts/ThemeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import { apiService } from '../services/api';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { AIAssistantFAB } from '../components';
 
 const { width } = Dimensions.get('window');
 
@@ -41,6 +43,7 @@ interface TrendsData {
  */
 const TrendsScreen: React.FC = () => {
   const { theme } = useTheme();
+  const { formatCurrency } = useCurrency();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const [loading, setLoading] = useState(true);
   const [trendsData, setTrendsData] = useState<TrendsData | null>(null);
@@ -209,14 +212,14 @@ const TrendsScreen: React.FC = () => {
             <View style={styles.comparisonItem}>
               <Text style={[styles.comparisonLabel, { color: theme.textSecondary }]}>This Week</Text>
               <Text style={[styles.comparisonValue, { color: theme.text }]}>
-                ${weeklyComparison.thisWeek.toFixed(2)}
+                {formatCurrency(weeklyComparison.thisWeek)}
               </Text>
             </View>
             <View style={styles.comparisonDivider} />
             <View style={styles.comparisonItem}>
               <Text style={[styles.comparisonLabel, { color: theme.textSecondary }]}>Last Week</Text>
               <Text style={[styles.comparisonValue, { color: theme.text }]}>
-                ${weeklyComparison.lastWeek.toFixed(2)}
+                {formatCurrency(weeklyComparison.lastWeek)}
               </Text>
             </View>
           </View>
@@ -247,7 +250,7 @@ const TrendsScreen: React.FC = () => {
                 {topCategory.name}
               </Text>
               <Text style={[styles.topCategoryAmount, { color: theme.primary }]}>
-                ${topCategory.amount.toFixed(2)}
+                {formatCurrency(topCategory.amount)}
               </Text>
             </View>
           </View>
@@ -342,7 +345,7 @@ const TrendsScreen: React.FC = () => {
                   </Text>
                 </View>
                 <Text style={[styles.categoryAmount, { color: theme.text }]}>
-                  ${cat.amount.toFixed(2)}
+                  {formatCurrency(cat.amount)}
                 </Text>
               </Animated.View>
             );

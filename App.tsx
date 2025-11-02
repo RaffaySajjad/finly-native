@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider as ReduxProvider } from 'react-redux';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { CurrencyProvider } from './src/contexts/CurrencyContext';
+import { BottomSheetProvider } from './src/contexts/BottomSheetContext';
 import { store } from './src/store';
 import AppNavigator from './src/navigation/AppNavigator';
 import { ErrorBoundary } from './src/components';
@@ -24,10 +25,12 @@ export default function App(): React.ReactElement {
       <ThemeProvider>
         <ErrorBoundary>
           <CurrencyProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <AppNavigator />
-              <StatusBar style="auto" />
-            </GestureHandlerRootView>
+            <BottomSheetProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <AppNavigator />
+                <StatusBar style="auto" />
+              </GestureHandlerRootView>
+            </BottomSheetProvider>
           </CurrencyProvider>
         </ErrorBoundary>
       </ThemeProvider>

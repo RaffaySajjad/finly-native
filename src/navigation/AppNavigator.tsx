@@ -13,10 +13,13 @@ import { NavigationContainer } from '@react-navigation/native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { useBottomSheet } from '../contexts/BottomSheetContext';
 import { useAppDispatch, useAppSelector } from '../store';
 import { checkAuthStatus } from '../store/slices/authSlice';
 import { checkSubscriptionStatus } from '../store/slices/subscriptionSlice';
 import { RootStackParamList, MainTabsParamList, AuthStackParamList } from './types';
+import CustomTabBar from '../components/CustomTabBar';
+import SharedBottomSheet from '../components/SharedBottomSheet';
 
 // Import screens
 import DashboardScreen from '../screens/DashboardScreen';
@@ -39,11 +42,14 @@ import TransactionsListScreen from '../screens/TransactionsListScreen';
 import CategoryOnboardingScreen from '../screens/CategoryOnboardingScreen';
 import IncomeManagementScreen from '../screens/IncomeManagementScreen';
 import CSVImportScreen from '../screens/CSVImportScreen';
+import AIAssistantScreen from '../screens/AIAssistantScreen';
 import IncomeSetupScreen, { hasCompletedIncomeSetup } from '../screens/IncomeSetupScreen';
 import OnboardingScreen, { hasCompletedOnboarding } from '../screens/OnboardingScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
+import VerifyEmailScreen from '../screens/VerifyEmailScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const IMPORT_SHOWN_KEY = '@finly_import_shown';
@@ -73,21 +79,27 @@ const AuthNavigator: React.FC = () => {
     >
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Signup" component={SignupScreen} />
+      <AuthStack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
       <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <AuthStack.Screen name="ResetPassword" component={ResetPasswordScreen} />
     </AuthStack.Navigator>
   );
 };
 
 /**
  * MainTabs component - Bottom tab navigation
- * Provides access to main app sections
- * Uses native tabs on iOS (liquid glass) and JS tabs on Android (reliable theming)
+ * Order: Home, Categories, FAB (center), AI Assistant, Settings
  */
 const MainTabs: React.FC = () => {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const { openBottomSheet } = useBottomSheet();
 
-  // iOS version with native tabs and SF Symbols
+  const handleFabPress = React.useCallback(() => {
+    openBottomSheet();
+  }, [openBottomSheet]);
+
+  // iOS version - use native tabs (FAB will be floating for iOS)
   if (Platform.OS === 'ios') {
     return (
       <NativeTab.Navigator
@@ -119,50 +131,26 @@ const MainTabs: React.FC = () => {
           }}
         />
         <NativeTab.Screen
-          name="Trends"
-          component={TrendsScreen}
+          name="AIAssistant"
+          component={AIAssistantScreen}
           options={{
-            title: 'Trends',
-            tabBarIcon: () => ({ sfSymbol: 'chart.line.uptrend.xyaxis' }),
-          }}
-        />
-        <NativeTab.Screen
-          name="Profile"
-          component={ProfileScreen}
-          options={{
-            title: 'Profile',
-            tabBarIcon: () => ({ sfSymbol: 'person.fill' }),
+            title: 'AI Assistant',
+            tabBarIcon: () => ({ sfSymbol: 'brain.fill' }),
           }}
         />
       </NativeTab.Navigator>
     );
   }
 
-  // Android version with JS tabs and Material Icons
+  // Android version with custom tab bar (center FAB)
   return (
     <JSTab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.textTertiary,
-        tabBarStyle: {
-          backgroundColor: theme.surface,
-          borderTopColor: theme.border,
-          borderTopWidth: 1,
-          elevation: 8,
-          height: 60 + Math.max(insets.bottom, 12),
-          paddingBottom: Math.max(insets.bottom, 12),
-          paddingTop: 4,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-          marginBottom: 2,
-        },
-        tabBarIconStyle: {
-          marginTop: 2,
-        },
       }}
+      tabBar={(props) => <CustomTabBar {...props} onFabPress={handleFabPress} />}
     >
       <JSTab.Screen
         name="Dashboard"
@@ -180,7 +168,7 @@ const MainTabs: React.FC = () => {
         options={{
           title: 'Categories',
           tabBarIcon: ({ color, size }) => (
-            <Icon name="shape" size={size} color={color} />
+            <Icon name="tag-multiple" size={size} color={color} />
           ),
         }}
       />
@@ -195,22 +183,12 @@ const MainTabs: React.FC = () => {
         }}
       />
       <JSTab.Screen
-        name="Trends"
-        component={TrendsScreen}
+        name="AIAssistant"
+        component={AIAssistantScreen}
         options={{
-          title: 'Trends',
+          title: 'AI',
           tabBarIcon: ({ color, size }) => (
-            <Icon name="chart-line" size={size} color={color} />
-          ),
-        }}
-      />
-      <JSTab.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="account" size={size} color={color} />
+            <Icon name="robot" size={size} color={color} />
           ),
         }}
       />
@@ -258,6 +236,20 @@ const AppNavigator: React.FC = () => {
     dispatch(checkSubscriptionStatus());
     checkOnboarding();
   }, [dispatch, checkOnboarding]);
+
+  // Re-check onboarding status when user logs in
+  // This ensures that after account deletion and re-login, onboarding is shown again
+  // For normal logout/login, AsyncStorage keeps the flags so onboarding won't show
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Re-check from AsyncStorage when user logs in
+      // If account was deleted, AsyncStorage was cleared and onboarding will show
+      // If user just logged out/in, flags remain and onboarding won't show
+      checkOnboarding();
+      checkIncomeSetup();
+      checkImportShown();
+    }
+  }, [isAuthenticated, checkOnboarding, checkIncomeSetup, checkImportShown]);
 
   // Check income setup after onboarding completes
   useEffect(() => {
@@ -500,6 +492,24 @@ const AppNavigator: React.FC = () => {
                       }}
                     />
                     <Stack.Screen
+                      name="Insights"
+                      component={InsightsScreen}
+                      options={{
+                        title: 'Insights',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="Trends"
+                      component={TrendsScreen}
+                      options={{
+                        title: 'Trends',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
                       name="BalanceHistory"
                       component={BalanceHistoryScreen}
                       options={{
@@ -544,9 +554,31 @@ const AppNavigator: React.FC = () => {
                         headerShown: false,
                       }}
                     />
+                    <Stack.Screen
+                      name="AIAssistant"
+                      component={AIAssistantScreen}
+                      options={{
+                        title: 'AI Assistant',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="Settings"
+                      component={ProfileScreen}
+                      options={{
+                        title: 'Settings',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
           </>
         )}
       </Stack.Navigator>
+      {/* SharedBottomSheet - rendered outside Stack to be always accessible */}
+      {isAuthenticated && onboardingComplete && incomeSetupComplete && importShown && (
+        <SharedBottomSheet />
+      )}
     </NavigationContainer>
   );
 };

@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../hooks/useSubscription';
-import { InsightCard, PremiumBadge, UpgradePrompt } from '../components';
+import { InsightCard, PremiumBadge, UpgradePrompt, AIAssistantFAB } from '../components';
 import { apiService } from '../services/api';
 import { Insight } from '../types';
 import { typography, spacing } from '../theme';

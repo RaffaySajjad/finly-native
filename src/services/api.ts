@@ -1,11 +1,19 @@
 /**
  * API Service for Finly app
- * Purpose: Handles all API calls with mock data for demonstration
- * Includes dynamic budget calculations, AI insights, and AsyncStorage persistence
+ * Purpose: Handles expense, category, and analytics operations
+ * Uses AsyncStorage for local persistence (temporary until backend endpoints are ready)
  * User-specific data storage - each user has their own data
+ * 
+ * TODO: Migrate to backend API endpoints when available
+ * - POST /api/v1/expenses - Create expense
+ * - GET /api/v1/expenses - List expenses
+ * - PUT /api/v1/expenses/:id - Update expense
+ * - DELETE /api/v1/expenses/:id - Delete expense
+ * - GET /api/v1/categories - List categories
+ * - GET /api/v1/analytics/stats - Get monthly stats
+ * - GET /api/v1/analytics/insights - Get AI insights
  */
 
-import axios, { AxiosInstance, AxiosError } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Expense,
@@ -22,53 +30,13 @@ import {
   getStartingBalance,
   setStartingBalance
 } from './userService';
-import { addIncomeTransaction } from './incomeService';
-
-// Mock API base URL (replace with real API later)
-const API_BASE_URL = 'https://api.finly.mock/v1';
-
-// AsyncStorage keys
-const STORAGE_KEYS = {
-  USER_DATA: '@finly_user_data'
-};
+import { api } from './apiClient';
+import { STORAGE_KEYS } from '../config/api.config';
 
 // Get user-specific storage key
 const getUserStorageKey = (key: string, userId: string): string => {
   return `${key}_${userId}`;
 };
-
-/**
- * Creates axios instance with default configuration
- */
-const createApiClient = (): AxiosInstance => {
-  const client = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 30000,
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-
-  client.interceptors.request.use(
-    config => {
-      // Add auth token here when implemented
-      return config;
-    },
-    error => Promise.reject(error)
-  );
-
-  client.interceptors.response.use(
-    response => response,
-    async (error: AxiosError) => {
-      console.error('API Error:', error.message);
-      return Promise.reject(error);
-    }
-  );
-
-  return client;
-};
-
-const apiClient = createApiClient();
 
 /**
  * Default categories template (for new users)
@@ -805,10 +773,9 @@ export const apiService = {
 
   /**
    * Fetches current user profile
+   * Uses cached user data from AsyncStorage (set by auth service)
    */
   async getUser(): Promise<User> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-
     const userId = await getCurrentUserId();
     if (!userId) {
       throw new Error('User not logged in');
@@ -821,7 +788,7 @@ export const apiService = {
         id: user.id,
         name: user.name,
         email: user.email,
-        currency: 'USD'
+        currency: 'USD' // TODO: Add currency support to backend user model
       };
     }
 
@@ -829,7 +796,9 @@ export const apiService = {
   },
 
   /**
-   * Mock AI expense generator
+   * AI expense generator (for demonstration)
+   * TODO: Replace with backend AI service endpoint
+   * Backend should provide: POST /api/v1/ai/generate-expense
    */
   async mockAIExpense(): Promise<Expense> {
     await new Promise(resolve => setTimeout(resolve, 1200));
@@ -839,6 +808,7 @@ export const apiService = {
       throw new Error('User not logged in');
     }
 
+    // Local demo data - will be replaced by backend AI service
     const aiGeneratedExpenses = [
       {
         amount: 42.5,
@@ -897,8 +867,10 @@ export const apiService = {
   },
 
   /**
-   * Mock receipt OCR extraction
-   * Simulates extracting data from a receipt image
+   * Receipt OCR extraction
+   * TODO: Replace with backend OCR service endpoint
+   * Backend should provide: POST /api/v1/receipts/extract
+   * Should use AWS Textract or Google Cloud Vision API
    */
   async extractReceiptData(
     imageUri: string
@@ -908,7 +880,7 @@ export const apiService = {
       setTimeout(resolve, Math.random() * 600 + 1200)
     );
 
-    // Mock receipt data variations
+    // Local demo data - will be replaced by backend OCR service
     const mockReceipts = [
       {
         amount: 5.75,
@@ -952,7 +924,7 @@ export const apiService = {
       }
     ];
 
-    // Return random mock receipt data
+    // Return random demo receipt data
     const randomReceipt =
       mockReceipts[Math.floor(Math.random() * mockReceipts.length)];
     return randomReceipt;
@@ -960,7 +932,9 @@ export const apiService = {
 
   /**
    * Advanced receipt extraction (Premium)
-   * Extracts detailed receipt data including merchant, date, items, tax, tip
+   * TODO: Replace with backend premium OCR service endpoint
+   * Backend should provide: POST /api/v1/receipts/extract-advanced
+   * Should include item-level details, tax, tip extraction
    */
   async extractReceiptDataAdvanced(imageUri: string): Promise<{
     merchant: string;
@@ -980,7 +954,7 @@ export const apiService = {
       setTimeout(resolve, Math.random() * 800 + 1500)
     );
 
-    // Mock advanced receipt data with multiple items
+    // Local demo data - will be replaced by backend premium OCR service
     const mockAdvancedReceipts = [
       {
         merchant: 'Starbucks',

@@ -23,7 +23,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { PieChart } from 'react-native-chart-kit';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -31,13 +30,14 @@ import { StackNavigationProp } from '@react-navigation/stack';
 
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { ExpenseCard, ExpenseOptionsSheet, SkeletonCard, ConfettiCelebration, BottomSheetBackground, PremiumBadge, UpgradePrompt } from '../components';
+import { useBottomSheet } from '../contexts/BottomSheetContext';
+import { ExpenseCard, ExpenseOptionsSheet, SkeletonCard, ConfettiCelebration, BottomSheetBackground, PremiumBadge, CurrencyInput, SpendingBreakdown } from '../components';
 import { useSubscription } from '../hooks/useSubscription';
 import { apiService } from '../services/api';
-import tagsService from '../services/tagsService';
-import { Expense, MonthlyStats, CategoryType, Insight, Category, PaymentMethod, Tag } from '../types';
+import { Expense, MonthlyStats, CategoryType, Insight, Category } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
 
@@ -51,8 +51,8 @@ const DashboardScreen: React.FC = () => {
   const { formatCurrency, getCurrencySymbol } = useCurrency();
   const navigation = useNavigation<DashboardNavigationProp>();
   const insets = useSafeAreaInsets();
-  const { isPremium, getRemainingUsage, requiresUpgrade } = useSubscription();
-  const bottomSheetRef = useRef<BottomSheet>(null);
+  const { isPremium, getRemainingUsage } = useSubscription();
+  const { openBottomSheet } = useBottomSheet();
   const optionsSheetRef = useRef<BottomSheet>(null);
   const balanceAdjustSheetRef = useRef<BottomSheet>(null);
   
@@ -64,29 +64,13 @@ const DashboardScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
   // Balance adjustment state
   const [newBalance, setNewBalance] = useState('');
   const [isAdjustingBalance, setIsAdjustingBalance] = useState(false);
 
-  // Bottom sheet state for adding expenses
-  const [newExpenseAmount, setNewExpenseAmount] = useState('');
-  const [newExpenseCategory, setNewExpenseCategory] = useState<CategoryType>('food');
-  const [newExpenseDescription, setNewExpenseDescription] = useState('');
-  const [newExpensePaymentMethod, setNewExpensePaymentMethod] = useState<PaymentMethod | undefined>(undefined);
-  const [newExpenseTags, setNewExpenseTags] = useState<string[]>([]);
-  const [availableTags, setAvailableTags] = useState<Tag[]>([]);
-  const [showPaymentMethodPicker, setShowPaymentMethodPicker] = useState(false);
-  const [showTagsPicker, setShowTagsPicker] = useState(false);
-  const [showCreateTagModal, setShowCreateTagModal] = useState(false);
-  const [newTagName, setNewTagName] = useState('');
-  const [isAddingExpense, setIsAddingExpense] = useState(false);
-  const [isUsingAI, setIsUsingAI] = useState(false);
-
   // Animation values
   const gradientAnimation = useRef(new Animated.Value(0)).current;
-  const fabScale = useRef(new Animated.Value(1)).current;
   const insightOpacity = useRef(new Animated.Value(0)).current;
 
   // Initialize app data on mount
@@ -138,18 +122,16 @@ const DashboardScreen: React.FC = () => {
 
   const loadData = async (): Promise<void> => {
     try {
-      const [expensesData, categoriesData, statsData, insightsData, tagsData] = await Promise.all([
+      const [expensesData, categoriesData, statsData, insightsData] = await Promise.all([
         apiService.getExpenses(),
         apiService.getCategories(),
         apiService.getMonthlyStats(),
         apiService.getInsights(),
-        tagsService.getTags(),
       ]);
       setExpenses(expensesData.slice(0, 5));
       setCategories(categoriesData);
       setStats(statsData);
       setInsights(insightsData);
-      setAvailableTags(tagsData);
 
       // Trigger confetti for achievements
       const hasAchievement = insightsData.some(insight => insight.type === 'achievement');
@@ -164,80 +146,6 @@ const DashboardScreen: React.FC = () => {
     }
   };
 
-  const handleOpenBottomSheet = useCallback(() => {
-    bottomSheetRef.current?.snapToIndex(0); // Open at 85%
-    Animated.spring(fabScale, {
-      toValue: 0,
-      useNativeDriver: true,
-    }).start();
-  }, []);
-
-  const handleCloseBottomSheet = useCallback(() => {
-    bottomSheetRef.current?.close();
-    Animated.spring(fabScale, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
-    // Reset form
-    setNewExpenseAmount('');
-    setNewExpenseCategory('food');
-    setNewExpenseDescription('');
-    setNewExpensePaymentMethod(undefined);
-    setNewExpenseTags([]);
-    setIsUsingAI(false);
-  }, []);
-
-  const handleAddExpense = async (): Promise<void> => {
-    if (!newExpenseAmount || parseFloat(newExpenseAmount) <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid amount');
-      return;
-    }
-    if (!newExpenseDescription.trim()) {
-      Alert.alert('Missing Description', 'Please add a description');
-      return;
-    }
-
-    setIsAddingExpense(true);
-
-    try {
-      await apiService.createExpense({
-        amount: parseFloat(newExpenseAmount),
-        category: newExpenseCategory,
-        description: newExpenseDescription.trim(),
-        date: new Date().toISOString(),
-        paymentMethod: newExpensePaymentMethod || undefined,
-        tags: newExpenseTags.length > 0 ? newExpenseTags : undefined,
-      });
-
-      await loadData(); // Refresh all data
-      handleCloseBottomSheet();
-      Alert.alert('Success', 'Expense added successfully! 🎉');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to add expense');
-      console.error(error);
-    } finally {
-      setIsAddingExpense(false);
-    }
-  };
-
-  const handleAIExpense = async (): Promise<void> => {
-    setIsUsingAI(true);
-
-    try {
-      const aiExpense = await apiService.mockAIExpense();
-      await loadData(); // Refresh all data
-      handleCloseBottomSheet();
-      Alert.alert(
-        'AI Expense Added! 🤖',
-        `Added ${aiExpense.description} for ${formatCurrency(aiExpense.amount)}`
-      );
-    } catch (error) {
-      Alert.alert('Error', 'AI expense generation failed');
-      console.error(error);
-    } finally {
-      setIsUsingAI(false);
-    }
-  };
 
   const handleExpenseLongPress = (expense: Expense) => {
     setSelectedExpense(expense);
@@ -288,70 +196,6 @@ const DashboardScreen: React.FC = () => {
     }
   };
 
-  // Chart data - calculated from actual category spending
-  const chartData = useMemo(() => {
-    if (!categories || categories.length === 0) return [];
-
-    // Filter categories with spending > 0 and map to chart format
-    const data = categories
-      .filter(cat => cat.totalSpent > 0)
-      .map(cat => ({
-        name: cat.name.charAt(0).toUpperCase() + cat.name.slice(1),
-        amount: cat.totalSpent,
-        color: theme.categories[cat.id as keyof typeof theme.categories],
-        legendFontColor: theme.textSecondary,
-      }))
-      .sort((a, b) => b.amount - a.amount); // Sort by amount descending
-
-    return data;
-  }, [categories, theme]);
-
-  const categoriesList: Array<{ id: CategoryType; name: string; icon: string }> = [
-    { id: 'food', name: 'Food', icon: 'food' },
-    { id: 'transport', name: 'Transport', icon: 'car' },
-    { id: 'shopping', name: 'Shopping', icon: 'shopping' },
-    { id: 'entertainment', name: 'Entertainment', icon: 'movie' },
-    { id: 'health', name: 'Health', icon: 'heart-pulse' },
-    { id: 'utilities', name: 'Utilities', icon: 'lightning-bolt' },
-    { id: 'other', name: 'Other', icon: 'dots-horizontal' },
-  ];
-
-  const PAYMENT_METHODS: Array<{ id: PaymentMethod; name: string; icon: string }> = [
-    { id: 'credit_card', name: 'Credit Card', icon: 'credit-card' },
-    { id: 'debit_card', name: 'Debit Card', icon: 'card' },
-    { id: 'cash', name: 'Cash', icon: 'cash' },
-    { id: 'check', name: 'Check', icon: 'receipt' },
-    { id: 'bank_transfer', name: 'Bank Transfer', icon: 'bank-transfer' },
-    { id: 'digital_wallet', name: 'Digital Wallet', icon: 'wallet' },
-    { id: 'other', name: 'Other', icon: 'dots-horizontal' },
-  ];
-
-  const handleCreateTag = async (): Promise<void> => {
-    if (!newTagName.trim()) {
-      Alert.alert('Invalid Tag', 'Please enter a tag name');
-      return;
-    }
-
-    try {
-      const newTag = await tagsService.createTag(newTagName.trim());
-      setAvailableTags([...availableTags, newTag]);
-      setNewExpenseTags([...newExpenseTags, newTag.id]);
-      setNewTagName('');
-      setShowCreateTagModal(false);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to create tag. Please try again.');
-      console.error('Error creating tag:', error);
-    }
-  };
-
-  const handleToggleTag = (tagId: string): void => {
-    if (newExpenseTags.includes(tagId)) {
-      setNewExpenseTags(newExpenseTags.filter(id => id !== tagId));
-    } else {
-      setNewExpenseTags([...newExpenseTags, tagId]);
-    }
-  };
-
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
@@ -365,12 +209,39 @@ const DashboardScreen: React.FC = () => {
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
         <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
 
+        {/* Header with Trends and Settings buttons */}
+        <View style={[styles.header, { backgroundColor: theme.background }]}>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity
+              style={[styles.headerButton, { backgroundColor: theme.card, borderColor: theme.border }]}
+              onPress={() => navigation.navigate('Subscription')}
+              activeOpacity={0.8}
+            >
+              <Icon name="crown" size={18} color={theme.warning} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={[styles.headerButton, { backgroundColor: theme.card, borderColor: theme.border }]}
+              onPress={() => navigation.navigate('Trends')}
+            >
+              <Icon name="chart-line" size={20} color={theme.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.headerButton, { backgroundColor: theme.card, borderColor: theme.border }]}
+              onPress={() => navigation.navigate('Settings')}
+            >
+              <Icon name="cog" size={20} color={theme.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 120 }}
         >
           {/* Premium Status Banner */}
-          {!isPremium && (
+          {/* {!isPremium && (
             <View style={styles.premiumBanner}>
               <View style={[styles.premiumBannerContent, { backgroundColor: theme.card, borderColor: theme.border }]}>
                 <View style={styles.premiumBadgeContainer}>
@@ -387,7 +258,7 @@ const DashboardScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
             </View>
-          )}
+          )} */}
 
           {/* Premium Balance Card */}
           {stats && (
@@ -478,37 +349,9 @@ const DashboardScreen: React.FC = () => {
             </Animated.View>
           )}
 
-          {/* Spending Breakdown Chart */}
+          {/* Spending Breakdown */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Spending Breakdown</Text>
-
-            {chartData.length > 0 ? (
-              <View style={[styles.chartCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
-                <PieChart
-                  data={chartData}
-                  width={width - 48}
-                  height={220}
-                  chartConfig={{
-                    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                  }}
-                  accessor="amount"
-                  backgroundColor="transparent"
-                  paddingLeft="15"
-                  absolute
-                  hasLegend={true}
-                />
-              </View>
-            ) : (
-              <View style={[styles.chartCard, styles.emptyChartCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
-                <Icon name="chart-pie" size={48} color={theme.textTertiary} />
-                <Text style={[styles.emptyChartText, { color: theme.textSecondary }]}>
-                  No spending data yet
-                </Text>
-                <Text style={[styles.emptyChartSubtext, { color: theme.textTertiary }]}>
-                  Add expenses to see your spending breakdown
-                </Text>
-              </View>
-            )}
+            <SpendingBreakdown categories={categories} />
           </View>
 
           {/* Recent Transactions */}
@@ -547,308 +390,6 @@ const DashboardScreen: React.FC = () => {
           </View>
         </ScrollView>
 
-        {/* Floating Action Button */}
-        <Animated.View
-          style={[
-            styles.fabContainer,
-            {
-              bottom: Math.max(insets.bottom, 12) + (Platform.select({ ios: 70, android: 10 }) ?? 70),
-              transform: [{ scale: fabScale }]
-            }
-          ]}
-        >
-          <TouchableOpacity
-            style={[styles.fab, { backgroundColor: theme.primary }, elevation.lg]}
-            onPress={handleOpenBottomSheet}
-            activeOpacity={0.9}
-          >
-            <Icon name="plus" size={28} color="#FFFFFF" />
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* Bottom Sheet for Adding Expenses */}
-        <BottomSheet
-          ref={bottomSheetRef}
-          index={-1}
-          snapPoints={['85%']}
-          enablePanDownToClose
-          backgroundComponent={BottomSheetBackground}
-          handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
-          onClose={() => {
-            Animated.spring(fabScale, {
-              toValue: 1,
-              useNativeDriver: true,
-            }).start();
-          }}
-        >
-          <BottomSheetScrollView
-            style={styles.bottomSheetContent}
-            contentContainerStyle={styles.bottomSheetContentContainer}
-          >
-            <Text style={[styles.sheetTitle, { color: theme.text }]}>Add Transaction</Text>
-
-            {/* Quick Add Options */}
-            <View style={styles.quickAddButtons}>
-              <View style={styles.aiButtonContainer}>
-                <TouchableOpacity
-                  style={[styles.aiButton, { backgroundColor: theme.primary }]}
-                  onPress={() => {
-                    if (requiresUpgrade('voiceEntry')) {
-                      setShowUpgradePrompt(true);
-                      return;
-                    }
-                    navigation.navigate('VoiceTransaction');
-                  }}
-                  disabled={isUsingAI}
-                >
-                  {isUsingAI ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <>
-                        <Icon name="microphone" size={22} color="#FFFFFF" />
-                        <Text style={styles.aiButtonText}>
-                        🎤 Voice Entry
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-                {!isPremium && (
-                  <View style={styles.premiumBadgeOverlay}>
-                    <View style={[
-                      styles.premiumIconBadge,
-                      {
-                        backgroundColor: theme.warning,
-                      }
-                    ]}>
-                      <Icon name="crown" size={12} color="#1A1A1A" />
-                    </View>
-                  </View>
-                )}
-              </View>
-
-              <TouchableOpacity
-                style={[styles.scanButton, { backgroundColor: theme.income }]}
-                onPress={() => {
-                  bottomSheetRef.current?.close();
-                  setTimeout(() => navigation.navigate('ReceiptUpload'), 300);
-                }}
-              >
-                <Icon name="camera-outline" size={22} color="#FFFFFF" />
-                <Text style={styles.scanButtonText}>
-                  📸 Scan Receipt
-                </Text>
-                {!isPremium && (
-                  <View style={styles.scanButtonBadge}>
-                    <Text style={styles.scanButtonBadgeText}>
-                      {getRemainingUsage('receiptScanning')} left
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {/* Bulk Add Option */}
-            <TouchableOpacity
-              style={[styles.bulkButton, { backgroundColor: theme.card, borderColor: theme.border }]}
-              onPress={() => {
-                bottomSheetRef.current?.close();
-                setTimeout(() => {
-                  if (requiresUpgrade('bulkEntry')) {
-                    setShowUpgradePrompt(true);
-                    return;
-                  }
-                  navigation.navigate('BulkTransaction');
-                }, 300);
-              }}
-            >
-              <Icon name="file-multiple" size={20} color={theme.primary} />
-              <Text style={[styles.bulkButtonText, { color: theme.text }]}>
-                📋 Bulk Add
-              </Text>
-              {!isPremium && (
-                <View style={styles.bulkBadge}>
-                  <View style={[
-                    styles.premiumIconBadge,
-                    {
-                      backgroundColor: theme.warning,
-                    }
-                  ]}>
-                    <Icon name="crown" size={12} color="#1A1A1A" />
-                  </View>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.divider}>
-              <View style={[styles.dividerLine, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]} />
-              <Text style={styles.dividerText}>OR ADD MANUALLY</Text>
-              <View style={[styles.dividerLine, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]} />
-            </View>
-
-            {/* Amount Input */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Amount</Text>
-              <View style={[styles.amountInput, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                <Text style={[styles.currencySymbol, { color: theme.text }]}>{getCurrencySymbol()}</Text>
-                <TextInput
-                  style={[styles.amountField, { color: theme.text }]}
-                  placeholder="0.00"
-                  placeholderTextColor={theme.textTertiary}
-                  keyboardType="decimal-pad"
-                  value={newExpenseAmount}
-                  onChangeText={setNewExpenseAmount}
-                />
-              </View>
-            </View>
-
-            {/* Category Selection */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Category</Text>
-              <View style={styles.categoryGrid}>
-                {categoriesList.map((cat) => {
-                  const isSelected = newExpenseCategory === cat.id;
-                  const categoryColor = theme.categories[cat.id as keyof typeof theme.categories];
-
-                  return (
-                    <TouchableOpacity
-                      key={cat.id}
-                      style={[
-                        styles.categoryButton,
-                        {
-                          backgroundColor: isSelected ? categoryColor + '20' : theme.background,
-                          borderColor: isSelected ? categoryColor : theme.border,
-                        },
-                      ]}
-                      onPress={() => setNewExpenseCategory(cat.id)}
-                    >
-                      <Icon name={cat.icon as any} size={24} color={isSelected ? categoryColor : theme.textSecondary} />
-                      <Text style={[styles.categoryLabel, { color: isSelected ? categoryColor : theme.textSecondary }]}>
-                        {cat.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Description Input */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Description</Text>
-              <TextInput
-                style={[styles.descriptionInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-                placeholder="What did you spend on?"
-                placeholderTextColor={theme.textTertiary}
-                value={newExpenseDescription}
-                onChangeText={setNewExpenseDescription}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
-            </View>
-
-            {/* Payment Method Selection */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Payment Method (Optional)</Text>
-              <TouchableOpacity
-                style={[
-                  styles.pickerButton,
-                  { backgroundColor: theme.background, borderColor: theme.border },
-                ]}
-                onPress={() => setShowPaymentMethodPicker(true)}
-              >
-                <View style={styles.pickerButtonContent}>
-                  {newExpensePaymentMethod ? (
-                    <>
-                      <Icon
-                        name={PAYMENT_METHODS.find(pm => pm.id === newExpensePaymentMethod)?.icon as any}
-                        size={18}
-                        color={theme.primary}
-                      />
-                      <Text style={[styles.pickerButtonText, { color: theme.text }]}>
-                        {PAYMENT_METHODS.find(pm => pm.id === newExpensePaymentMethod)?.name}
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="credit-card-outline" size={18} color={theme.textSecondary} />
-                      <Text style={[styles.pickerButtonText, { color: theme.textSecondary }]}>
-                        Select payment method
-                      </Text>
-                    </>
-                  )}
-                </View>
-                <Icon name="chevron-down" size={18} color={theme.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Tags Selection */}
-            <View style={styles.inputGroup}>
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Tags (Optional)</Text>
-                <TouchableOpacity
-                  onPress={() => setShowCreateTagModal(true)}
-                  style={styles.addTagButton}
-                >
-                  <Icon name="plus-circle" size={18} color={theme.primary} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Selected Tags */}
-              {newExpenseTags.length > 0 && (
-                <View style={styles.selectedTagsContainer}>
-                  {newExpenseTags.map((tagId) => {
-                    const tag = availableTags.find(t => t.id === tagId);
-                    if (!tag) return null;
-                    return (
-                      <TouchableOpacity
-                        key={tagId}
-                        style={[
-                          styles.tagChip,
-                          { backgroundColor: tag.color + '20', borderColor: tag.color },
-                        ]}
-                        onPress={() => setNewExpenseTags(newExpenseTags.filter(id => id !== tagId))}
-                      >
-                        <Text style={[styles.tagChipText, { color: tag.color }]}>{tag.name}</Text>
-                        <Icon name="close" size={12} color={tag.color} />
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-
-              {/* Tags Picker */}
-              <TouchableOpacity
-                style={[
-                  styles.pickerButton,
-                  { backgroundColor: theme.background, borderColor: theme.border },
-                ]}
-                onPress={() => setShowTagsPicker(true)}
-              >
-                <View style={styles.pickerButtonContent}>
-                  <Icon name="tag-multiple-outline" size={18} color={theme.textSecondary} />
-                  <Text style={[styles.pickerButtonText, { color: theme.textSecondary }]}>
-                    {newExpenseTags.length > 0 ? `Add more tags` : 'Add tags'}
-                  </Text>
-                </View>
-                <Icon name="chevron-down" size={18} color={theme.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Add Button */}
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: theme.primary }, elevation.sm]}
-              onPress={handleAddExpense}
-              disabled={isAddingExpense}
-            >
-              {isAddingExpense ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                  <Text style={styles.addButtonText}>Add Expense</Text>
-              )}
-            </TouchableOpacity>
-          </BottomSheetScrollView>
-        </BottomSheet>
-
         {/* Expense Options Sheet */}
         {selectedExpense && (
           <ExpenseOptionsSheet
@@ -865,192 +406,11 @@ const DashboardScreen: React.FC = () => {
           onAnimationEnd={() => setShowConfetti(false)}
         /> */}
 
-        {/* Upgrade Prompt */}
-        <UpgradePrompt
-          visible={showUpgradePrompt}
-          onClose={() => setShowUpgradePrompt(false)}
-          feature="Voice & AI Transaction Entry"
-        />
-
-        {/* Payment Method Picker Modal */}
-        <Modal
-          visible={showPaymentMethodPicker}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowPaymentMethodPicker(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: theme.text }]}>Select Payment Method</Text>
-                <TouchableOpacity onPress={() => setShowPaymentMethodPicker(false)}>
-                  <Icon name="close" size={24} color={theme.textSecondary} />
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={styles.modalScrollView}>
-                <TouchableOpacity
-                  style={[
-                    styles.modalOption,
-                    { borderBottomColor: theme.border },
-                    !newExpensePaymentMethod && { backgroundColor: theme.primary + '10' },
-                  ]}
-                  onPress={() => {
-                    setNewExpensePaymentMethod(undefined);
-                    setShowPaymentMethodPicker(false);
-                  }}
-                >
-                  <Icon name="close-circle" size={20} color={theme.textSecondary} />
-                  <Text style={[styles.modalOptionText, { color: theme.textSecondary }]}>
-                    None
-                  </Text>
-                </TouchableOpacity>
-                {PAYMENT_METHODS.map((method) => (
-                  <TouchableOpacity
-                    key={method.id}
-                    style={[
-                      styles.modalOption,
-                      { borderBottomColor: theme.border },
-                      newExpensePaymentMethod === method.id && { backgroundColor: theme.primary + '10' },
-                    ]}
-                    onPress={() => {
-                      setNewExpensePaymentMethod(method.id);
-                      setShowPaymentMethodPicker(false);
-                    }}
-                  >
-                    <Icon name={method.icon as any} size={20} color={theme.primary} />
-                    <Text style={[styles.modalOptionText, { color: theme.text }]}>
-                      {method.name}
-                    </Text>
-                    {newExpensePaymentMethod === method.id && (
-                      <Icon name="check" size={20} color={theme.primary} />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Tags Picker Modal */}
-        <Modal
-          visible={showTagsPicker}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowTagsPicker(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: theme.text }]}>Select Tags</Text>
-                <TouchableOpacity onPress={() => setShowTagsPicker(false)}>
-                  <Icon name="close" size={24} color={theme.textSecondary} />
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={styles.modalScrollView}>
-                {availableTags.map((tag) => {
-                  const isSelected = newExpenseTags.includes(tag.id);
-                  return (
-                    <TouchableOpacity
-                      key={tag.id}
-                      style={[
-                        styles.modalOption,
-                        { borderBottomColor: theme.border },
-                        isSelected && { backgroundColor: tag.color + '10' },
-                      ]}
-                      onPress={() => handleToggleTag(tag.id)}
-                    >
-                      <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
-                      <Text style={[styles.modalOptionText, { color: theme.text }]}>
-                        {tag.name}
-                      </Text>
-                      {isSelected && (
-                        <Icon name="check" size={20} color={tag.color} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-                {availableTags.length === 0 && (
-                  <View style={styles.emptyTagsContainer}>
-                    <Text style={[styles.emptyTagsText, { color: theme.textSecondary }]}>
-                      No tags yet. Create one to get started!
-                    </Text>
-                  </View>
-                )}
-              </ScrollView>
-              <TouchableOpacity
-                style={[styles.createTagButton, { backgroundColor: theme.primary }]}
-                onPress={() => {
-                  setShowTagsPicker(false);
-                  setShowCreateTagModal(true);
-                }}
-              >
-                <Icon name="plus" size={20} color="#FFFFFF" />
-                <Text style={styles.createTagButtonText}>Create New Tag</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Create Tag Modal */}
-        <Modal
-          visible={showCreateTagModal}
-          transparent
-          animationType="fade"
-          onRequestClose={() => {
-            setShowCreateTagModal(false);
-            setNewTagName('');
-          }}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, styles.createTagModalContent, { backgroundColor: theme.card }]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: theme.text }]}>Create New Tag</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setShowCreateTagModal(false);
-                    setNewTagName('');
-                  }}
-                >
-                  <Icon name="close" size={24} color={theme.textSecondary} />
-                </TouchableOpacity>
-              </View>
-              <TextInput
-                style={[
-                  styles.tagInput,
-                  { backgroundColor: theme.background, borderColor: theme.border, color: theme.text },
-                ]}
-                placeholder="Tag name (e.g., Business, Personal)"
-                placeholderTextColor={theme.textTertiary}
-                value={newTagName}
-                onChangeText={setNewTagName}
-                autoFocus
-              />
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonSecondary, { borderColor: theme.border }]}
-                  onPress={() => {
-                    setShowCreateTagModal(false);
-                    setNewTagName('');
-                  }}
-                >
-                  <Text style={[styles.modalButtonText, { color: theme.textSecondary }]}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonPrimary, { backgroundColor: theme.primary }]}
-                  onPress={handleCreateTag}
-                >
-                  <Text style={styles.modalButtonTextPrimary}>Create</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
         {/* Balance Adjustment Bottom Sheet */}
         <BottomSheet
           ref={balanceAdjustSheetRef}
           index={-1}
-          snapPoints={['40%']}
+          snapPoints={['45%']}
           enablePanDownToClose
           backgroundComponent={BottomSheetBackground}
           handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
@@ -1067,15 +427,14 @@ const DashboardScreen: React.FC = () => {
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>New Balance</Text>
               <View style={[styles.amountInput, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                <Text style={[styles.currencySymbol, { color: theme.text }]}>{getCurrencySymbol()}</Text>
-                <TextInput
-                  style={[styles.amountInputField, { color: theme.text }]}
-                  placeholder="0.00"
-                  placeholderTextColor={theme.textTertiary}
-                  keyboardType="decimal-pad"
+                <CurrencyInput
                   value={newBalance}
                   onChangeText={setNewBalance}
-                  autoFocus
+                  placeholder="0.00"
+                  placeholderTextColor={theme.textTertiary}
+                  showSymbol={true}
+                  allowDecimals={true}
+                  inputStyle={styles.currencyInputField}
                 />
               </View>
             </View>
@@ -1093,6 +452,27 @@ const DashboardScreen: React.FC = () => {
             </TouchableOpacity>
           </BottomSheetScrollView>
         </BottomSheet>
+
+        {/* iOS-only Add Transaction FAB */}
+        {Platform.OS === 'ios' && (
+          <TouchableOpacity
+            style={[
+              styles.addTransactionFAB,
+              {
+                backgroundColor: theme.primary,
+                bottom: Math.max(insets.bottom, 12) + 70,
+              },
+              elevation.lg,
+            ]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              openBottomSheet();
+            }}
+            activeOpacity={0.9}
+          >
+            <Icon name="plus" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -1269,6 +649,39 @@ const styles = StyleSheet.create({
     ...typography.bodyLarge,
     marginTop: spacing.md,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  headerLeft: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  addTransactionFAB: {
+    position: 'absolute',
+    right: spacing.lg,
+    width: 64,
+    height: 64,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   fabContainer: {
     position: 'absolute',
     right: spacing.lg,
@@ -1344,9 +757,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: spacing.md,
   },
-  currencySymbol: {
-    ...typography.headlineMedium,
-    fontWeight: '600',
+  currencyInputField: {
+    paddingVertical: spacing.md,
   },
   amountField: {
     ...typography.headlineMedium,
@@ -1656,11 +1068,6 @@ const styles = StyleSheet.create({
   bottomSheetSubtitle: {
     ...typography.bodySmall,
     marginBottom: spacing.lg,
-  },
-  amountInputField: {
-    flex: 1,
-    ...typography.titleMedium,
-    paddingVertical: spacing.md,
   },
   saveButton: {
     paddingVertical: spacing.md + 4,

@@ -1,7 +1,8 @@
 /**
  * Currency Service
  * Purpose: Manages currency selection and provides list of available currencies
- * Features: Mock API call, last used currency tracking
+ * Features: Currency persistence, last used currency tracking
+ * Note: Currency list is maintained locally (no backend API needed)
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';

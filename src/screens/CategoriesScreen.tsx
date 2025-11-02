@@ -20,7 +20,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { CategoryCard } from '../components';
+import { CategoryCard, AIAssistantFAB } from '../components';
 import { apiService } from '../services/api';
 import { Category } from '../types';
 import { RootStackParamList } from '../navigation/types';

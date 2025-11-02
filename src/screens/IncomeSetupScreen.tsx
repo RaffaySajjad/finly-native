@@ -28,7 +28,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import { createIncomeSource } from '../services/incomeService';
 import { IncomeFrequency } from '../types';
-import { BottomSheetBackground } from '../components';
+import { BottomSheetBackground, CurrencyInput } from '../components';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setStartingBalance, getStartingBalance } from '../services/userService';
@@ -42,6 +42,7 @@ import {
 type IncomeSetupNavigationProp = StackNavigationProp<RootStackParamList>;
 
 const INCOME_SETUP_COMPLETED_KEY = '@finly_income_setup_completed';
+const IMPORT_SHOWN_KEY = '@finly_import_shown';
 
 const FREQUENCY_OPTIONS: Array<{ value: IncomeFrequency; label: string; icon: string; description: string }> = [
   { value: 'weekly', label: 'Weekly', icon: 'calendar-week', description: 'Every week' },
@@ -154,7 +155,14 @@ const IncomeSetupScreen: React.FC = () => {
     if (Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    await AsyncStorage.setItem(INCOME_SETUP_COMPLETED_KEY, 'true');
+    // Set both flags atomically to prevent race condition
+    await AsyncStorage.multiSet([
+      [IMPORT_SHOWN_KEY, 'true'],
+      [INCOME_SETUP_COMPLETED_KEY, 'true']
+    ]);
+
+    // Small delay to ensure AsyncStorage writes complete
+    await new Promise(resolve => setTimeout(resolve, 100));
   };
 
   const handleNext = () => {
@@ -253,7 +261,15 @@ const IncomeSetupScreen: React.FC = () => {
       const savedBalance = await getStartingBalance();
       console.log(`[IncomeSetupScreen] Verified saved balance: ${savedBalance}`);
       
-      await AsyncStorage.setItem(INCOME_SETUP_COMPLETED_KEY, 'true');
+      // IMPORTANT: Set BOTH flags together to prevent race condition
+      // Mark import as shown FIRST to prevent the import modal from showing
+      await AsyncStorage.multiSet([
+        [IMPORT_SHOWN_KEY, 'true'],
+        [INCOME_SETUP_COMPLETED_KEY, 'true']
+      ]);
+
+      // Small delay to ensure AsyncStorage writes complete before AppNavigator re-checks
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       if (Platform.OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -369,7 +385,6 @@ const IncomeSetupScreen: React.FC = () => {
           placeholderTextColor={theme.textTertiary}
           value={name}
           onChangeText={setName}
-          autoFocus
         />
       </View>
     </View>
@@ -389,15 +404,15 @@ const IncomeSetupScreen: React.FC = () => {
 
       <View style={styles.inputGroup}>
         <View style={[styles.amountInputLarge, { backgroundColor: theme.background, borderColor: theme.border }]}>
-          <Text style={[styles.currencySymbolLarge, { color: theme.text }]}>{getCurrencySymbol()}</Text>
-          <TextInput
-            style={[styles.amountInputFieldLarge, { color: theme.text }]}
-            placeholder="0.00"
-            placeholderTextColor={theme.textTertiary}
-            keyboardType="decimal-pad"
+          <CurrencyInput
             value={amount}
             onChangeText={setAmount}
-            autoFocus
+            placeholder="0.00"
+            placeholderTextColor={theme.textTertiary}
+            large
+            showSymbol={true}
+            allowDecimals={true}
+            inputStyle={styles.currencyInputField}
           />
         </View>
       </View>
@@ -527,7 +542,6 @@ const IncomeSetupScreen: React.FC = () => {
             placeholderTextColor={theme.textTertiary}
             value={customDatesInput}
             onChangeText={handleCustomDatesChange}
-            autoFocus
           />
           {customDates.length > 0 && (
             <View style={styles.customDatesPreview}>
@@ -573,15 +587,15 @@ const IncomeSetupScreen: React.FC = () => {
 
       <View style={styles.inputGroup}>
         <View style={[styles.amountInputLarge, { backgroundColor: theme.background, borderColor: theme.border }]}>
-          <Text style={[styles.currencySymbolLarge, { color: theme.text }]}>{getCurrencySymbol()}</Text>
-          <TextInput
-            style={[styles.amountInputFieldLarge, { color: theme.text }]}
-            placeholder="0.00"
-            placeholderTextColor={theme.textTertiary}
-            keyboardType="decimal-pad"
+          <CurrencyInput
             value={startingBalanceInput}
             onChangeText={setStartingBalanceInput}
-            autoFocus
+            placeholder="0.00"
+            placeholderTextColor={theme.textTertiary}
+            large
+            showSymbol={true}
+            allowDecimals={true}
+            inputStyle={styles.currencyInputField}
           />
         </View>
       </View>
@@ -634,7 +648,7 @@ const IncomeSetupScreen: React.FC = () => {
       <BottomSheet
         ref={bottomSheetRef}
         index={-1}
-        snapPoints={['75%']}
+        snapPoints={['45%', '75%']}
         enablePanDownToClose={false}
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
@@ -862,16 +876,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
-  currencySymbolLarge: {
-    ...typography.headlineMedium,
-    marginRight: spacing.md,
-    fontWeight: '700',
-  },
-  amountInputFieldLarge: {
-    flex: 1,
-    ...typography.headlineMedium,
-    fontWeight: '700',
-    paddingVertical: spacing.sm,
+  currencyInputField: {
+    paddingVertical: spacing.lg,
   },
   frequencyGrid: {
     flexDirection: 'row',
@@ -951,9 +957,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginTop: spacing.lg,
     backgroundColor: 'transparent',
-  },
-  fixedActionButtons: {
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
   },
   backButton: {
     flex: 1,
@@ -1042,6 +1045,7 @@ const styles = StyleSheet.create({
     right: 0,
     padding: spacing.lg,
     borderTopWidth: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,

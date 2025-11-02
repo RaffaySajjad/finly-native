@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
@@ -39,45 +40,46 @@ interface OnboardingSlide {
 const ONBOARDING_STORAGE_KEY = '@finly_onboarding_completed';
 const IMPORT_SHOWN_KEY = '@finly_import_shown';
 
-const onboardingSlides: OnboardingSlide[] = [
-  {
-    id: '1',
-    icon: 'wallet-outline',
-    title: 'Track Every Expense',
-    description: 'Easily log your expenses. Keep track of your finances without linking bank accounts.',
-    color: '#6366F1',
-  },
-  {
-    id: '2',
-    icon: 'cash-multiple',
-    title: 'Auto-Track Income',
-    description: 'Set up your income sources and we\'ll automatically add them to your balance on schedule. Perfect for salaries, freelance, and recurring payments.',
-    color: '#10B981',
-  },
-  {
-    id: '3',
-    icon: 'camera-outline',
-    title: 'Scan Receipts Instantly',
-    description: 'Take a photo of your receipt and let AI extract all the details automatically. Perfect for expenses on the go.',
-    color: '#F59E0B',
-  },
-  {
-    id: '4',
-    icon: 'microphone',
-    title: 'Voice & AI Entry',
-    description: 'Say or type multiple transactions at once. "Coffee $5, Gas $30, Lunch $15" and we\'ll parse it all.',
-    color: '#8B5CF6',
-  },
-  {
-    id: '5',
-    icon: 'file-import',
-    title: 'Import from Other Apps',
-    description: 'Switching from Wallet by BudgetBakers or another app? Import your existing transactions with just a CSV file. We\'ll handle duplicates automatically.',
-    color: '#EC4899',
-  },
-];
-
 const OnboardingScreen: React.FC = () => {
+  const { getCurrencySymbol } = useCurrency();
+
+  const onboardingSlides: OnboardingSlide[] = [
+    {
+      id: '1',
+      icon: 'wallet-outline',
+      title: 'Track Every Expense',
+      description: 'Easily log your expenses. Keep track of your finances without linking bank accounts.',
+      color: '#6366F1',
+    },
+    {
+      id: '2',
+      icon: 'cash-multiple',
+      title: 'Auto-Track Income',
+      description: 'Set up your income sources and we\'ll automatically add them to your balance on schedule. Perfect for salaries, freelance, and recurring payments.',
+      color: '#10B981',
+    },
+    {
+      id: '3',
+      icon: 'camera-outline',
+      title: 'Scan Receipts Instantly',
+      description: 'Take a photo of your receipt and let AI extract all the details automatically. Perfect for expenses on the go.',
+      color: '#F59E0B',
+    },
+    {
+      id: '4',
+      icon: 'microphone',
+      title: 'Voice & AI Entry',
+      description: `Say or type multiple transactions at once. "Coffee ${getCurrencySymbol()}5, Gas ${getCurrencySymbol()}30, Lunch ${getCurrencySymbol()}15" and we'll parse it all.`,
+      color: '#8B5CF6',
+    },
+    {
+      id: '5',
+      icon: 'file-import',
+      title: 'Import from Other Apps',
+      description: 'Switching from Wallet by BudgetBakers or another app? Import your existing transactions with just a CSV file. We\'ll handle duplicates automatically.',
+      color: '#EC4899',
+    },
+  ];
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const scrollViewRef = useRef<ScrollView>(null);
@@ -174,6 +176,7 @@ const OnboardingScreen: React.FC = () => {
 
     return (
       <Animated.View
+        key={'import-question-slide'}
         style={[
           styles.slide,
           {
@@ -273,9 +276,9 @@ const OnboardingScreen: React.FC = () => {
       <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
 
       {/* Skip Button */}
-      <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+      {/* <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
         <Text style={[styles.skipText, { color: theme.textSecondary }]}>Skip</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
       {/* Slides */}
       <ScrollView

@@ -17,6 +17,7 @@ import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { Expense } from '../types';
 import { BottomSheetBackground } from './BottomSheetBackground';
 import { typography, spacing, borderRadius } from '../theme';
@@ -38,6 +39,7 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
   onClose,
 }) => {
   const { theme } = useTheme();
+  const { formatCurrency } = useCurrency();
   const bottomSheetRef = useRef<BottomSheet>(null);
 
   // Auto-expand when expense is set
@@ -114,7 +116,7 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
             {expense.description}
           </Text>
           <Text style={[styles.expenseAmount, { color: theme.text }]}>
-            ${expense.amount.toFixed(2)}
+            {formatCurrency(expense.amount)}
           </Text>
         </View>
 

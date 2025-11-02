@@ -257,11 +257,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: spacing.md,
     gap: spacing.sm,
+    minHeight: Platform.OS === 'ios' ? 52 : undefined,
+    paddingVertical: Platform.OS === 'ios' ? spacing.sm : 0,
   },
   input: {
     ...typography.bodyMedium,
     flex: 1,
-    paddingVertical: spacing.md,
+    paddingVertical: Platform.OS === 'ios' ? 0 : spacing.md,
+    height: Platform.OS === 'ios' ? 45 : undefined,
+    textAlignVertical: 'center',
+    includeFontPadding: Platform.OS === 'android' ? false : undefined
   },
   forgotPassword: {
     alignSelf: 'flex-end',
@@ -297,4 +302,3 @@ const styles = StyleSheet.create({
 });
 
 export default LoginScreen;
-

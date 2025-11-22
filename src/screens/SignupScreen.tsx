@@ -15,7 +15,6 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,6 +28,7 @@ import { signup as signupAction } from '../store/slices/authSlice';
 import { useTheme } from '../contexts/ThemeContext';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { AuthStackParamList } from '../navigation/types';
+import { useAlert } from '../hooks/useAlert';
 
 type SignupNavigationProp = StackNavigationProp<AuthStackParamList, 'Signup'>;
 
@@ -47,6 +47,16 @@ const SignupScreen: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Error states
+  const [nameError, setNameError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState('');
+  const [generalError, setGeneralError] = useState('');
+  
+  // Alert hook (only for success message)
+  const { showSuccess, AlertComponent } = useAlert();
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -69,75 +79,105 @@ const SignupScreen: React.FC = () => {
   }, []);
 
   const validateForm = (): boolean => {
-    if (!name || !email || !password || !confirmPassword) {
-      Alert.alert('Missing Fields', 'Please fill in all fields');
-      return false;
+    // Clear previous errors
+    setNameError('');
+    setEmailError('');
+    setPasswordError('');
+    setConfirmPasswordError('');
+
+    let isValid = true;
+
+    // Validate name
+    if (!name.trim()) {
+      setNameError('Please enter your name');
+      isValid = false;
+    } else if (name.trim().length < 2) {
+      setNameError('Name must be at least 2 characters long');
+      isValid = false;
+    } else if (name.length > 100) {
+      setNameError('Name must not exceed 100 characters');
+      isValid = false;
     }
 
-    // Validate name (min 2 chars, max 100)
-    if (name.trim().length < 2) {
-      Alert.alert('Invalid Name', 'Name must be at least 2 characters long');
-      return false;
+    // Validate email
+    if (!email.trim()) {
+      setEmailError('Please enter your email');
+      isValid = false;
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        setEmailError('Please enter a valid email address');
+        isValid = false;
+      }
     }
 
-    if (name.length > 100) {
-      Alert.alert('Invalid Name', 'Name must not exceed 100 characters');
-      return false;
+    // Validate password
+    if (!password) {
+      setPasswordError('Please enter a password');
+      isValid = false;
+    } else if (password.length < 8) {
+      setPasswordError('Password must be at least 8 characters long');
+      isValid = false;
+    } else if (password.length > 128) {
+      setPasswordError('Password must not exceed 128 characters');
+      isValid = false;
+    } else {
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+      if (!passwordRegex.test(password)) {
+        setPasswordError('Must contain uppercase, lowercase, and number');
+        isValid = false;
+      }
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Invalid Email', 'Please enter a valid email address');
-      return false;
+    // Validate confirm password
+    if (!confirmPassword) {
+      setConfirmPasswordError('Please confirm your password');
+      isValid = false;
+    } else if (password !== confirmPassword) {
+      setConfirmPasswordError('Passwords do not match');
+      isValid = false;
     }
 
-    // Validate password (min 8 chars, must contain uppercase, lowercase, and number)
-    if (password.length < 8) {
-      Alert.alert('Weak Password', 'Password must be at least 8 characters long');
-      return false;
-    }
-
-    if (password.length > 128) {
-      Alert.alert('Password Too Long', 'Password must not exceed 128 characters');
-      return false;
-    }
-
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
-    if (!passwordRegex.test(password)) {
-      Alert.alert(
-        'Weak Password',
-        'Password must contain at least one uppercase letter, one lowercase letter, and one number'
-      );
-      return false;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert('Password Mismatch', 'Passwords do not match');
-      return false;
-    }
-
-    return true;
+    return isValid;
   };
 
   const handleSignup = async () => {
+    // Clear general error
+    setGeneralError('');
+    
     if (!validateForm()) return;
 
     try {
+      console.log('[SignupScreen] Starting signup process...');
       const result = await dispatch(signupAction({ name, email, password })).unwrap();
+      console.log('[SignupScreen] Signup successful, result:', result);
       
-      // Navigate to email verification screen immediately
-      navigation.navigate('VerifyEmail', { email });
-      
-      // Show success message after navigation
-      setTimeout(() => {
-        Alert.alert(
-          'Check Your Email',
-          'We\'ve sent a verification code to your email address. Please check your inbox and enter the 6-digit code.'
-        );
-      }, 500);
+      // Show success message
+      showSuccess(
+        'Check Your Email',
+        `We've sent a verification link to ${email}. Please check your inbox and click the link to verify your account. If you didn't receive the email, please check your spam folder.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.navigate('Login'),
+          },
+        ]
+      );
     } catch (error) {
-      Alert.alert('Signup Failed', error instanceof Error ? error.message : 'Please try again');
+      console.error('[SignupScreen] Signup failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Signup failed. Please try again.';
+      
+      // Try to determine which field has the error
+      const errorLower = errorMessage.toLowerCase();
+      if (errorLower.includes('email') || errorLower.includes('already exists') || errorLower.includes('already registered')) {
+        setEmailError(errorMessage);
+      } else if (errorLower.includes('password')) {
+        setPasswordError(errorMessage);
+      } else if (errorLower.includes('name')) {
+        setNameError(errorMessage);
+      } else {
+        setGeneralError(errorMessage);
+      }
     }
   };
 
@@ -187,48 +227,88 @@ const SignupScreen: React.FC = () => {
               {/* Name Input */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: theme.textSecondary }]}>Full Name</Text>
-                <View style={[styles.inputContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                  <Icon name="account-outline" size={20} color={theme.textSecondary} />
+                <View style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: theme.background,
+                    borderColor: nameError ? theme.expense : theme.border,
+                  }
+                ]}>
+                  <Icon name="account-outline" size={20} color={nameError ? theme.expense : theme.textSecondary} />
                   <TextInput
                     style={[styles.input, { color: theme.text }]}
                     placeholder="John Doe"
                     placeholderTextColor={theme.textTertiary}
                     value={name}
-                    onChangeText={setName}
+                    onChangeText={(text) => {
+                      setName(text);
+                      if (nameError) setNameError('');
+                      if (generalError) setGeneralError('');
+                    }}
                     autoCapitalize="words"
                   />
                 </View>
+                {nameError && (
+                  <Text style={[styles.errorText, { color: theme.expense }]}>{nameError}</Text>
+                )}
               </View>
 
               {/* Email Input */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: theme.textSecondary }]}>Email</Text>
-                <View style={[styles.inputContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                  <Icon name="email-outline" size={20} color={theme.textSecondary} />
+                <View style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: theme.background,
+                    borderColor: emailError ? theme.expense : theme.border,
+                  }
+                ]}>
+                  <Icon name="email-outline" size={20} color={emailError ? theme.expense : theme.textSecondary} />
                   <TextInput
                     style={[styles.input, { color: theme.text }]}
                     placeholder="your@email.com"
                     placeholderTextColor={theme.textTertiary}
                     value={email}
-                    onChangeText={setEmail}
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      if (emailError) setEmailError('');
+                      if (generalError) setGeneralError('');
+                    }}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
                 </View>
+                {emailError && (
+                  <Text style={[styles.errorText, { color: theme.expense }]}>{emailError}</Text>
+                )}
               </View>
 
               {/* Password Input */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: theme.textSecondary }]}>Password</Text>
-                <View style={[styles.inputContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                  <Icon name="lock-outline" size={20} color={theme.textSecondary} />
+                <View style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: theme.background,
+                    borderColor: passwordError ? theme.expense : theme.border,
+                  }
+                ]}>
+                  <Icon name="lock-outline" size={20} color={passwordError ? theme.expense : theme.textSecondary} />
                   <TextInput
                     style={[styles.input, { color: theme.text }]}
                     placeholder="At least 8 characters, uppercase, lowercase, number"
                     placeholderTextColor={theme.textTertiary}
                     value={password}
-                    onChangeText={setPassword}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      if (passwordError) setPasswordError('');
+                      if (generalError) setGeneralError('');
+                      // Also clear confirm password error if passwords match
+                      if (confirmPassword && text === confirmPassword && confirmPasswordError) {
+                        setConfirmPasswordError('');
+                      }
+                    }}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                   />
@@ -236,23 +316,43 @@ const SignupScreen: React.FC = () => {
                     <Icon
                       name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                       size={20}
-                      color={theme.textSecondary}
+                      color={passwordError ? theme.expense : theme.textSecondary}
                     />
                   </TouchableOpacity>
                 </View>
+                {passwordError && (
+                  <Text style={[styles.errorText, { color: theme.expense }]}>{passwordError}</Text>
+                )}
               </View>
 
               {/* Confirm Password Input */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: theme.textSecondary }]}>Confirm Password</Text>
-                <View style={[styles.inputContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                  <Icon name="lock-check-outline" size={20} color={theme.textSecondary} />
+                <View style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: theme.background,
+                    borderColor: confirmPasswordError ? theme.expense : theme.border,
+                  }
+                ]}>
+                  <Icon name="lock-check-outline" size={20} color={confirmPasswordError ? theme.expense : theme.textSecondary} />
                   <TextInput
                     style={[styles.input, { color: theme.text }]}
                     placeholder="Re-enter your password"
                     placeholderTextColor={theme.textTertiary}
                     value={confirmPassword}
-                    onChangeText={setConfirmPassword}
+                    onChangeText={(text) => {
+                      setConfirmPassword(text);
+                      if (generalError) setGeneralError('');
+                      if (confirmPasswordError) {
+                        // Clear error if passwords match
+                        if (text === password) {
+                          setConfirmPasswordError('');
+                        } else {
+                          setConfirmPasswordError('Passwords do not match');
+                        }
+                      }
+                    }}
                     secureTextEntry={!showConfirmPassword}
                     autoCapitalize="none"
                   />
@@ -260,15 +360,31 @@ const SignupScreen: React.FC = () => {
                     <Icon
                       name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
                       size={20}
-                      color={theme.textSecondary}
+                      color={confirmPasswordError ? theme.expense : theme.textSecondary}
                     />
                   </TouchableOpacity>
                 </View>
+                {confirmPasswordError && (
+                  <Text style={[styles.errorText, { color: theme.expense }]}>{confirmPasswordError}</Text>
+                )}
               </View>
+
+              {/* General Error Message */}
+              {generalError && (
+                <View style={[styles.generalErrorContainer, { backgroundColor: theme.expense + '10', borderColor: theme.expense + '30' }]}>
+                  <Icon name="alert-circle-outline" size={18} color={theme.expense} />
+                  <Text style={[styles.generalErrorText, { color: theme.expense }]}>{generalError}</Text>
+                </View>
+              )}
 
               {/* Signup Button */}
               <TouchableOpacity
-                style={[styles.signupButton, { backgroundColor: theme.primary }, elevation.md]}
+                style={[
+                  styles.signupButton,
+                  { backgroundColor: theme.primary },
+                  generalError && { marginTop: spacing.md },
+                  elevation.md
+                ]}
                 onPress={handleSignup}
                 disabled={authLoading}
                 activeOpacity={0.9}
@@ -293,6 +409,9 @@ const SignupScreen: React.FC = () => {
           </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
+      
+      {/* Alert Dialog */}
+      {AlertComponent}
     </SafeAreaView>
   );
 };
@@ -384,6 +503,25 @@ const styles = StyleSheet.create({
   loginLink: {
     ...typography.bodyMedium,
     fontWeight: '700',
+  },
+  errorText: {
+    ...typography.bodySmall,
+    marginTop: spacing.xs,
+    color: '#EF4444',
+  },
+  generalErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  generalErrorText: {
+    ...typography.bodySmall,
+    flex: 1,
+    fontWeight: '500',
   },
 });
 

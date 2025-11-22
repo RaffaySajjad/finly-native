@@ -27,8 +27,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useAppDispatch, useAppSelector } from '../store';
 import { logout as logoutAction, updateProfile as updateProfileAction, deleteAccount as deleteAccountAction } from '../store/slices/authSlice';
+import { toggleMockIAP, loadDevSettings } from '../store/slices/devSettingsSlice';
+import { iapService } from '../services/iap.service';
 import { useSubscription } from '../hooks/useSubscription';
-import { BottomSheetBackground } from '../components';
+import { BottomSheetBackground, SettingItem, Header, InputGroup, PrimaryButton, SecondaryButton } from '../components';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -54,6 +56,7 @@ const ProfileScreen: React.FC = () => {
   const { currency: currencyState, setCurrency: setCurrencyGlobal, showDecimals, setShowDecimals } = useCurrency();
   const dispatch = useAppDispatch();
   const { user, isLoading } = useAppSelector((state) => state.auth);
+  const { enableMockIAP } = useAppSelector((state) => state.devSettings || { enableMockIAP: false });
   const { isPremium, subscription } = useSubscription();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
 
@@ -63,14 +66,17 @@ const ProfileScreen: React.FC = () => {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [lastUsedCurrency, setLastUsedCurrency] = useState<string | null>(null);
   const [loadingCurrencies, setLoadingCurrencies] = useState(false);
-  const [budgetPeriod, setBudgetPeriod] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   const editProfileSheetRef = useRef<BottomSheet>(null);
   const currencySheetRef = useRef<BottomSheet>(null);
-  const budgetPeriodSheetRef = useRef<BottomSheet>(null);
   const helpSheetRef = useRef<BottomSheet>(null);
   const aboutSheetRef = useRef<BottomSheet>(null);
+  const deleteAccountFeedbackSheetRef = useRef<BottomSheet>(null);
+
+  // Delete account feedback state
+  const [reasonForDeletion, setReasonForDeletion] = useState('');
+  const [feedback, setFeedback] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -78,7 +84,13 @@ const ProfileScreen: React.FC = () => {
       setEditEmail(user.email);
     }
     loadCurrency();
+    dispatch(loadDevSettings());
   }, [user]);
+
+  // Sync IAP service with redux state
+  useEffect(() => {
+    iapService.setMockMode(enableMockIAP);
+  }, [enableMockIAP]);
 
   const loadCurrency = async () => {
     try {
@@ -155,14 +167,6 @@ const ProfileScreen: React.FC = () => {
     currencySheetRef.current?.expand();
   };
 
-  const handleBudgetPeriodSelect = (period: 'weekly' | 'monthly' | 'yearly') => {
-    setBudgetPeriod(period);
-    if (Platform.OS === 'ios') {
-      Haptics.selectionAsync();
-    }
-    budgetPeriodSheetRef.current?.close();
-  };
-
   const handleOpenHelp = () => {
     if (Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -213,110 +217,91 @@ const ProfileScreen: React.FC = () => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
 
-    // First warning
+    // Reset feedback fields
+    setReasonForDeletion('');
+    setFeedback('');
+
+    // Open feedback collection bottom sheet immediately - this is the FIRST step
+    deleteAccountFeedbackSheetRef.current?.snapToIndex(0);
+  };
+
+  const handleSubmitFeedbackAndDelete = async () => {
+    // Show final confirmation alert before proceeding
     Alert.alert(
-      'Delete Account',
-      'This will permanently delete all your data including:\n\n• All transactions\n• All categories and budgets\n• All income sources\n• All receipts\n• All tags\n• All preferences\n\nThis action cannot be undone.',
+      'Final Confirmation',
+      'This will permanently delete all your data including:\n\n• All transactions\n• All categories and budgets\n• All income sources\n• All receipts\n• All tags\n• All preferences\n\nThis action cannot be undone. You will be signed out immediately.',
       [
         {
           text: 'Cancel',
           style: 'cancel',
+        onPress: () => {
+          // Keep feedback sheet open if user cancels
         },
-        {
-          text: 'Continue',
-          style: 'destructive',
-          onPress: () => {
-            // Second confirmation
-            Alert.alert(
-              'Final Confirmation',
-              'Are you absolutely sure? This will permanently delete your account and all data. You will be signed out immediately.',
-              [
-                {
-                  text: 'Cancel',
-                  style: 'cancel',
-                },
-                {
-                  text: 'Delete Account',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      // Check if biometric authentication is available
-                      const biometricAvailable = await isBiometricAvailable();
+      },
+      {
+        text: 'Delete Account',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            // Check if biometric authentication is available
+            const biometricAvailable = await isBiometricAvailable();
 
-                      if (biometricAvailable) {
-                        // Trigger biometric authentication
-                        if (Platform.OS === 'ios') {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        }
+              if (biometricAvailable) {
+                // Trigger biometric authentication
+                if (Platform.OS === 'ios') {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }
 
-                        const biometricName = await getBiometricName();
-                        const authenticated = await authenticateForAccountDeletion();
+                const biometricName = await getBiometricName();
+                const authenticated = await authenticateForAccountDeletion();
 
-                        if (!authenticated) {
-                          // Biometric authentication failed or was cancelled
-                          Alert.alert(
-                            'Authentication Required',
-                            `${biometricName} authentication is required to delete your account. Please try again.`
-                          );
-                          return;
-                        }
-                      }
+                if (!authenticated) {
+                  // Biometric authentication failed or was cancelled
+                  Alert.alert(
+                    'Authentication Required',
+                    `${biometricName} authentication is required to delete your account. Please try again.`
+                  );
+                  return;
+                }
+              }
 
-                      // Proceed with account deletion after successful authentication (or if biometric not available)
-                      await dispatch(deleteAccountAction()).unwrap();
-                      if (Platform.OS === 'ios') {
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                      }
-                    } catch (error) {
-                      Alert.alert('Error', 'Failed to delete account. Please try again.');
-                    }
-                  },
-                },
-              ]
-            );
+              // Close feedback sheet
+              deleteAccountFeedbackSheetRef.current?.close();
+
+              // Proceed with account deletion with feedback
+              await dispatch(deleteAccountAction({
+                reasonForDeletion: reasonForDeletion.trim() || undefined,
+                feedback: feedback.trim() || undefined,
+              })).unwrap();
+
+              if (Platform.OS === 'ios') {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete account. Please try again.');
+            }
           },
         },
       ]
     );
   };
 
-  /**
-   * SettingItem component for consistent setting rows
-   */
-  const SettingItem: React.FC<{
-    icon: string;
-    title: string;
-    subtitle?: string;
-    onPress?: () => void;
-    rightComponent?: React.ReactNode;
-  }> = ({ icon, title, subtitle, onPress, rightComponent }) => (
-    <TouchableOpacity
-      style={[styles.settingItem, { backgroundColor: theme.card, borderColor: theme.border }]}
-      onPress={onPress}
-      disabled={!onPress}
-      activeOpacity={onPress ? 0.7 : 1}
-    >
-      <View style={[styles.settingIcon, { backgroundColor: theme.primary + '20' }]}>
-        <Icon name={icon as any} size={24} color={theme.primary} />
-      </View>
-      <View style={styles.settingContent}>
-        <Text style={[styles.settingTitle, { color: theme.text }]}>{title}</Text>
-        {subtitle && (
-          <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>{subtitle}</Text>
-        )}
-      </View>
-      {rightComponent || <Icon name="chevron-right" size={24} color={theme.textTertiary} />}
-    </TouchableOpacity>
-  );
+  const handleToggleMockIAP = (value: boolean) => {
+    dispatch(toggleMockIAP(value));
+    if (Platform.OS === 'ios') {
+      Haptics.selectionAsync();
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Settings</Text>
-      </View>
+      <Header
+        title="Settings"
+        showBackButton
+        onBackPress={() => navigation.goBack()}
+      />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
         {/* User Profile Card */}
@@ -373,7 +358,7 @@ const ProfileScreen: React.FC = () => {
           <SettingItem
             icon="currency-usd"
             title="Currency"
-            subtitle={`${currency} - ${currencies.find(c => c.code === currency)?.name || 'US Dollar'}`}
+            subtitle={`${currencyState.code} - ${currencyState.name}`}
             onPress={handleOpenCurrencySheet}
           />
           <SettingItem
@@ -407,12 +392,6 @@ const ProfileScreen: React.FC = () => {
                 thumbColor={showDecimals ? theme.primary : theme.surface}
               />
             }
-          />
-          <SettingItem
-            icon="calendar-month"
-            title="Budget Period"
-            subtitle={budgetPeriod.charAt(0).toUpperCase() + budgetPeriod.slice(1)}
-            onPress={() => budgetPeriodSheetRef.current?.expand()}
           />
         </View>
 
@@ -448,8 +427,14 @@ const ProfileScreen: React.FC = () => {
           <SettingItem
             icon="file-import"
             title="Import Transactions"
-            subtitle="Import from Wallet by BudgetBakers CSV"
+            subtitle="Import transactions from CSV files"
             onPress={() => navigation.navigate('CSVImport')}
+          />
+          <SettingItem
+            icon="file-export"
+            title="Export Transactions"
+            subtitle="Export transactions to CSV file"
+            onPress={() => navigation.navigate('ExportTransactions')}
           />
           <SettingItem
             icon="shield-check"
@@ -467,6 +452,24 @@ const ProfileScreen: React.FC = () => {
             title="About Finly"
             subtitle="Version 1.0.0"
             onPress={handleOpenAbout}
+          />
+        </View>
+
+        {/* Developer Settings Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>DEVELOPER SETTINGS</Text>
+          <SettingItem
+            icon="test-tube"
+            title="Mock IAP Mode"
+            subtitle={enableMockIAP ? 'Enabled - Purchases will be simulated' : 'Disabled - Real IAP'}
+            rightComponent={
+              <Switch
+                value={enableMockIAP}
+                onValueChange={handleToggleMockIAP}
+                trackColor={{ false: theme.border, true: theme.warning + '60' }}
+                thumbColor={enableMockIAP ? theme.warning : theme.surface}
+              />
+            }
           />
         </View>
 
@@ -516,41 +519,30 @@ const ProfileScreen: React.FC = () => {
         >
           <Text style={[styles.sheetTitle, { color: theme.text }]}>Edit Profile</Text>
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Full Name</Text>
-            <TextInput
-              style={[styles.profileInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-              placeholder="Your name"
-              placeholderTextColor={theme.textTertiary}
-              value={editName}
-              onChangeText={setEditName}
-            />
-          </View>
+          <InputGroup
+            label="Full Name"
+            placeholder="Your name"
+            value={editName}
+            onChangeText={setEditName}
+            required
+          />
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Email</Text>
-            <TextInput
-              style={[styles.profileInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-              placeholder="your@email.com"
-              placeholderTextColor={theme.textTertiary}
-              value={editEmail}
-              onChangeText={setEditEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
+          <InputGroup
+            label="Email"
+            placeholder="your@email.com"
+            value={editEmail}
+            onChangeText={setEditEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            required
+          />
 
-          <TouchableOpacity
-            style={[styles.saveProfileButton, { backgroundColor: theme.primary }, elevation.sm]}
+          <PrimaryButton
+            label="Save Changes"
             onPress={handleSaveProfile}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.saveProfileButtonText}>Save Changes</Text>
-            )}
-          </TouchableOpacity>
+            loading={isLoading}
+            fullWidth
+          />
         </BottomSheetScrollView>
       </BottomSheet>
 
@@ -639,54 +631,6 @@ const ProfileScreen: React.FC = () => {
                 ))}
             </>
           )}
-        </BottomSheetScrollView>
-      </BottomSheet>
-
-      {/* Budget Period Selection Bottom Sheet */}
-      <BottomSheet
-        ref={budgetPeriodSheetRef}
-        index={-1}
-        snapPoints={['35%']}
-        enablePanDownToClose
-        backgroundComponent={BottomSheetBackground}
-        handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
-      >
-        <BottomSheetScrollView
-          style={styles.bottomSheetContent}
-          contentContainerStyle={styles.bottomSheetContentContainer}
-        >
-          <Text style={[styles.sheetTitle, { color: theme.text }]}>Budget Period</Text>
-          <Text style={[styles.sheetSubtitle, { color: theme.textSecondary }]}>
-            Choose how often your budget resets
-          </Text>
-
-          {(['weekly', 'monthly', 'yearly'] as const).map((period) => (
-            <TouchableOpacity
-              key={period}
-              style={[
-                styles.budgetPeriodOption,
-                {
-                  backgroundColor: budgetPeriod === period ? theme.primary + '20' : theme.card,
-                  borderColor: budgetPeriod === period ? theme.primary : theme.border,
-                },
-              ]}
-              onPress={() => handleBudgetPeriodSelect(period)}
-            >
-              <View style={styles.currencyInfo}>
-                <Text style={[styles.currencyCode, { color: theme.text }]}>
-                  {period.charAt(0).toUpperCase() + period.slice(1)}
-                </Text>
-                <Text style={[styles.currencyName, { color: theme.textSecondary }]}>
-                  {period === 'weekly' ? 'Budget resets every week' :
-                    period === 'monthly' ? 'Budget resets every month' :
-                      'Budget resets every year'}
-                </Text>
-              </View>
-              {budgetPeriod === period && (
-                <Icon name="check-circle" size={24} color={theme.primary} />
-              )}
-            </TouchableOpacity>
-          ))}
         </BottomSheetScrollView>
       </BottomSheet>
 
@@ -788,6 +732,110 @@ const ProfileScreen: React.FC = () => {
           </Text>
         </BottomSheetScrollView>
       </BottomSheet>
+
+      {/* Delete Account Feedback Bottom Sheet */}
+      <BottomSheet
+        ref={deleteAccountFeedbackSheetRef}
+        index={-1}
+        snapPoints={['75%']}
+        enablePanDownToClose={false}
+        backgroundComponent={BottomSheetBackground}
+        handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+      >
+        <BottomSheetScrollView
+          style={styles.bottomSheetContent}
+          contentContainerStyle={styles.bottomSheetContentContainer}
+        >
+          <View style={styles.deleteAccountHeader}>
+            <View style={[styles.deleteAccountIcon, { backgroundColor: theme.expense + '20' }]}>
+              <Icon name="delete-forever" size={32} color={theme.expense} />
+            </View>
+            <Text style={[styles.deleteAccountTitle, { color: theme.text }]}>We're Sorry to See You Go</Text>
+            <Text style={[styles.deleteAccountSubtitle, { color: theme.textSecondary }]}>
+              Your feedback helps us improve. This is optional, but we'd appreciate hearing from you.
+            </Text>
+          </View>
+
+          <View style={styles.feedbackSection}>
+            <Text style={[styles.feedbackLabel, { color: theme.text }]}>
+              Why are you deleting your account?
+            </Text>
+            <Text style={[styles.feedbackHint, { color: theme.textTertiary }]}>
+              Optional - Help us understand what we can improve
+            </Text>
+            <TextInput
+              style={[
+                styles.feedbackInput,
+                {
+                  backgroundColor: theme.background,
+                  borderColor: theme.border,
+                  color: theme.text,
+                },
+              ]}
+              placeholder="e.g., Found a better alternative, Too expensive, Privacy concerns..."
+              placeholderTextColor={theme.textTertiary}
+              value={reasonForDeletion}
+              onChangeText={setReasonForDeletion}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+          </View>
+
+          <View style={styles.feedbackSection}>
+            <Text style={[styles.feedbackLabel, { color: theme.text }]}>
+              Any additional feedback?
+            </Text>
+            <Text style={[styles.feedbackHint, { color: theme.textTertiary }]}>
+              Optional - Share anything else you'd like us to know
+            </Text>
+            <TextInput
+              style={[
+                styles.feedbackInput,
+                {
+                  backgroundColor: theme.background,
+                  borderColor: theme.border,
+                  color: theme.text,
+                },
+              ]}
+              placeholder="Your thoughts, suggestions, or concerns..."
+              placeholderTextColor={theme.textTertiary}
+              value={feedback}
+              onChangeText={setFeedback}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+          </View>
+
+          <View style={[styles.deleteAccountWarning, { backgroundColor: theme.expense + '10', borderColor: theme.expense + '30' }]}>
+            <Icon name="alert-circle-outline" size={20} color={theme.expense} />
+            <Text style={[styles.deleteAccountWarningText, { color: theme.textSecondary }]}>
+              This action cannot be undone. All your data will be permanently deleted.
+            </Text>
+          </View>
+
+          <View style={styles.deleteAccountActions}>
+            <SecondaryButton
+              label="Cancel"
+              onPress={() => {
+                deleteAccountFeedbackSheetRef.current?.close();
+                setReasonForDeletion('');
+                setFeedback('');
+              }}
+              fullWidth
+            />
+            <TouchableOpacity
+              style={[styles.deleteAccountButton, { backgroundColor: theme.expense }, elevation.md]}
+              onPress={handleSubmitFeedbackAndDelete}
+              activeOpacity={0.8}
+            >
+              <Icon name="delete-forever" size={20} color="#FFFFFF" />
+              <Text style={styles.deleteAccountButtonText}>Delete Account</Text>
+            </TouchableOpacity>
+          </View>
+        </BottomSheetScrollView>
+      </BottomSheet>
     </SafeAreaView>
   );
 };
@@ -797,8 +845,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    ...typography.titleLarge,
+    fontWeight: '600',
   },
   title: {
     ...typography.headlineMedium,
@@ -995,15 +1056,6 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     marginBottom: spacing.lg,
   },
-  budgetPeriodOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 2,
-  },
   helpSection: {
     marginBottom: spacing.xl,
   },
@@ -1076,6 +1128,81 @@ const styles = StyleSheet.create({
     ...typography.caption,
     textAlign: 'center',
     marginTop: spacing.md,
+  },
+  deleteAccountHeader: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  deleteAccountIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  deleteAccountTitle: {
+    ...typography.headlineSmall,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  deleteAccountSubtitle: {
+    ...typography.bodyMedium,
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: spacing.md,
+  },
+  feedbackSection: {
+    marginBottom: spacing.lg,
+  },
+  feedbackLabel: {
+    ...typography.titleMedium,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
+  feedbackHint: {
+    ...typography.bodySmall,
+    marginBottom: spacing.sm,
+  },
+  feedbackInput: {
+    ...typography.bodyMedium,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    padding: spacing.md,
+    minHeight: 80,
+    maxHeight: 120,
+  },
+  deleteAccountWarning: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  deleteAccountWarningText: {
+    flex: 1,
+    ...typography.bodySmall,
+    lineHeight: 20,
+  },
+  deleteAccountActions: {
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md + 4,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+  },
+  deleteAccountButtonText: {
+    ...typography.labelLarge,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });
 

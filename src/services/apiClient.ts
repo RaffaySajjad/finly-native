@@ -103,7 +103,9 @@ const createApiClient = (): AxiosInstance => {
       const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
       // Handle 401 Unauthorized - attempt token refresh
-      if (error.response?.status === 401 && !originalRequest._retry) {
+      // Skip token refresh for auth endpoints (login, signup, etc.) as they have their own error handling
+      const isAuthEndpoint = originalRequest.url?.includes('/auth/');
+      if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
         originalRequest._retry = true;
 
         try {

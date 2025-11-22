@@ -12,7 +12,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Modal,
   Platform,
@@ -25,30 +24,32 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
 import { useBottomSheet } from '../contexts/BottomSheetContext';
-import { BottomSheetBackground, PremiumBadge, UpgradePrompt, CurrencyInput, DatePickerInput } from '../components';
+import { BottomSheetBackground, PremiumBadge, UpgradePrompt, CurrencyInput, DatePickerInput, CategoryPickerModal, InputGroup } from '../components';
+import { useAlert } from '../hooks/useAlert';
 import { shouldUseLiquidGlass } from './BottomSheetBackground';
 import { apiService } from '../services/api';
 import tagsService from '../services/tagsService';
-import { Expense, CategoryType, PaymentMethod, Tag } from '../types';
+import { Expense, PaymentMethod, Tag, Category } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { Animated } from 'react-native';
 
 const PAYMENT_METHODS = [
-  { id: 'credit-card' as PaymentMethod, name: 'Credit Card', icon: 'credit-card' },
-  { id: 'debit-card' as PaymentMethod, name: 'Debit Card', icon: 'credit-card-outline' },
-  { id: 'cash' as PaymentMethod, name: 'Cash', icon: 'cash' },
-  { id: 'bank-transfer' as PaymentMethod, name: 'Bank Transfer', icon: 'bank-transfer' },
-  { id: 'check' as PaymentMethod, name: 'Check', icon: 'file-document-outline' },
-  { id: 'other' as PaymentMethod, name: 'Other', icon: 'dots-horizontal' },
+  { id: 'CREDIT_CARD' as PaymentMethod, name: 'Credit Card', icon: 'credit-card' },
+  { id: 'DEBIT_CARD' as PaymentMethod, name: 'Debit Card', icon: 'credit-card-outline' },
+  { id: 'CASH' as PaymentMethod, name: 'Cash', icon: 'cash' },
+  { id: 'BANK_TRANSFER' as PaymentMethod, name: 'Bank Transfer', icon: 'bank-transfer' },
+  { id: 'CHECK' as PaymentMethod, name: 'Check', icon: 'file-document-outline' },
+  { id: 'OTHER' as PaymentMethod, name: 'Other', icon: 'dots-horizontal' },
 ];
 
 type SharedBottomSheetNavigationProp = StackNavigationProp<RootStackParamList>;
 
 const SharedBottomSheet: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency, getCurrencySymbol } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, convertToUSD } = useCurrency();
   const { isPremium, getRemainingUsage, requiresUpgrade } = useSubscription();
+  const [toggleWidth, setToggleWidth] = useState(0);
   const navigation = useNavigation<SharedBottomSheetNavigationProp>();
   const bottomSheetRef = useRef<BottomSheet>(null);
   const { setBottomSheetRef } = useBottomSheet();
@@ -56,27 +57,70 @@ const SharedBottomSheet: React.FC = () => {
   // Determine if using translucent background (affects text colors)
   const usesTranslucentBackground = shouldUseLiquidGlass();
 
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
+  const [incomeSources, setIncomeSources] = useState<any[]>([]);
+
+  // Transaction type state (Expense or Income)
+  const [transactionType, setTransactionType] = useState<'expense' | 'income'>('expense');
+  const pillPosition = useRef(new Animated.Value(0)).current;
   
   // Bottom sheet state for adding expenses
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
-  const [newExpenseCategory, setNewExpenseCategory] = useState<CategoryType>('food');
+  const [newExpenseCategoryId, setNewExpenseCategoryId] = useState<string>('');
   const [newExpenseDescription, setNewExpenseDescription] = useState('');
   const [newExpenseDate, setNewExpenseDate] = useState(new Date());
   const [newExpensePaymentMethod, setNewExpensePaymentMethod] = useState<PaymentMethod | undefined>(undefined);
   const [newExpenseTags, setNewExpenseTags] = useState<string[]>([]);
   const [showPaymentMethodPicker, setShowPaymentMethodPicker] = useState(false);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showTagsPicker, setShowTagsPicker] = useState(false);
+
+  // Animate pill position when transaction type changes
+  useEffect(() => {
+    Animated.spring(pillPosition, {
+      toValue: transactionType === 'expense' ? 0 : 1,
+      useNativeDriver: true,
+      tension: 68,
+      friction: 8,
+    }).start();
+  }, [transactionType, pillPosition]);
+
+  // Reload categories when category picker opens to ensure fresh data
+  useEffect(() => {
+    if (showCategoryPicker && categories.length === 0) {
+      console.log('[SharedBottomSheet] Category picker opened but no categories, reloading...');
+      loadCategoriesAndTags();
+    }
+  }, [showCategoryPicker]);
   const [showCreateTagModal, setShowCreateTagModal] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [isAddingExpense, setIsAddingExpense] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
+  // Error states for validation
+  const [expenseAmountError, setExpenseAmountError] = useState('');
+  const [expenseDescriptionError, setExpenseDescriptionError] = useState('');
+  const [expenseCategoryError, setExpenseCategoryError] = useState('');
+  const [incomeAmountError, setIncomeAmountError] = useState('');
+  const [incomeDescriptionError, setIncomeDescriptionError] = useState('');
+  const [tagNameError, setTagNameError] = useState('');
+
+  // Alert hook for non-validation errors
+  const { showError, showSuccess, AlertComponent } = useAlert();
+
+  // Income state
+  const [newIncomeAmount, setNewIncomeAmount] = useState('');
+  const [newIncomeSourceId, setNewIncomeSourceId] = useState<string>('');
+  const [newIncomeDescription, setNewIncomeDescription] = useState('');
+  const [newIncomeDate, setNewIncomeDate] = useState(new Date());
+  const [showIncomeSourcePicker, setShowIncomeSourcePicker] = useState(false);
+  const [isAddingIncome, setIsAddingIncome] = useState(false);
+
   // Animation values
   const fabScale = useRef(new Animated.Value(1)).current;
 
-  // Load categories and tags
+  // Load categories, tags, and income sources
   useEffect(() => {
     loadCategoriesAndTags();
   }, []);
@@ -90,12 +134,18 @@ const SharedBottomSheet: React.FC = () => {
 
   const loadCategoriesAndTags = async () => {
     try {
-      const [categoriesData, tagsData] = await Promise.all([
+      const [categoriesData, tagsData, incomeSourcesData] = await Promise.all([
         apiService.getCategories(),
         tagsService.getTags(),
+        apiService.getIncomeSources(),
       ]);
       setCategories(categoriesData);
       setAvailableTags(tagsData);
+      setIncomeSources(incomeSourcesData);
+      // Set initial category if none selected
+      if (categoriesData.length > 0 && !newExpenseCategoryId) {
+        setNewExpenseCategoryId(categoriesData[0].id);
+      }
     } catch (error) {
       console.error('Error loading categories and tags:', error);
     }
@@ -115,47 +165,118 @@ const SharedBottomSheet: React.FC = () => {
       toValue: 1,
       useNativeDriver: true,
     }).start();
-    // Reset form
+    // Reset expense form
     setNewExpenseAmount('');
-    setNewExpenseCategory('food');
     setNewExpenseDescription('');
     setNewExpenseDate(new Date());
     setNewExpensePaymentMethod(undefined);
     setNewExpenseTags([]);
+    // Reset income form
+    setNewIncomeAmount('');
+    setNewIncomeDescription('');
+    setNewIncomeDate(new Date());
+    setNewIncomeSourceId('');
+    // Reset transaction type to expense
+    setTransactionType('expense');
+    // Reset category to first available
+    setCategories((prevCategories) => {
+      if (prevCategories.length > 0) {
+        setNewExpenseCategoryId(prevCategories[0].id);
+      }
+      return prevCategories;
+    });
   }, []);
 
   const handleAddExpense = async (): Promise<void> => {
+    // Clear previous errors
+    setExpenseAmountError('');
+    setExpenseDescriptionError('');
+    setExpenseCategoryError('');
+
+    // Validate amount
     if (!newExpenseAmount || parseFloat(newExpenseAmount) <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid amount');
+      setExpenseAmountError('Please enter a valid amount');
       return;
     }
+
+    // Validate description
     if (!newExpenseDescription.trim()) {
-      Alert.alert('Missing Description', 'Please add a description');
+      setExpenseDescriptionError('Please add a description');
+      return;
+    }
+
+    // Validate category
+    if (!newExpenseCategoryId) {
+      setExpenseCategoryError('Please select a category');
       return;
     }
 
     setIsAddingExpense(true);
 
     try {
-      await apiService.createExpense({
-        amount: parseFloat(newExpenseAmount),
-        category: newExpenseCategory,
+      // Convert amount from display currency to USD before sending
+      const amountInUSD = convertToUSD(parseFloat(newExpenseAmount));
+      await apiService.addExpense({
+        amount: amountInUSD,
+        categoryId: newExpenseCategoryId,
         description: newExpenseDescription.trim(),
-        date: newExpenseDate.toISOString(),
+        date: newExpenseDate,
         paymentMethod: newExpensePaymentMethod || undefined,
         tags: newExpenseTags.length > 0 ? newExpenseTags : undefined,
       });
 
       handleCloseBottomSheet();
-      Alert.alert('Success', 'Expense added successfully! 🎉');
+      showSuccess('Success', 'Expense added successfully! 🎉');
       
       // Reload categories and tags in case they changed
       await loadCategoriesAndTags();
     } catch (error) {
-      Alert.alert('Error', 'Failed to add expense');
+      showError('Error', 'Failed to add expense');
       console.error(error);
     } finally {
       setIsAddingExpense(false);
+    }
+  };
+
+  const handleAddIncome = async (): Promise<void> => {
+    // Clear previous errors
+    setIncomeAmountError('');
+    setIncomeDescriptionError('');
+
+    // Validate amount
+    if (!newIncomeAmount || parseFloat(newIncomeAmount) <= 0) {
+      setIncomeAmountError('Please enter a valid amount');
+      return;
+    }
+
+    // Validate description
+    if (!newIncomeDescription.trim()) {
+      setIncomeDescriptionError('Please add a description');
+      return;
+    }
+
+    setIsAddingIncome(true);
+
+    try {
+      // Convert amount from display currency to USD before sending
+      const amountInUSD = convertToUSD(parseFloat(newIncomeAmount));
+      await apiService.createIncomeTransaction({
+        amount: amountInUSD,
+        date: newIncomeDate.toISOString(),
+        description: newIncomeDescription.trim(),
+        incomeSourceId: newIncomeSourceId || undefined,
+      });
+
+      handleCloseBottomSheet();
+      showSuccess('Success', 'Income recorded successfully! 💰');
+
+      // Reload data in case it changed
+      await loadCategoriesAndTags();
+    } catch (error) {
+      showError('Error', 'Failed to add income');
+      console.error(error);
+    } finally {
+      setIsAddingIncome(false);
     }
   };
 
@@ -172,37 +293,29 @@ const SharedBottomSheet: React.FC = () => {
   };
 
   const handleCreateTag = async () => {
+    setTagNameError('');
+
     if (!newTagName.trim()) {
-      Alert.alert('Invalid Name', 'Please enter a tag name');
+      setTagNameError('Please enter a tag name');
       return;
     }
 
     try {
       const defaultColors = ['#4A90E2', '#F59E0B', '#10B981', '#EC4899', '#8B5CF6', '#6366F6'];
       const randomColor = defaultColors[Math.floor(Math.random() * defaultColors.length)];
-      const newTag = await tagsService.createTag({
-        name: newTagName.trim(),
-        color: randomColor,
-      });
+      const newTag = await tagsService.createTag(newTagName.trim(), randomColor);
       setAvailableTags([...availableTags, newTag]);
       setNewExpenseTags([...newExpenseTags, newTag.id]);
       setNewTagName('');
       setShowCreateTagModal(false);
     } catch (error) {
-      Alert.alert('Error', 'Failed to create tag');
+      showError('Error', 'Failed to create tag');
       console.error(error);
     }
   };
 
-  const categoriesList = categories.length > 0 ? categories : [
-    { id: 'food' as CategoryType, name: 'Food', icon: 'food' },
-    { id: 'transport' as CategoryType, name: 'Transport', icon: 'car' },
-    { id: 'shopping' as CategoryType, name: 'Shopping', icon: 'shopping' },
-    { id: 'bills' as CategoryType, name: 'Bills', icon: 'file-document' },
-    { id: 'entertainment' as CategoryType, name: 'Entertainment', icon: 'movie' },
-    { id: 'health' as CategoryType, name: 'Health', icon: 'heart' },
-    { id: 'other' as CategoryType, name: 'Other', icon: 'dots-horizontal' },
-  ];
+  // Get selected category display info
+  const selectedCategory = categories.find(cat => cat.id === newExpenseCategoryId);
 
   return (
     <>
@@ -217,7 +330,7 @@ const SharedBottomSheet: React.FC = () => {
           }
         }}
         index={-1}
-        snapPoints={['85%']}
+        snapPoints={['80%']}
         enablePanDownToClose
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
@@ -227,100 +340,308 @@ const SharedBottomSheet: React.FC = () => {
             useNativeDriver: true,
           }).start();
         }}
+        topInset={Platform.OS === 'ios' ? 46 : 0}
       >
         <BottomSheetScrollView
           style={styles.bottomSheetContent}
-          contentContainerStyle={styles.bottomSheetContentContainer}
+          contentContainerStyle={[styles.bottomSheetContentContainer, { paddingTop: spacing.md, paddingBottom: 100 }]}
         >
           <Text style={[styles.sheetTitle, { color: theme.text }]}>Add Transaction</Text>
 
-          {/* Quick Add Options */}
-          <View style={styles.quickAddButtons}>
-            <View style={styles.aiButtonContainer}>
-              <TouchableOpacity
-                style={[styles.aiButton, { backgroundColor: theme.primary }]}
-                onPress={() => {
-                  if (requiresUpgrade('voiceEntry')) {
-                    setShowUpgradePrompt(true);
-                    return;
-                  }
-                  bottomSheetRef.current?.close();
-                  setTimeout(() => navigation.navigate('VoiceTransaction'), 300);
-                }}
-              >
-                <Icon name="microphone" size={22} color="#FFFFFF" />
-                <Text style={styles.aiButtonText}>
-                  🎤 Voice Entry
-                </Text>
-              </TouchableOpacity>
-              {!isPremium && (
-                <View style={styles.premiumBadgeOverlay}>
-                  <View style={[
-                    styles.premiumIconBadge,
-                    {
-                      backgroundColor: theme.warning,
-                    }
-                  ]}>
-                    <Icon name="crown" size={12} color="#1A1A1A" />
-                  </View>
-                </View>
-              )}
-            </View>
+          {/* Transaction Type Toggle - Pill Style */}
+          <View
+            style={[styles.transactionTypeToggle, { backgroundColor: theme.card, borderColor: theme.border }]}
+            onLayout={(event) => {
+              const { width } = event.nativeEvent.layout;
+              setToggleWidth(width);
+            }}
+          >
+            {/* Sliding Pill Indicator */}
+            {toggleWidth > 0 && (
+              <Animated.View
+                style={[
+                  styles.pillIndicator,
+                  {
+                    backgroundColor: transactionType === 'expense' ? theme.expense : theme.income,
+                    width: (toggleWidth - 8) / 2, // Container width minus padding (4*2) divided by 2
+                    transform: [
+                      {
+                        translateX: pillPosition.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, (toggleWidth - 8) / 2], // Move by half the container width
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            )}
 
+            {/* Expense Option */}
             <TouchableOpacity
-              style={[styles.scanButton, { backgroundColor: theme.income }]}
-              onPress={() => {
-                bottomSheetRef.current?.close();
-                setTimeout(() => navigation.navigate('ReceiptUpload'), 300);
-              }}
+              style={styles.pillOption}
+              onPress={() => setTransactionType('expense')}
+              activeOpacity={0.7}
             >
-              <Icon name="camera-outline" size={22} color="#FFFFFF" />
-              <Text style={styles.scanButtonText}>
-                📸 Scan Receipt
+              <Icon
+                name="arrow-up"
+                size={18}
+                color={transactionType === 'expense' ? '#FFFFFF' : theme.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.pillOptionText,
+                  { color: transactionType === 'expense' ? '#FFFFFF' : theme.textSecondary },
+                ]}
+              >
+                Expense
               </Text>
-              {!isPremium && (
-                <View style={styles.scanButtonBadge}>
-                  <Text style={styles.scanButtonBadgeText}>
-                    {getRemainingUsage('receiptScanning')} left
-                  </Text>
-                </View>
-              )}
+            </TouchableOpacity>
+
+            {/* Income Option */}
+            <TouchableOpacity
+              style={styles.pillOption}
+              onPress={() => setTransactionType('income')}
+              activeOpacity={0.7}
+            >
+              <Icon
+                name="arrow-down"
+                size={18}
+                color={transactionType === 'income' ? '#FFFFFF' : theme.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.pillOptionText,
+                  { color: transactionType === 'income' ? '#FFFFFF' : theme.textSecondary },
+                ]}
+              >
+                Income
+              </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Bulk Add Option */}
-          <TouchableOpacity
-            style={[styles.bulkButton, { backgroundColor: theme.card, borderColor: theme.border }]}
-            onPress={() => {
-              bottomSheetRef.current?.close();
-              setTimeout(() => {
-                if (requiresUpgrade('bulkEntry')) {
-                  setShowUpgradePrompt(true);
-                  return;
-                }
-                navigation.navigate('BulkTransaction');
-              }, 300);
-            }}
-          >
-            <Icon name="file-multiple" size={20} color={theme.primary} />
-            <Text style={[styles.bulkButtonText, { color: theme.text }]}>
-              📋 Bulk Add
-            </Text>
-            {!isPremium && (
-              <View style={styles.bulkBadge}>
+          {/* Quick Add Options - Only for Expenses */}
+          {transactionType === 'expense' && (
+            <View style={styles.quickAddButtons}>
+              <View style={styles.aiButtonContainer}>
+                <TouchableOpacity
+                  style={[styles.aiButton, { backgroundColor: theme.primary }]}
+                  onPress={() => {
+                    if (requiresUpgrade('voiceEntry')) {
+                      setShowUpgradePrompt(true);
+                      return;
+                    }
+                    bottomSheetRef.current?.close();
+                    setTimeout(() => navigation.navigate('VoiceTransaction'), 300);
+                  }}
+                >
+                  <Icon name="microphone" size={22} color="#FFFFFF" />
+                  <Text style={styles.aiButtonText}>
+                    🎤 Voice Entry
+                  </Text>
+                </TouchableOpacity>
+                {!isPremium && (
+                  <View style={styles.premiumBadgeOverlay}>
+                    <View style={[
+                      styles.premiumIconBadge,
+                      {
+                        backgroundColor: theme.warning,
+                      }
+                    ]}>
+                      <Icon name="crown" size={12} color="#1A1A1A" />
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.scanButtonContainer}>
+                <TouchableOpacity
+                  style={[styles.scanButton, { backgroundColor: theme.income }]}
+                  onPress={() => {
+                    bottomSheetRef.current?.close();
+                    setTimeout(() => navigation.navigate('ReceiptUpload'), 300);
+                  }}
+                >
+                  <Icon name="camera-outline" size={22} color="#FFFFFF" />
+                  <Text style={styles.scanButtonText}>
+                    Scan Receipt
+                  </Text>
+                  {!isPremium && (() => {
+                    const remaining = getRemainingUsage('receiptScanning');
+                    // Only show badge if remaining is a finite number (not Infinity)
+                    if (remaining !== Infinity && remaining > 0) {
+                      return (
+                        <View style={styles.scanButtonBadge}>
+                          <Text style={styles.scanButtonBadgeText}>
+                            {remaining} left
+                          </Text>
+                        </View>
+                      );
+                    }
+                    return null;
+                  })()}
+                </TouchableOpacity>
+                {isPremium && (
+                  <View style={styles.premiumBadgeOverlay}>
+                    <View style={[
+                      styles.premiumIconBadge,
+                      {
+                        backgroundColor: theme.warning,
+                      }
+                    ]}>
+                      <Icon name="crown" size={12} color="#1A1A1A" />
+                    </View>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Income Form */}
+          {transactionType === 'income' && (
+            <>
+              <View style={styles.divider}>
                 <View style={[
-                  styles.premiumIconBadge,
+                  styles.dividerLine,
+                  { backgroundColor: usesTranslucentBackground ? 'rgba(255, 255, 255, 0.3)' : theme.border }
+                ]} />
+                <Text style={[
+                  styles.dividerText,
+                  { color: usesTranslucentBackground ? '#FFFFFF' : theme.textSecondary }
+                ]}>
+                  INCOME DETAILS
+                </Text>
+                <View style={[
+                  styles.dividerLine,
+                  { backgroundColor: usesTranslucentBackground ? 'rgba(255, 255, 255, 0.3)' : theme.border }
+                ]} />
+              </View>
+
+              {/* Amount Input */}
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Amount</Text>
+                <View style={[
+                  styles.amountInput,
                   {
-                    backgroundColor: theme.warning,
+                    backgroundColor: theme.background,
+                    borderColor: incomeAmountError ? theme.expense : theme.border,
                   }
                 ]}>
-                  <Icon name="crown" size={12} color="#1A1A1A" />
+                  <CurrencyInput
+                    value={newIncomeAmount}
+                    onChangeText={(text) => {
+                      setNewIncomeAmount(text);
+                      if (incomeAmountError) setIncomeAmountError('');
+                    }}
+                    placeholder="0.00"
+                    placeholderTextColor={theme.textTertiary}
+                    showSymbol={true}
+                    allowDecimals={true}
+                    inputStyle={styles.currencyInputField}
+                  />
                 </View>
+                {incomeAmountError && (
+                  <Text style={[styles.errorText, { color: theme.expense }]}>{incomeAmountError}</Text>
+                )}
               </View>
-            )}
-          </TouchableOpacity>
 
-          <View style={styles.divider}>
+              {/* Income Source Selection (Optional) */}
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Income Source (Optional)</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.pickerButton,
+                    { backgroundColor: theme.background, borderColor: theme.border },
+                  ]}
+                  onPress={() => setShowIncomeSourcePicker(true)}
+                >
+                  <View style={styles.pickerButtonContent}>
+                    {newIncomeSourceId ? (
+                      <>
+                        <Icon name="cash" size={18} color={theme.income} />
+                        <Text style={[styles.pickerButtonText, { color: theme.text }]}>
+                          {incomeSources.find(s => s.id === newIncomeSourceId)?.name || 'Select source'}
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="briefcase-outline" size={18} color={theme.textSecondary} />
+                        <Text style={[styles.pickerButtonText, { color: theme.textSecondary }]}>
+                          Select income source
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                  <Icon name="chevron-down" size={20} color={theme.textTertiary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Description Input */}
+              <View style={styles.inputGroup}>
+                <InputGroup
+                  label="Description"
+                  placeholder="What is this income for?"
+                  value={newIncomeDescription}
+                  onChangeText={(text) => {
+                    setNewIncomeDescription(text);
+                    if (incomeDescriptionError) setIncomeDescriptionError('');
+                  }}
+                  error={incomeDescriptionError}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  containerStyle={styles.descriptionInputContainer}
+                />
+              </View>
+
+              {/* Date Picker */}
+              <View style={styles.inputGroup}>
+                <DatePickerInput
+                  date={newIncomeDate}
+                  onDateChange={setNewIncomeDate}
+                  label="Date"
+                />
+              </View>
+
+            </>
+          )}
+
+          {/* Expense-only Options */}
+          {transactionType === 'expense' && (
+            <>
+              {/* Bulk Add Option */}
+              <TouchableOpacity
+                style={[styles.bulkButton, { backgroundColor: theme.card, borderColor: theme.border }]}
+                onPress={() => {
+                  bottomSheetRef.current?.close();
+                  setTimeout(() => {
+                    if (requiresUpgrade('bulkEntry')) {
+                      setShowUpgradePrompt(true);
+                      return;
+                    }
+                    navigation.navigate('BulkTransaction');
+                  }, 300);
+                }}
+              >
+                <Icon name="file-multiple" size={20} color={theme.primary} />
+                <Text style={[styles.bulkButtonText, { color: theme.text }]}>
+                  📋 Bulk Add
+                </Text>
+                {!isPremium && (
+                  <View style={styles.bulkBadge}>
+                    <View style={[
+                      styles.premiumIconBadge,
+                      {
+                        backgroundColor: theme.warning,
+                      }
+                    ]}>
+                      <Icon name="crown" size={12} color="#1A1A1A" />
+                    </View>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.divider}>
             <View style={[
               styles.dividerLine, 
               { backgroundColor: usesTranslucentBackground ? 'rgba(255, 255, 255, 0.3)' : theme.border }
@@ -340,10 +661,19 @@ const SharedBottomSheet: React.FC = () => {
           {/* Amount Input */}
           <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Amount</Text>
-            <View style={[styles.amountInput, { backgroundColor: theme.background, borderColor: theme.border }]}>
+                <View style={[
+                  styles.amountInput,
+                  {
+                    backgroundColor: theme.background,
+                    borderColor: expenseAmountError ? theme.expense : theme.border,
+                  }
+                ]}>
               <CurrencyInput
                 value={newExpenseAmount}
-                onChangeText={setNewExpenseAmount}
+                    onChangeText={(text) => {
+                      setNewExpenseAmount(text);
+                      if (expenseAmountError) setExpenseAmountError('');
+                    }}
                 placeholder="0.00"
                 placeholderTextColor={theme.textTertiary}
                 showSymbol={true}
@@ -351,50 +681,69 @@ const SharedBottomSheet: React.FC = () => {
                 inputStyle={styles.currencyInputField}
               />
             </View>
+                {expenseAmountError && (
+                  <Text style={[styles.errorText, { color: theme.expense }]}>{expenseAmountError}</Text>
+                )}
           </View>
 
           {/* Category Selection */}
-          <View style={styles.categoryGroup}>
-            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Category</Text>
-            <View style={styles.categoryGrid}>
-              {categoriesList.map((cat) => {
-                const isSelected = newExpenseCategory === cat.id;
-                const categoryColor = theme.categories[cat.id as keyof typeof theme.categories];
-
-                return (
-                  <TouchableOpacity
-                    key={cat.id}
-                    style={[
-                      styles.categoryButton,
-                      {
-                        backgroundColor: isSelected ? categoryColor + '20' : theme.background,
-                        borderColor: isSelected ? categoryColor : theme.border,
-                      },
-                    ]}
-                    onPress={() => setNewExpenseCategory(cat.id)}
-                  >
-                    <Icon name={cat.icon as any} size={24} color={isSelected ? categoryColor : theme.textSecondary} />
-                    <Text style={[styles.categoryLabel, { color: isSelected ? categoryColor : theme.textSecondary }]}>
-                      {cat.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Category</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.pickerButton,
+                    {
+                      backgroundColor: theme.background,
+                      borderColor: expenseCategoryError ? theme.expense : theme.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    console.log('[SharedBottomSheet] Opening category picker, categories count:', categories.length);
+                    setShowCategoryPicker(true);
+                    if (expenseCategoryError) setExpenseCategoryError('');
+                  }}
+                >
+                  <View style={styles.pickerButtonContent}>
+                    {selectedCategory ? (
+                      <>
+                        <View style={[styles.categoryIconContainer, { backgroundColor: selectedCategory.color + '20' }]}>
+                          <Icon name={selectedCategory.icon as any} size={20} color={selectedCategory.color} />
+                        </View>
+                        <Text style={[styles.pickerButtonText, { color: theme.text }]}>
+                          {selectedCategory.name}
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="folder-outline" size={18} color={theme.textSecondary} />
+                        <Text style={[styles.pickerButtonText, { color: theme.textSecondary }]}>
+                          Select category
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                  <Icon name="chevron-down" size={20} color={theme.textTertiary} />
+                </TouchableOpacity>
+                {expenseCategoryError && (
+                  <Text style={[styles.errorText, { color: theme.expense }]}>{expenseCategoryError}</Text>
+                )}
           </View>
 
           {/* Description Input */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Description</Text>
-            <TextInput
-              style={[styles.descriptionInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-              placeholder="What did you spend on?"
-              placeholderTextColor={theme.textTertiary}
+                <InputGroup
+                  label="Description"
+                  placeholder="What did you spend on?"
               value={newExpenseDescription}
-              onChangeText={setNewExpenseDescription}
+                  onChangeText={(text) => {
+                    setNewExpenseDescription(text);
+                    if (expenseDescriptionError) setExpenseDescriptionError('');
+                  }}
+                  error={expenseDescriptionError}
               multiline
               numberOfLines={3}
               textAlignVertical="top"
+                  containerStyle={styles.descriptionInputContainer}
             />
           </View>
 
@@ -477,18 +826,8 @@ const SharedBottomSheet: React.FC = () => {
             )}
           </View>
 
-          {/* Add Expense Button */}
-          <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: theme.primary }, elevation.sm]}
-            onPress={handleAddExpense}
-            disabled={isAddingExpense}
-          >
-            {isAddingExpense ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.addButtonText}>Add Expense</Text>
-            )}
-          </TouchableOpacity>
+            </>
+          )}
 
           {/* Upgrade Prompt */}
           <UpgradePrompt
@@ -498,7 +837,48 @@ const SharedBottomSheet: React.FC = () => {
             message="Unlock unlimited AI features with Finly Premium!"
           />
         </BottomSheetScrollView>
+
+        {/* Fixed Footer with Add Buttons */}
+        <View style={[styles.fixedFooter, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
+          {transactionType === 'expense' ? (
+            <TouchableOpacity
+              style={[styles.addButton, { backgroundColor: theme.primary }, elevation.sm]}
+              onPress={handleAddExpense}
+              disabled={isAddingExpense}
+            >
+              {isAddingExpense ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.addButtonText}>Add Expense</Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.addButton, { backgroundColor: theme.income }, elevation.sm]}
+              onPress={handleAddIncome}
+              disabled={isAddingIncome}
+            >
+              {isAddingIncome ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.addButtonText}>Add Income</Text>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
       </BottomSheet>
+
+      {/* Category Picker Modal */}
+      <CategoryPickerModal
+        visible={showCategoryPicker}
+        categories={categories || []}
+        selectedCategoryId={newExpenseCategoryId}
+        onSelect={(categoryId) => {
+          console.log('[SharedBottomSheet] Category selected:', categoryId);
+          setNewExpenseCategoryId(categoryId);
+        }}
+        onClose={() => setShowCategoryPicker(false)}
+      />
 
       {/* Payment Method Modal */}
       <Modal
@@ -596,6 +976,58 @@ const SharedBottomSheet: React.FC = () => {
         </TouchableOpacity>
       </Modal>
 
+      {/* Income Source Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showIncomeSourcePicker}
+        onRequestClose={() => setShowIncomeSourcePicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPressOut={() => setShowIncomeSourcePicker(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Select Income Source</Text>
+              <TouchableOpacity onPress={() => setShowIncomeSourcePicker(false)}>
+                <Icon name="close" size={24} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScrollView}>
+              <TouchableOpacity
+                style={[styles.modalOption, { borderBottomColor: theme.border }]}
+                onPress={() => {
+                  setNewIncomeSourceId('');
+                  setShowIncomeSourcePicker(false);
+                }}
+              >
+                <Text style={[styles.modalOptionText, { color: theme.textSecondary }]}>No source</Text>
+                {!newIncomeSourceId && (
+                  <Icon name="check-circle" size={24} color={theme.primary} />
+                )}
+              </TouchableOpacity>
+              {incomeSources.map((source) => (
+                <TouchableOpacity
+                  key={source.id}
+                  style={[styles.modalOption, { borderBottomColor: theme.border }]}
+                  onPress={() => {
+                    setNewIncomeSourceId(source.id);
+                    setShowIncomeSourcePicker(false);
+                  }}
+                >
+                  <Text style={[styles.modalOptionText, { color: theme.text }]}>{source.name}</Text>
+                  {newIncomeSourceId === source.id && (
+                    <Icon name="check-circle" size={24} color={theme.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Create Tag Modal */}
       <Modal
         animationType="slide"
@@ -616,12 +1048,16 @@ const SharedBottomSheet: React.FC = () => {
               </TouchableOpacity>
             </View>
             <View style={{ padding: spacing.lg }}>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+              <InputGroup
+                label=""
                 placeholder="Tag Name"
-                placeholderTextColor={theme.textTertiary}
                 value={newTagName}
-                onChangeText={setNewTagName}
+                onChangeText={(text) => {
+                  setNewTagName(text);
+                  if (tagNameError) setTagNameError('');
+                }}
+                error={tagNameError}
+                containerStyle={styles.tagInputContainer}
               />
               <View style={styles.colorPickerContainer}>
                 {['#4A90E2', '#F59E0B', '#10B981', '#EC4899', '#8B5CF6', '#6366F6'].map((colorValue) => (
@@ -647,6 +1083,9 @@ const SharedBottomSheet: React.FC = () => {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Alert Dialog */}
+      {AlertComponent}
     </>
   );
 };
@@ -664,37 +1103,74 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: spacing.md,
   },
+  transactionTypeToggle: {
+    flexDirection: 'row',
+    marginBottom: spacing.md,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    padding: 4,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  pillIndicator: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    bottom: 4,
+    borderRadius: borderRadius.full,
+  },
+  pillOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    gap: spacing.xs,
+    zIndex: 1,
+  },
+  pillOptionText: {
+    ...typography.labelLarge,
+    fontWeight: '600',
+  },
   quickAddButtons: {
     flexDirection: 'row',
     gap: spacing.sm,
     marginBottom: spacing.sm,
+    alignItems: 'stretch',
   },
   aiButtonContainer: {
     flex: 1,
     position: 'relative',
   },
   aiButton: {
-    flex: 1,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.md,
     borderRadius: borderRadius.md,
     gap: spacing.xs,
+    minHeight: 56,
   },
   aiButtonText: {
     ...typography.labelMedium,
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  scanButton: {
+  scanButtonContainer: {
     flex: 1,
+    position: 'relative',
+  },
+  scanButton: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.md,
     borderRadius: borderRadius.md,
     gap: spacing.xs,
+    minHeight: 56,
   },
   scanButtonText: {
     ...typography.labelMedium,
@@ -769,7 +1245,15 @@ const styles = StyleSheet.create({
   },
   categoryGroup: {
     marginBottom: spacing.md,
-    height: 290
+    minHeight: 290
+  },
+  categoryIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: borderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
   },
   inputLabel: {
     ...typography.labelMedium,
@@ -852,11 +1336,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  fixedFooter: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+    borderTopWidth: 1,
+  },
   addButton: {
     paddingVertical: spacing.md + 4,
     borderRadius: borderRadius.md,
     alignItems: 'center',
-    marginTop: spacing.md,
   },
   addButtonText: {
     ...typography.labelLarge,
@@ -890,7 +1379,85 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modalScrollView: {
-    maxHeight: 400,
+    maxHeight: 500,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    ...typography.bodyMedium,
+    paddingVertical: spacing.xs,
+  },
+  categorySection: {
+    marginBottom: spacing.lg,
+  },
+  categorySectionTitle: {
+    ...typography.labelMedium,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: spacing.sm,
+    marginHorizontal: spacing.lg,
+    fontWeight: '600',
+  },
+  categoryGridModal: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: spacing.lg,
+    gap: spacing.sm,
+  },
+  categoryButtonModal: {
+    width: '30%',
+    aspectRatio: 0.9,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.sm,
+    position: 'relative',
+  },
+  categoryIconContainerModal: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+  },
+  categoryLabelModal: {
+    ...typography.labelSmall,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  selectedIndicator: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 20,
+    height: 20,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyCategoriesContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyCategoriesText: {
+    ...typography.bodyMedium,
+    marginTop: spacing.md,
+    textAlign: 'center',
   },
   modalOption: {
     flexDirection: 'row',
@@ -926,6 +1493,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: spacing.md,
     marginBottom: spacing.md,
+  },
+  errorText: {
+    ...typography.bodySmall,
+    marginTop: spacing.xs,
+    color: '#EF4444',
+  },
+  descriptionInputContainer: {
+    marginBottom: 0,
+  },
+  tagInputContainer: {
+    marginBottom: 0,
   },
   colorPickerContainer: {
     flexDirection: 'row',

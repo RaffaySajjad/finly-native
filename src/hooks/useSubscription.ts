@@ -5,6 +5,7 @@
 
 import { useAppDispatch, useAppSelector } from '../store';
 import { SubscriptionTier } from '../types';
+import { useCallback, useMemo } from 'react';
 import {
   checkSubscriptionStatus,
   subscribeToPremium,
@@ -23,9 +24,46 @@ export const useSubscription = () => {
     (state) => state.subscription
   );
 
-  const isPremium = subscription.tier === 'premium' && subscription.isActive;
-  const isFree = subscription.tier === 'free';
-  const isTrial = subscription.isTrial === true;
+  console.log("SUBSCRIPTION:", subscription)
+
+  // Memoize computed values to prevent unnecessary re-renders
+  const isPremium = useMemo(() => 
+    subscription.tier === 'PREMIUM' && subscription.isActive, 
+    [subscription.tier, subscription.isActive]
+  );
+  const isFree = useMemo(() => 
+    subscription.tier === 'FREE', 
+    [subscription.tier]
+  );
+  const isTrial = useMemo(() => 
+    subscription.isTrial === true, 
+    [subscription.isTrial]
+  );
+  const isCanceled = useMemo(() => 
+    subscription.status === 'CANCELED' && subscription.isActive, 
+    [subscription.status, subscription.isActive]
+  );
+
+  // Memoize checkStatus to prevent infinite loops
+  // Only dispatch if not already loading to prevent duplicate API calls
+  const checkStatus = useCallback(() => {
+    if (!isLoading) {
+      dispatch(checkSubscriptionStatus());
+    }
+  }, [dispatch, isLoading]);
+
+  // Memoize other actions
+  const subscribe = useCallback(async (productType: 'monthly' | 'yearly' = 'monthly') => {
+    await dispatch(subscribeToPremium(productType)).unwrap();
+  }, [dispatch]);
+
+  const startTrial = useCallback(async () => {
+    await dispatch(startFreeTrial()).unwrap();
+  }, [dispatch]);
+
+  const cancel = useCallback(async () => {
+    await dispatch(cancelSubscription()).unwrap();
+  }, [dispatch]);
 
   /**
    * Check if a premium feature is available
@@ -93,6 +131,7 @@ export const useSubscription = () => {
     isPremium,
     isFree,
     isTrial,
+    isCanceled,
     isLoading,
     error,
 
@@ -102,11 +141,11 @@ export const useSubscription = () => {
     requiresUpgrade,
     trackUsage,
 
-    // Actions
-    checkStatus: () => dispatch(checkSubscriptionStatus()),
-    subscribe: () => dispatch(subscribeToPremium()),
-    startTrial: () => dispatch(startFreeTrial()),
-    cancel: () => dispatch(cancelSubscription()),
+    // Actions (memoized to prevent re-renders)
+    checkStatus,
+    subscribe,
+    startTrial,
+    cancel,
   };
 };
 

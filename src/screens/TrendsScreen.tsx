@@ -1,7 +1,7 @@
 /**
  * TrendsScreen - Spending Trends & Analytics
- * Purpose: Visualize spending patterns with charts and insights
- * Features: Line charts, bar charts, trend analysis
+ * Purpose: Visualize spending patterns with charts and AI-driven insights
+ * Features: Line charts, bar charts, trend analysis, AI insights, spending forecast
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -14,11 +14,13 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Animated,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -27,7 +29,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import { apiService } from '../services/api';
 import { typography, spacing, borderRadius, elevation } from '../theme';
-import { AIAssistantFAB } from '../components';
+import { PullToRefreshScrollView } from '../components';
+import { Insight } from '../types';
 
 const { width } = Dimensions.get('window');
 
@@ -36,6 +39,16 @@ interface TrendsData {
   categoryTotals: Array<{ category: string; amount: number; color: string }>;
   weeklyComparison: { thisWeek: number; lastWeek: number; percentChange: number };
   topCategory: { name: string; amount: number; emoji: string };
+}
+
+interface ForecastData {
+  predictedAmount: number;
+  confidence: 'high' | 'medium' | 'low';
+  factors: string[];
+  rateLimit?: {
+    remaining: number;
+    resetAt: number;
+  };
 }
 
 /**
@@ -47,6 +60,9 @@ const TrendsScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const [loading, setLoading] = useState(true);
   const [trendsData, setTrendsData] = useState<TrendsData | null>(null);
+  const [forecast, setForecast] = useState<ForecastData | null>(null);
+  const [timeRange, setTimeRange] = useState<'week' | 'month'>('week');
+  const [refreshing, setRefreshing] = useState(false);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -54,12 +70,12 @@ const TrendsScreen: React.FC = () => {
 
   useFocusEffect(
     React.useCallback(() => {
-      loadTrendsData();
+      loadData();
     }, [])
   );
 
   useEffect(() => {
-    if (trendsData) {
+    if (!loading) {
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -74,19 +90,52 @@ const TrendsScreen: React.FC = () => {
         }),
       ]).start();
     }
-  }, [trendsData]);
+  }, [loading]);
 
-  const loadTrendsData = async () => {
+  const loadData = async (forceRefresh: boolean = false) => {
     try {
-      setLoading(true);
-      const data = await apiService.getSpendingTrends();
-      setTrendsData(data);
+      if (forceRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      const [trends, forecastData] = await Promise.all([
+        apiService.getSpendingTrends(),
+        apiService.getSpendingForecast(forceRefresh),
+      ]);
+
+      setTrendsData(trends);
+      setForecast(forecastData);
     } catch (error) {
-      console.error('Error loading trends:', error);
+      console.error('Error loading trends data:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const handleRefresh = () => {
+    loadData(true);
+  };
+
+  const renderInsightItem = ({ item }: { item: Insight }) => (
+    <View
+      style={[
+        styles.insightCard,
+        { backgroundColor: theme.card, borderColor: theme.border },
+      ]}
+    >
+      <View style={[styles.insightIconContainer, { backgroundColor: item.color + '20' }]}>
+        <Icon name={item.icon as any} size={24} color={item.color} />
+      </View>
+      <View style={styles.insightContent}>
+        <Text style={[styles.insightTitle, { color: theme.text }]}>{item.title}</Text>
+        <Text style={[styles.insightDescription, { color: theme.textSecondary }]} numberOfLines={2}>
+          {item.description}
+        </Text>
+      </View>
+    </View>
+  );
 
   if (loading) {
     return (
@@ -94,7 +143,7 @@ const TrendsScreen: React.FC = () => {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
-            Analyzing your spending...
+            Analyzing your finances...
           </Text>
         </View>
       </SafeAreaView>
@@ -145,8 +194,8 @@ const TrendsScreen: React.FC = () => {
     backgroundGradientFrom: theme.card,
     backgroundGradientTo: theme.card,
     decimalPlaces: 0,
-    color: (opacity = 1) => theme.primary + Math.round(opacity * 255).toString(16).padStart(2, '0'),
-    labelColor: (opacity = 1) => theme.textSecondary + Math.round(opacity * 255).toString(16).padStart(2, '0'),
+    color: (opacity = 1) => theme.primary,
+    labelColor: (opacity = 1) => theme.textSecondary,
     style: {
       borderRadius: borderRadius.lg,
     },
@@ -168,13 +217,76 @@ const TrendsScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Icon name="arrow-left" size={24} color={theme.text} />
+        </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Spending Trends</Text>
-        <TouchableOpacity onPress={loadTrendsData}>
-          <Icon name="refresh" size={24} color={theme.primary} />
+        <TouchableOpacity
+          onPress={handleRefresh}
+          style={styles.refreshButton}
+          disabled={refreshing || (forecast?.rateLimit?.remaining === 0)}
+        >
+          <Icon
+            name="refresh"
+            size={24}
+            color={
+              refreshing || (forecast?.rateLimit?.remaining === 0)
+                ? theme.textTertiary
+                : theme.primary
+            }
+          />
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <PullToRefreshScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        onRefresh={() => loadData(false)}
+        refreshing={refreshing}
+      >
+        {/* Spending Forecast Card */}
+        {forecast && (
+          <Animated.View
+            style={[
+              styles.forecastCard,
+              { backgroundColor: theme.card, borderColor: theme.border },
+              elevation.sm,
+              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+            ]}
+          >
+            <View style={styles.cardHeader}>
+              <View style={styles.titleRow}>
+                <Icon name="crystal-ball" size={20} color={theme.primary} />
+                <Text style={[styles.cardTitle, { color: theme.text }]}>Next Week Forecast</Text>
+              </View>
+            </View>
+            <View style={styles.badgeRow}>
+              <View style={[styles.confidenceBadge, { backgroundColor: theme.primary + '20' }]}>
+                <Text style={[styles.confidenceText, { color: theme.primary }]}>
+                  {forecast.confidence.toUpperCase()} CONFIDENCE
+                </Text>
+              </View>
+              {forecast.rateLimit && forecast.rateLimit.remaining === 0 && (
+                <View style={[styles.rateLimitBadge, { backgroundColor: theme.expense + '20' }]}>
+                  <Text style={[styles.rateLimitText, { color: theme.expense }]}>
+                    AI Forecast Limit Reached
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <Text style={[styles.forecastAmount, { color: theme.text }]}>
+              ~{formatCurrency(forecast.predictedAmount)}
+            </Text>
+            <Text style={[styles.forecastSubtext, { color: theme.textSecondary }]}>
+              Predicted spending based on your recent habits
+            </Text>
+          </Animated.View>
+        )}
+
         {/* Weekly Comparison Card */}
         <Animated.View
           style={[
@@ -265,7 +377,30 @@ const TrendsScreen: React.FC = () => {
             { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
           ]}
         >
-          <Text style={[styles.chartTitle, { color: theme.text }]}>Last 7 Days</Text>
+          <View style={styles.chartHeader}>
+            <Text style={[styles.chartTitle, { color: theme.text }]}>Spending History</Text>
+            <View style={styles.timeRangeContainer}>
+              <TouchableOpacity
+                style={[styles.timeRangeButton, timeRange === 'week' && { backgroundColor: theme.primary + '20' }]}
+                onPress={() => setTimeRange('week')}
+              >
+                <Text style={[
+                  styles.timeRangeText,
+                  { color: timeRange === 'week' ? theme.primary : theme.textSecondary }
+                ]}>Week</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.timeRangeButton, timeRange === 'month' && { backgroundColor: theme.primary + '20' }]}
+                onPress={() => setTimeRange('month')}
+              >
+                <Text style={[
+                  styles.timeRangeText,
+                  { color: timeRange === 'month' ? theme.primary : theme.textSecondary }
+                ]}>Month</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           <LineChart
             data={lineChartData}
             width={width - 64}
@@ -310,50 +445,8 @@ const TrendsScreen: React.FC = () => {
           />
         </Animated.View>
 
-        {/* Category Breakdown List */}
-        <View style={styles.categoryList}>
-          <Text style={[styles.listTitle, { color: theme.text }]}>All Categories</Text>
-          {trendsData.categoryTotals.map((cat, index) => {
-            const total = trendsData.categoryTotals.reduce((sum, c) => sum + c.amount, 0);
-            const percentage = total > 0 ? (cat.amount / total) * 100 : 0;
-
-            return (
-              <Animated.View
-                key={cat.category}
-                style={[
-                  styles.categoryItem,
-                  { backgroundColor: theme.card, borderColor: theme.border },
-                  elevation.sm,
-                  {
-                    opacity: fadeAnim,
-                    transform: [
-                      {
-                        translateY: slideAnim.interpolate({
-                          inputRange: [0, 50],
-                          outputRange: [0, 50 + index * 10],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <View style={[styles.categoryDot, { backgroundColor: cat.color }]} />
-                <View style={styles.categoryInfo}>
-                  <Text style={[styles.categoryName, { color: theme.text }]}>{cat.category}</Text>
-                  <Text style={[styles.categoryPercentage, { color: theme.textSecondary }]}>
-                    {percentage.toFixed(1)}% of total
-                  </Text>
-                </View>
-                <Text style={[styles.categoryAmount, { color: theme.text }]}>
-                  {formatCurrency(cat.amount)}
-                </Text>
-              </Animated.View>
-            );
-          })}
-        </View>
-
         <View style={{ height: 100 }} />
-      </ScrollView>
+      </PullToRefreshScrollView>
     </SafeAreaView>
   );
 };
@@ -387,12 +480,114 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: {
     ...typography.headlineSmall,
     fontWeight: '700',
+    flex: 1,
+    textAlign: 'center',
+  },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scrollContent: {
     padding: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  sectionTitle: {
+    ...typography.titleMedium,
+    fontWeight: '700',
+  },
+  insightsList: {
+    paddingRight: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  insightCard: {
+    width: width - 80,
+    marginRight: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  insightIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  insightContent: {
+    flex: 1,
+  },
+  insightTitle: {
+    ...typography.titleSmall,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  insightDescription: {
+    ...typography.bodySmall,
+  },
+  forecastCard: {
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  confidenceBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  confidenceText: {
+    ...typography.labelSmall,
+    fontWeight: '700',
+    fontSize: 10,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flexWrap: 'wrap',
+    marginBottom: spacing.md,
+  },
+  rateLimitBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  rateLimitText: {
+    ...typography.labelSmall,
+    fontWeight: '700',
+    fontSize: 10,
+  },
+  forecastAmount: {
+    ...typography.displaySmall,
+    fontWeight: '700',
+    marginVertical: spacing.sm,
+  },
+  forecastSubtext: {
+    ...typography.bodySmall,
   },
   card: {
     borderRadius: borderRadius.lg,
@@ -404,7 +599,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   cardTitle: {
     ...typography.titleMedium,
@@ -480,53 +675,34 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     alignItems: 'center',
   },
+  chartHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.xs,
+  },
   chartTitle: {
     ...typography.titleMedium,
     fontWeight: '600',
-    alignSelf: 'flex-start',
-    marginBottom: spacing.sm,
+  },
+  timeRangeContainer: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  timeRangeButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.md,
+  },
+  timeRangeText: {
+    ...typography.labelSmall,
+    fontWeight: '600',
   },
   chart: {
     borderRadius: borderRadius.md,
   },
-  categoryList: {
-    marginTop: spacing.md,
-  },
-  listTitle: {
-    ...typography.titleMedium,
-    fontWeight: '600',
-    marginBottom: spacing.md,
-  },
-  categoryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    gap: spacing.md,
-  },
-  categoryDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  categoryInfo: {
-    flex: 1,
-  },
-  categoryName: {
-    ...typography.titleSmall,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  categoryPercentage: {
-    ...typography.caption,
-  },
-  categoryAmount: {
-    ...typography.titleMedium,
-    fontWeight: '700',
-  },
 });
 
 export default TrendsScreen;
-

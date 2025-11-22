@@ -115,8 +115,8 @@ const DevMenuScreen = () => {
 
   if (!__DEV__) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <Text style={[styles.title, { color: theme.text }]}>
           Dev Menu Only Available in Development
         </Text>
       </View>
@@ -124,68 +124,68 @@ const DevMenuScreen = () => {
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Text style={[styles.title, { color: theme.colors.text }]}>
+    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
+      <Text style={[styles.title, { color: theme.text }]}>
         🧪 IAP Testing Lab
       </Text>
       
-      <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+      <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
         Test all in-app purchase scenarios locally
       </Text>
       
       {/* Current State */}
-      <View style={[styles.statusCard, { backgroundColor: theme.colors.surface }]}>
-        <Text style={[styles.statusTitle, { color: theme.colors.text }]}>
+      <View style={[styles.statusCard, { backgroundColor: theme.surface }]}>
+        <Text style={[styles.statusTitle, { color: theme.text }]}>
           Current Subscription Status
         </Text>
-        <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>
-          Tier: <Text style={{ fontWeight: 'bold', color: subscription.tier === 'premium' ? '#4CAF50' : theme.colors.text }}>
+        <Text style={[styles.statusText, { color: theme.textSecondary }]}>
+          Tier: <Text style={{ fontWeight: 'bold', color: subscription.tier === 'PREMIUM' ? '#4CAF50' : theme.text }}>
             {subscription.tier.toUpperCase()}
           </Text>
         </Text>
-        <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>
+        <Text style={[styles.statusText, { color: theme.textSecondary }]}>
           Status: <Text style={{ fontWeight: 'bold' }}>
             {subscription.isActive ? '🟢 Active' : '🔴 Inactive'}
           </Text>
         </Text>
-        <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>
+        <Text style={[styles.statusText, { color: theme.textSecondary }]}>
           Trial: {subscription.isTrial ? '✅ Yes' : '❌ No'}
         </Text>
         
         {subscription.startDate && (
-          <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.statusText, { color: theme.textSecondary }]}>
             Start: {new Date(subscription.startDate).toLocaleDateString()}
           </Text>
         )}
         
         {subscription.endDate && (
-          <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.statusText, { color: theme.textSecondary }]}>
             End: {new Date(subscription.endDate).toLocaleDateString()}
           </Text>
         )}
         
         {/* Usage Limits */}
-        <Text style={[styles.statusTitle, { color: theme.colors.text, marginTop: 12 }]}>
+        <Text style={[styles.statusTitle, { color: theme.text, marginTop: 12 }]}>
           Usage Limits
         </Text>
-        <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>
+        <Text style={[styles.statusText, { color: theme.textSecondary }]}>
           Receipt Scans: {usageLimits.receiptScans.used}/{usageLimits.receiptScans.limit === Infinity ? '∞' : usageLimits.receiptScans.limit}
         </Text>
-        <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>
+        <Text style={[styles.statusText, { color: theme.textSecondary }]}>
           AI Insights: {usageLimits.insights.used}/{usageLimits.insights.limit === Infinity ? '∞' : usageLimits.insights.limit}
         </Text>
-        <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>
+        <Text style={[styles.statusText, { color: theme.textSecondary }]}>
           Categories: {usageLimits.categories.used}/{usageLimits.categories.limit === Infinity ? '∞' : usageLimits.categories.limit}
         </Text>
       </View>
 
       {/* Mock Mode Info */}
-      <View style={[styles.toggleCard, { backgroundColor: theme.colors.surface }]}>
+      <View style={[styles.toggleCard, { backgroundColor: theme.surface }]}>
         <View>
-          <Text style={[styles.toggleText, { color: theme.colors.text }]}>
+          <Text style={[styles.toggleText, { color: theme.text }]}>
             Mock Mode
           </Text>
-          <Text style={[styles.toggleSubtext, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.toggleSubtext, { color: theme.textSecondary }]}>
             {IAP_CONFIG.ENABLE_MOCKS ? 'No real purchases will be made' : 'Using real IAP (Sandbox)'}
           </Text>
         </View>
@@ -199,7 +199,7 @@ const DevMenuScreen = () => {
       {/* Test Scenarios */}
       {scenarios.map((section, idx) => (
         <View key={idx} style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
             {section.title}
           </Text>
           {section.items.map((scenario) => (
@@ -217,7 +217,7 @@ const DevMenuScreen = () => {
 
       {/* Quick Actions */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>
           ⚡ Quick Actions
         </Text>
         
@@ -238,7 +238,7 @@ const DevMenuScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <Text style={[styles.footer, { color: theme.colors.textSecondary }]}>
+      <Text style={[styles.footer, { color: theme.textSecondary }]}>
         {IAP_CONFIG.ENABLE_MOCKS 
           ? '🔒 Mock mode is enabled - No real purchases will be made' 
           : '⚠️ Mock mode is disabled - Using real IAP (Sandbox)'}

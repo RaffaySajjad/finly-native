@@ -17,18 +17,24 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
-import { processAIQuery, getQueryLimits, getQueryHistory, AIQuery } from '../services/aiAssistantService';
+import {
+  processAIQuery,
+  getQueryLimits,
+  getQueryHistory,
+  AIQuery
+} from '../services/aiAssistantService';
 import { useSubscription } from '../hooks/useSubscription';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { useCurrency } from '../contexts/CurrencyContext';
 import * as Haptics from 'expo-haptics';
 import UpgradePrompt from '../components/UpgradePrompt';
+import MarkdownText from '../components/MarkdownText';
 
 type AIAssistantNavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -44,36 +50,54 @@ const AIAssistantScreen: React.FC = () => {
   const { formatCurrency } = useCurrency();
   const navigation = useNavigation<AIAssistantNavigationProp>();
   const route = useRoute<RouteProp<RootStackParamList, 'AIAssistant'>>();
-  const { isPremium, requiresUpgrade } = useSubscription();
+  const { isPremium } = useSubscription();
+  const insets = useSafeAreaInsets();
   
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [queryLimits, setQueryLimits] = useState({ used: 0, limit: 5, resetDate: '' });
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+  const [streamingText, setStreamingText] = useState('');
   
   const scrollViewRef = useRef<ScrollView>(null);
-  const routeParams = route.params as RootStackParamList['AIAssistant'];
+  const routeParams = route.params;
+  const streamingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadInitialData();
-    if (routeParams?.initialQuery) {
-      handleSendQuery(routeParams.initialQuery);
-    }
   }, []);
 
+  // Auto-scroll to bottom when content changes
   useEffect(() => {
-    if (messages.length > 0) {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
+    if (messages.length > 0 || streamingText) {
+      // Use setTimeout to ensure content is rendered before scrolling
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     }
-  }, [messages]);
+  }, [messages, streamingText]);
+
+  // Scroll to bottom when content size changes (handles keyboard, new messages, etc.)
+  const handleContentSizeChange = () => {
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+  };
+
+  // Cleanup streaming timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (streamingTimeoutRef.current) {
+        clearTimeout(streamingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const loadInitialData = async () => {
     try {
       const limits = await getQueryLimits(isPremium);
       setQueryLimits(limits);
-      
-      const history = await getQueryHistory();
+
       const initialMessages: Message[] = [
         {
           id: 'welcome',
@@ -83,9 +107,18 @@ const AIAssistantScreen: React.FC = () => {
         },
       ];
       
-      // Add recent history
+      // Load history for premium users (or if we decide to show some history for free users too)
+      // The backend now handles the limit (0 for free, 15 for premium)
+      setLoading(true);
+      const history = await getQueryHistory();
+
       if (history.length > 0) {
-        history.slice(0, 5).forEach((q: AIQuery) => {
+        // Sort by timestamp ascending for display
+        const sortedHistory = [...history].sort((a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+
+        sortedHistory.forEach((q: AIQuery) => {
           initialMessages.push({
             id: `history_${q.id}_user`,
             type: 'user',
@@ -100,10 +133,16 @@ const AIAssistantScreen: React.FC = () => {
           });
         });
       }
+      setLoading(false);
+
+      if (routeParams?.initialQuery) {
+        setQuery(routeParams.initialQuery);
+      }
       
       setMessages(initialMessages);
     } catch (error) {
       console.error('Error loading initial data:', error);
+      setLoading(false);
     }
   };
 
@@ -134,6 +173,18 @@ const AIAssistantScreen: React.FC = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
+      // Create placeholder assistant message for streaming
+      const assistantMessageId = `assistant_${Date.now()}`;
+      const assistantMessage: Message = {
+        id: assistantMessageId,
+        type: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+      setStreamingMessageId(assistantMessageId);
+      setStreamingText('');
+
       // Process query
       const result = await processAIQuery(
         textToSend,
@@ -142,14 +193,13 @@ const AIAssistantScreen: React.FC = () => {
         routeParams?.context
       );
 
-      // Add assistant response
-      const assistantMessage: Message = {
-        id: result.query.id,
-        type: 'assistant',
-        content: result.response,
-        timestamp: result.query.timestamp,
-      };
-      setMessages(prev => [...prev, assistantMessage]);
+      // Stream the response character by character
+      await streamText(result.response, assistantMessageId);
+
+      // Ensure scroll to bottom after streaming completes
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
 
       // Update limits
       const updatedLimits = await getQueryLimits(isPremium);
@@ -174,7 +224,57 @@ const AIAssistantScreen: React.FC = () => {
       }
     } finally {
       setLoading(false);
+      setStreamingMessageId(null);
+      setStreamingText('');
     }
+  };
+
+  /**
+   * Stream text character by character with smooth animation
+   */
+  const streamText = async (fullText: string, messageId: string): Promise<void> => {
+    return new Promise((resolve) => {
+      let currentIndex = 0;
+      const charsPerChunk = 2; // Characters to show per frame (adjust for speed)
+      const delay = 20; // Milliseconds between chunks (adjust for speed)
+
+      const stream = () => {
+        if (currentIndex >= fullText.length) {
+          // Streaming complete - update the actual message
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === messageId
+                ? { ...msg, content: fullText }
+                : msg
+            )
+          );
+          setStreamingText('');
+          setStreamingMessageId(null);
+          // Ensure scroll to bottom after streaming completes
+          setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 50);
+          resolve();
+          return;
+        }
+
+        const nextIndex = Math.min(currentIndex + charsPerChunk, fullText.length);
+        const partialText = fullText.substring(0, nextIndex);
+        setStreamingText(partialText);
+        currentIndex = nextIndex;
+
+        // Scroll during streaming to keep up with new content (every 10 characters)
+        if (currentIndex % 10 === 0) {
+          setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 0);
+        }
+
+        streamingTimeoutRef.current = setTimeout(stream, delay);
+      };
+
+      stream();
+    });
   };
 
   const quickQueries = [
@@ -186,21 +286,24 @@ const AIAssistantScreen: React.FC = () => {
   ];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
       >
         {/* Header */}
         <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
           <View style={styles.headerContent}>
             <View style={styles.headerTitleRow}>
+              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <Icon name="arrow-left" size={24} color={theme.text} />
+              </TouchableOpacity>
               <Icon name="robot" size={24} color={theme.primary} />
               <Text style={[styles.headerTitle, { color: theme.text }]}>AI Assistant</Text>
             </View>
             {!isPremium && (
-              <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
+              <Text style={[styles.headerSubtitle, { color: theme.textSecondary, marginLeft: 40 }]}>
                 {queryLimits.limit - queryLimits.used} queries remaining today
               </Text>
             )}
@@ -213,6 +316,10 @@ const AIAssistantScreen: React.FC = () => {
           style={styles.messagesContainer}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          onContentSizeChange={handleContentSizeChange}
+          onLayout={handleContentSizeChange}
         >
           {messages.map((message) => (
             <View
@@ -237,21 +344,36 @@ const AIAssistantScreen: React.FC = () => {
                     <Icon name="robot" size={16} color={theme.primary} />
                   </View>
                 )}
-                <Text
-                  style={[
-                    styles.messageText,
-                    {
-                      color: message.type === 'user' ? '#FFFFFF' : theme.text,
-                    },
-                  ]}
-                >
-                  {message.content}
-                </Text>
+                {message.type === 'assistant' ? (
+                  <MarkdownText
+                    style={[
+                      styles.messageText,
+                      {
+                        color: theme.text,
+                      },
+                    ]}
+                  >
+                    {streamingMessageId === message.id && streamingText
+                      ? streamingText
+                      : message.content}
+                  </MarkdownText>
+                ) : (
+                    <Text
+                      style={[
+                        styles.messageText,
+                        {
+                          color: '#FFFFFF',
+                        },
+                      ]}
+                    >
+                      {message.content}
+                    </Text>
+                )}
               </View>
             </View>
           ))}
 
-          {loading && (
+          {loading && !streamingMessageId && (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color={theme.primary} />
               <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Thinking...</Text>
@@ -283,7 +405,14 @@ const AIAssistantScreen: React.FC = () => {
         </ScrollView>
 
         {/* Input Area */}
-        <View style={[styles.inputContainer, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
+        <View style={[
+          styles.inputContainer,
+          {
+            backgroundColor: theme.card,
+            borderTopColor: theme.border,
+            paddingBottom: Platform.OS === 'ios' ? spacing.xxl + 50 : spacing.md + insets.bottom,
+          }
+        ]}>
           <View style={[styles.inputWrapper, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <TextInput
               style={[styles.input, { color: theme.text }]}
@@ -350,6 +479,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
@@ -370,21 +500,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     ...typography.titleLarge,
     fontWeight: '700',
-  },
-  premiumBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-    gap: 4,
-    marginLeft: spacing.xs,
-  },
-  premiumBadgeText: {
-    ...typography.labelSmall,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 10,
   },
   headerSubtitle: {
     ...typography.bodySmall,
@@ -452,7 +567,6 @@ const styles = StyleSheet.create({
   inputContainer: {
     padding: spacing.md,
     borderTopWidth: 1,
-    paddingBottom: spacing.xxxl,
   },
   inputWrapper: {
     flexDirection: 'row',

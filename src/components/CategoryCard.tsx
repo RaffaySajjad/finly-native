@@ -2,9 +2,10 @@
  * CategoryCard component
  * Purpose: Displays category with spending progress and budget visualization
  * Shows progress bar and percentage of budget used
+ * Performance: Optimized with React.memo and useMemo
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { Category } from '../types';
@@ -22,15 +23,27 @@ interface CategoryCardProps {
  * @param category - The category object to display
  * @param onPress - Optional callback when card is pressed
  */
-export const CategoryCard: React.FC<CategoryCardProps> = ({ category, onPress }) => {
+const CategoryCardComponent: React.FC<CategoryCardProps> = ({ category, onPress }) => {
   const { theme } = useTheme();
   const { formatCurrency } = useCurrency();
 
-  const percentage = category.budgetLimit
-    ? Math.min((category.totalSpent / category.budgetLimit) * 100, 100)
-    : 0;
-
-  const isOverBudget = category.budgetLimit && category.totalSpent > category.budgetLimit;
+  // Memoize calculations
+  const { percentage, isOverBudget, formattedSpent, formattedBudget } = useMemo(() => {
+    const totalSpent = category.totalSpent || 0;
+    const pct = category.budgetLimit
+      ? Math.min((totalSpent / category.budgetLimit) * 100, 100)
+      : 0;
+    const overBudget = category.budgetLimit && totalSpent > category.budgetLimit;
+    const spent = formatCurrency(totalSpent);
+    const budget = category.budgetLimit ? formatCurrency(category.budgetLimit) : null;
+    
+    return {
+      percentage: pct,
+      isOverBudget: overBudget,
+      formattedSpent: spent,
+      formattedBudget: budget,
+    };
+  }, [category.budgetLimit, category.totalSpent, formatCurrency]);
 
   return (
     <TouchableOpacity
@@ -50,10 +63,10 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({ category, onPress })
         <View style={styles.headerText}>
           <Text style={[styles.categoryName, { color: theme.text }]}>{category.name}</Text>
           <Text style={[styles.spent, { color: theme.textSecondary }]}>
-            {formatCurrency(category.totalSpent)}
-            {category.budgetLimit && (
+            {formattedSpent}
+            {formattedBudget && (
               <Text style={{ color: theme.textTertiary }}>
-                {' '}/ {formatCurrency(category.budgetLimit)}
+                {' '}/ {formattedBudget}
               </Text>
             )}
           </Text>
@@ -86,6 +99,17 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({ category, onPress })
     </TouchableOpacity>
   );
 };
+
+// Export memoized component for performance
+export const CategoryCard = React.memo(CategoryCardComponent, (prevProps, nextProps) => {
+  // Custom comparison function for better memoization
+  return (
+    prevProps.category.id === nextProps.category.id &&
+    prevProps.category.totalSpent === nextProps.category.totalSpent &&
+    prevProps.category.budgetLimit === nextProps.category.budgetLimit &&
+    prevProps.onPress === nextProps.onPress
+  );
+});
 
 const styles = StyleSheet.create({
   container: {

@@ -92,10 +92,10 @@ export async function searchReceipts(query: string): Promise<Receipt[]> {
 /**
  * Get receipts by category
  */
-export async function getReceiptsByCategory(category: string): Promise<Receipt[]> {
+export async function getReceiptsByCategory(categoryId: string): Promise<Receipt[]> {
   try {
     const receipts = await getReceipts();
-    return receipts.filter((r) => r.category === category);
+    return receipts.filter((r) => r.categoryId === categoryId);
   } catch (error) {
     console.error('Error filtering receipts:', error);
     return [];

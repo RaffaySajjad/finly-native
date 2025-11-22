@@ -20,7 +20,16 @@ import { Dimensions } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
-import { PremiumBadge, UpgradePrompt } from '../components';
+import { 
+  PremiumBadge, 
+  UpgradePrompt, 
+  Header, 
+  ToggleSelector, 
+  ChartCard, 
+  EmptyState,
+  PrimaryButton,
+  ProgressBar,
+} from '../components';
 import { apiService } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -67,35 +76,20 @@ const AnalyticsScreen: React.FC = () => {
   if (requiresUpgrade('advancedInsights')) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Icon name="arrow-left" size={24} color={theme.text} />
-          </TouchableOpacity>
-          <View style={styles.headerTitleContainer}>
-            <Text style={[styles.headerTitle, { color: theme.text }]}>Advanced Analytics</Text>
-            <PremiumBadge size="small" />
-          </View>
-          <View style={{ width: 40 }} />
-        </View>
+        <Header
+          title="Advanced Analytics"
+          showBackButton
+          onBackPress={() => navigation.goBack()}
+          rightComponent={<PremiumBadge size="small" />}
+        />
 
-        <View style={styles.emptyState}>
-          <Icon name="chart-line" size={64} color={theme.textTertiary} />
-          <Text style={[styles.emptyStateText, { color: theme.text }]}>
-            Premium Feature
-          </Text>
-          <Text style={[styles.emptyStateSubtext, { color: theme.textSecondary }]}>
-            Upgrade to Premium to access advanced analytics, year-over-year comparisons, and spending predictions.
-          </Text>
-          <TouchableOpacity
-            style={[styles.upgradeButton, { backgroundColor: theme.primary }, elevation.md]}
-            onPress={() => navigation.navigate('Subscription')}
-          >
-            <Text style={styles.upgradeButtonText}>Upgrade to Premium</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          icon="chart-line"
+          title="Premium Feature"
+          subtitle="Upgrade to Premium to access advanced analytics, year-over-year comparisons, and spending predictions."
+          actionLabel="Upgrade to Premium"
+          onActionPress={() => navigation.navigate('Subscription')}
+        />
 
         <UpgradePrompt
           visible={showUpgradePrompt}
@@ -110,17 +104,11 @@ const AnalyticsScreen: React.FC = () => {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Icon name="arrow-left" size={24} color={theme.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Analytics</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <Header
+        title="Analytics"
+        showBackButton
+        onBackPress={() => navigation.goBack()}
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -128,49 +116,19 @@ const AnalyticsScreen: React.FC = () => {
       >
         {/* Period Selector */}
         <View style={styles.periodSelector}>
-          <TouchableOpacity
-            style={[
-              styles.periodButton,
-              {
-                backgroundColor: selectedPeriod === 'month' ? theme.primary : theme.card,
-                borderColor: theme.border,
-              },
+          <ToggleSelector
+            options={[
+              { value: 'month', label: 'Monthly' },
+              { value: 'year', label: 'Yearly' },
             ]}
-            onPress={() => setSelectedPeriod('month')}
-          >
-            <Text
-              style={[
-                styles.periodButtonText,
-                { color: selectedPeriod === 'month' ? '#FFFFFF' : theme.text },
-              ]}
-            >
-              Monthly
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.periodButton,
-              {
-                backgroundColor: selectedPeriod === 'year' ? theme.primary : theme.card,
-                borderColor: theme.border,
-              },
-            ]}
-            onPress={() => setSelectedPeriod('year')}
-          >
-            <Text
-              style={[
-                styles.periodButtonText,
-                { color: selectedPeriod === 'year' ? '#FFFFFF' : theme.text },
-              ]}
-            >
-              Yearly
-            </Text>
-          </TouchableOpacity>
+            selectedValue={selectedPeriod}
+            onValueChange={(value) => setSelectedPeriod(value as 'month' | 'year')}
+            fullWidth
+          />
         </View>
 
         {/* Spending Trend Chart */}
-        <View style={[styles.chartCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
-          <Text style={[styles.chartTitle, { color: theme.text }]}>Spending Trend</Text>
+        <ChartCard title="Spending Trend">
           <LineChart
             data={monthlyData}
             width={width - 64}
@@ -186,11 +144,10 @@ const AnalyticsScreen: React.FC = () => {
             bezier
             style={styles.chart}
           />
-        </View>
+        </ChartCard>
 
         {/* Category Breakdown */}
-        <View style={[styles.chartCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
-          <Text style={[styles.chartTitle, { color: theme.text }]}>Category Breakdown</Text>
+        <ChartCard title="Category Breakdown">
           {categoryData.map((category, index) => (
             <View key={index} style={styles.categoryRow}>
               <View style={styles.categoryInfo}>
@@ -203,24 +160,17 @@ const AnalyticsScreen: React.FC = () => {
                 <Text style={[styles.categoryName, { color: theme.text }]}>{category.name}</Text>
               </View>
               <View style={styles.categoryStats}>
-                <View style={styles.progressBar}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: `${category.percentage}%`,
-                        backgroundColor: theme.categories[category.name.toLowerCase() as keyof typeof theme.categories] || theme.primary,
-                      },
-                    ]}
-                  />
-                </View>
+                <ProgressBar
+                  progress={category.percentage}
+                  color={theme.categories[category.name.toLowerCase() as keyof typeof theme.categories] || theme.primary}
+                />
                 <Text style={[styles.categoryAmount, { color: theme.text }]}>
                   {formatCurrency(category.amount)}
                 </Text>
               </View>
             </View>
           ))}
-        </View>
+        </ChartCard>
 
         {/* Year-over-Year Comparison */}
         <View style={[styles.comparisonCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>

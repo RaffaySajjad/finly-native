@@ -13,6 +13,7 @@ import {
   Animated,
   Platform,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { PieChart } from 'react-native-gifted-charts';
@@ -25,7 +26,7 @@ import { Category } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
-const { width } = Dimensions.get('window');
+const SORTED_CATEGORIES_LIMIT = 5;
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -51,6 +52,29 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 /**
+ * Generate a color from a string (for fallback when category color is missing)
+ */
+const generateColorFromString = (str: string): string => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = hash % 360;
+  return `hsl(${hue}, 70%, 50%)`;
+};
+
+/**
+ * Get category color, with fallback to generated color or theme primary
+ */
+const getCategoryColor = (category: Category, theme: any): string => {
+  if (category.color) {
+    return category.color;
+  }
+  // Generate a color from category name if color is missing
+  return generateColorFromString(category.name);
+};
+
+/**
  * SpendingBreakdown - Interactive pie chart with slice selection
  */
 export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
@@ -60,16 +84,22 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
   const { formatCurrency } = useCurrency();
   const navigation = useNavigation<NavigationProp>();
   const [selectedSlice, setSelectedSlice] = useState<SelectedSlice | null>(null);
+  const [showAllCategories, setShowAllCategories] = useState(false);
   const tooltipAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   // Calculate total spending
-  const totalSpent = categories.reduce((sum, cat) => sum + cat.totalSpent, 0);
+  const totalSpent = categories.reduce((sum, cat) => sum + (cat.totalSpent || 0), 0);
 
   // Sort categories by spending (descending)
   const sortedCategories = [...categories]
-    .filter(cat => cat.totalSpent > 0)
-    .sort((a, b) => b.totalSpent - a.totalSpent);
+    .filter(cat => (cat.totalSpent || 0) > 0)
+    .sort((a, b) => (b.totalSpent || 0) - (a.totalSpent || 0));
+
+  // Limit legend to top 12 categories initially, show all if toggled
+  const displayedCategories = showAllCategories
+    ? sortedCategories
+    : sortedCategories.slice(0, SORTED_CATEGORIES_LIMIT);
 
   /**
    * Handle slice selection - show tooltip with details
@@ -82,7 +112,8 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
     const category = sortedCategories[index];
     if (!category) return;
 
-    const percentage = totalSpent > 0 ? (category.totalSpent / totalSpent) * 100 : 0;
+    const categorySpent = category.totalSpent || 0;
+    const percentage = totalSpent > 0 ? (categorySpent / totalSpent) * 100 : 0;
 
     // If clicking the same slice, deselect it
     if (selectedSlice?.index === index) {
@@ -121,11 +152,11 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
   // Prepare chart data with highlighting for selected slice
   const chartData = sortedCategories.map((cat, index) => {
     const isSelected = selectedSlice?.index === index;
-    const baseColor = theme.categories[cat.id as keyof typeof theme.categories] || theme.primary;
+    const categoryColor = getCategoryColor(cat, theme);
     
     return {
-      value: cat.totalSpent,
-      color: baseColor,
+      value: cat.totalSpent || 0,
+      color: categoryColor,
       text: cat.name.charAt(0).toUpperCase() + cat.name.slice(1),
       focused: isSelected,
       onPress: () => handleSlicePress(index),
@@ -168,7 +199,7 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
 
         {/* Total Amount */}
         <View style={styles.totalContainer}>
-          <Text style={[styles.totalLabel, { color: theme.textSecondary }]}>Total Spending</Text>
+          <Text style={[styles.totalLabel, { color: theme.textSecondary }]}>This Month</Text>
           <Text style={[styles.totalAmount, { color: theme.primary }]}>
             {formatCurrency(totalSpent)}
           </Text>
@@ -176,15 +207,19 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
 
         {/* Interactive Pie Chart */}
         <View style={styles.chartContainer}>
-          <PieChart
-            data={chartData}
-            donut
-            radius={100}
-            innerRadius={60}
-            focusOnPress
-            sectionAutoFocus
-            centerLabelComponent={() => null}
-          />
+          <View style={styles.chartWrapper}>
+            <PieChart
+              data={chartData}
+              donut
+              radius={100}
+              innerRadius={60}
+              focusOnPress
+              sectionAutoFocus
+              centerLabelComponent={() => null}
+            />
+            {/* Inner circle overlay to match theme */}
+            <View style={[styles.innerCircle, { backgroundColor: theme.card }]} />
+          </View>
           
           <Text style={[styles.chartHint, { color: theme.textTertiary }]}>
             Tap on a slice to see details
@@ -193,27 +228,49 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
 
         {/* Legend - Color indicators only */}
         <View style={styles.legendContainer}>
-          {sortedCategories.map((category, index) => {
-            const categoryColor = theme.categories[category.id as keyof typeof theme.categories] || theme.primary;
-            const isSelected = selectedSlice?.index === index;
-            
-            return (
-              <TouchableOpacity
-                key={category.id}
-                style={[
-                  styles.legendItem,
-                  isSelected && { backgroundColor: categoryColor + '15' },
-                ]}
-                onPress={() => handleSlicePress(index)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.legendDot, { backgroundColor: categoryColor }]} />
-                <Text style={[styles.legendText, { color: theme.text }]}>
-                  {category.name.charAt(0).toUpperCase() + category.name.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+          <ScrollView
+            style={styles.legendScrollView}
+            contentContainerStyle={styles.legendScrollContent}
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled={true}
+          >
+            {displayedCategories.map((category, displayIndex) => {
+              // Find the actual index in sortedCategories for proper slice selection
+              const actualIndex = sortedCategories.findIndex(cat => cat.id === category.id);
+              const categoryColor = getCategoryColor(category, theme);
+              const isSelected = selectedSlice?.index === actualIndex;
+
+              return (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.legendItem,
+                    isSelected && { backgroundColor: categoryColor + '15' },
+                  ]}
+                  onPress={() => handleSlicePress(actualIndex)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.legendDot, { backgroundColor: categoryColor }]} />
+                  <Text style={[styles.legendText, { color: theme.text }]} numberOfLines={1}>
+                    {category.name.charAt(0).toUpperCase() + category.name.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          {sortedCategories.length > SORTED_CATEGORIES_LIMIT && (
+            <TouchableOpacity
+              style={styles.showMoreButton}
+              onPress={() => setShowAllCategories(!showAllCategories)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.showMoreText, { color: theme.primary }]}>
+                {showAllCategories
+                  ? `Show Less (${sortedCategories.length - SORTED_CATEGORIES_LIMIT} hidden)`
+                  : `Show All (${sortedCategories.length - SORTED_CATEGORIES_LIMIT} more)`}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -245,12 +302,12 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
               <View style={styles.tooltipLeft}>
                 <View style={[
                   styles.tooltipIcon,
-                  { backgroundColor: theme.categories[selectedSlice.category.id as keyof typeof theme.categories] + '20' }
+                  { backgroundColor: getCategoryColor(selectedSlice.category, theme) + '20' }
                 ]}>
                   <Icon
-                    name={CATEGORY_ICONS[selectedSlice.category.id] as any}
+                    name={(selectedSlice.category.icon || CATEGORY_ICONS[selectedSlice.category.id] || 'dots-horizontal') as any}
                     size={24}
-                    color={theme.categories[selectedSlice.category.id as keyof typeof theme.categories]}
+                    color={getCategoryColor(selectedSlice.category, theme)}
                   />
                 </View>
                 <View>
@@ -278,14 +335,14 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
 
             <View style={styles.tooltipStats}>
               <View style={styles.tooltipStat}>
-                <Text style={[styles.tooltipStatLabel, { color: theme.textSecondary }]}>Spent</Text>
+                <Text style={[styles.tooltipStatLabel, { color: theme.textSecondary }]}>This Month</Text>
                 <Text style={[styles.tooltipStatValue, { color: theme.expense }]}>
-                  {formatCurrency(selectedSlice.category.totalSpent)}
+                  {formatCurrency(selectedSlice.category.totalSpent || 0)}
                 </Text>
               </View>
               <View style={[styles.tooltipDivider, { backgroundColor: theme.border }]} />
               <View style={styles.tooltipStat}>
-                <Text style={[styles.tooltipStatLabel, { color: theme.textSecondary }]}>Budget</Text>
+                <Text style={[styles.tooltipStatLabel, { color: theme.textSecondary }]}>Monthly Budget</Text>
                 <Text style={[styles.tooltipStatValue, { color: selectedSlice.category.budgetLimit ? theme.text : theme.textTertiary }]}>
                   {selectedSlice.category.budgetLimit 
                     ? formatCurrency(selectedSlice.category.budgetLimit)
@@ -351,16 +408,34 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     justifyContent: 'center'
   },
+  chartWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  innerCircle: {
+    position: 'absolute',
+    width: 120, // innerRadius * 2 = 60 * 2
+    height: 120,
+    borderRadius: 60,
+    zIndex: 1,
+  },
   chartHint: {
     ...typography.caption,
     marginTop: spacing.md,
     fontStyle: 'italic',
   },
   legendContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     paddingHorizontal: spacing.sm,
     paddingBottom: spacing.md,
+    maxHeight: 200, // Limit height to prevent taking too much space
+  },
+  legendScrollView: {
+    maxHeight: 180,
+  },
+  legendScrollContent: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   legendItem: {
@@ -370,6 +445,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     borderRadius: borderRadius.md,
     gap: spacing.xs,
+    maxWidth: '48%', // Limit width to fit 2 per row
   },
   legendDot: {
     width: 12,
@@ -379,6 +455,17 @@ const styles = StyleSheet.create({
   legendText: {
     ...typography.bodySmall,
     fontWeight: '500',
+    flexShrink: 1,
+  },
+  showMoreButton: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    marginTop: spacing.xs,
+  },
+  showMoreText: {
+    ...typography.labelMedium,
+    fontWeight: '600',
   },
   tooltip: {
     marginTop: spacing.md,

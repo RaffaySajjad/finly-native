@@ -12,7 +12,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../hooks/useSubscription';
 import { RootStackParamList } from '../navigation/types';
-import { CategoryType } from '../types';
+import { Category } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,7 +22,7 @@ type AIAssistantFABNavigationProp = StackNavigationProp<RootStackParamList>;
 interface AIAssistantFABProps {
   context?: {
     transactionId?: string;
-    categoryId?: CategoryType;
+    categoryId?: string;
     screen?: string;
   };
   initialQuery?: string;

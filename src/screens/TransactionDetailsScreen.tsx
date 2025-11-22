@@ -10,7 +10,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   Animated,
   Platform,
   ScrollView,
@@ -25,9 +24,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
 import tagsService from '../services/tagsService';
-import { PaymentMethod, Tag } from '../types';
+import { PaymentMethod, Tag, UnifiedTransaction } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { RootStackParamList } from '../navigation/types';
+import { useAlert } from '../hooks/useAlert';
 
 type TransactionDetailsRouteProp = RouteProp<RootStackParamList, 'TransactionDetails'>;
 type TransactionDetailsNavigationProp = StackNavigationProp<RootStackParamList, 'TransactionDetails'>;
@@ -40,17 +40,20 @@ const TransactionDetailsScreen: React.FC = () => {
   const { formatCurrency } = useCurrency();
   const navigation = useNavigation<TransactionDetailsNavigationProp>();
   const route = useRoute<TransactionDetailsRouteProp>();
+  const { showError, showInfo, AlertComponent } = useAlert();
 
-  const { expense } = route.params;
+  const { transaction } = route.params;
   const [tags, setTags] = useState<Tag[]>([]);
+  const isExpense = transaction.type === 'expense';
 
-  // Load tags if expense has tags
+  // Load tags if transaction has tags (expenses only)
   useEffect(() => {
     const loadTags = async () => {
-      if (expense.tags && expense.tags.length > 0) {
+      if (isExpense && transaction.tags && transaction.tags.length > 0) {
         try {
           const allTags = await tagsService.getTags();
-          const expenseTags = allTags.filter(t => expense.tags?.includes(t.id));
+          const tagIds = transaction.tags!.map(t => typeof t === 'string' ? t : t.id);
+          const expenseTags = allTags.filter(t => tagIds.includes(t.id));
           setTags(expenseTags);
         } catch (error) {
           console.error('Error loading tags:', error);
@@ -58,7 +61,7 @@ const TransactionDetailsScreen: React.FC = () => {
       }
     };
     loadTags();
-  }, [expense.tags]);
+  }, [transaction.tags, isExpense]);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -87,28 +90,23 @@ const TransactionDetailsScreen: React.FC = () => {
 
   const getPaymentMethodIcon = (method?: PaymentMethod): string => {
     const icons: Record<PaymentMethod, string> = {
-      credit_card: 'credit-card',
-      debit_card: 'card',
-      cash: 'cash',
-      check: 'receipt',
-      bank_transfer: 'bank-transfer',
-      digital_wallet: 'wallet',
-      other: 'dots-horizontal',
+      CREDIT_CARD: 'credit-card',
+      DEBIT_CARD: 'card',
+      CASH: 'cash',
+      CHECK: 'receipt',
+      BANK_TRANSFER: 'bank-transfer',
+      DIGITAL_WALLET: 'wallet',
+      OTHER: 'dots-horizontal',
     };
     return method ? icons[method] : 'credit-card-outline';
   };
 
-  const getCategoryIcon = (category: string): string => {
-    const icons: Record<string, string> = {
-      food: 'food',
-      transport: 'car',
-      shopping: 'shopping',
-      entertainment: 'movie',
-      health: 'heart-pulse',
-      utilities: 'lightning-bolt',
-      other: 'dots-horizontal',
-    };
-    return icons[category] || 'cash';
+  const getCategoryIcon = (category?: { id: string; name: string; icon: string }): string => {
+    return category?.icon || 'cash';
+  };
+
+  const getCategoryName = (category?: { id: string; name: string }): string => {
+    return category?.name || 'Other';
   };
 
   const formatDate = (dateString: string): string => {
@@ -125,7 +123,26 @@ const TransactionDetailsScreen: React.FC = () => {
     if (Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+    if (isExpense) {
+      const expense = {
+        id: transaction.id,
+        amount: transaction.amount,
+        categoryId: transaction.category!.id,
+        category: transaction.category!,
+        description: transaction.description,
+        date: transaction.date,
+        paymentMethod: transaction.paymentMethod,
+        notes: transaction.notes,
+        tags: transaction.tags,
+        createdAt: transaction.createdAt,
+        updatedAt: transaction.updatedAt || transaction.createdAt,
+      };
     navigation.navigate('AddExpense', { expense });
+    } else {
+      // For income, navigate to AddIncome screen (if it supports editing)
+      // For now, show info that income editing is not yet implemented
+      showError('Not Available', 'Income transaction editing is not yet implemented.');
+    }
   };
 
   const handleDelete = () => {
@@ -133,7 +150,23 @@ const TransactionDetailsScreen: React.FC = () => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
-    Alert.alert(
+    const deleteTransaction = async () => {
+      try {
+        if (isExpense) {
+          await apiService.deleteExpense(transaction.id);
+        } else {
+          await apiService.deleteIncomeTransaction(transaction.id);
+        }
+        if (Platform.OS === 'ios') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        navigation.goBack();
+      } catch (error) {
+        showError('Error', 'Failed to delete transaction');
+      }
+    };
+
+    showInfo(
       'Delete Transaction',
       'Are you sure you want to delete this transaction? This action cannot be undone.',
       [
@@ -144,23 +177,16 @@ const TransactionDetailsScreen: React.FC = () => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await apiService.deleteExpense(expense.id);
-              if (Platform.OS === 'ios') {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              }
-              navigation.goBack();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete transaction');
-            }
-          },
+          onPress: deleteTransaction,
         },
       ]
     );
   };
 
-  const categoryColor = theme.categories[expense.category as keyof typeof theme.categories] || theme.primary;
+  const category = isExpense ? transaction.category : undefined;
+  const categoryColor = category?.color || (isExpense ? theme.primary : theme.income);
+  const categoryName = isExpense ? getCategoryName(category) : 'Income';
+  const categoryIcon = isExpense ? getCategoryIcon(category) : 'cash-plus';
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
@@ -188,33 +214,35 @@ const TransactionDetailsScreen: React.FC = () => {
         >
           {/* Category Icon */}
           <View style={[styles.iconContainer, { backgroundColor: categoryColor + '20' }]}>
-            <Icon name={getCategoryIcon(expense.category) as any} size={64} color={categoryColor} />
+            <Icon name={categoryIcon as any} size={64} color={categoryColor} />
           </View>
 
           {/* Amount */}
           <Text
             style={[
               styles.amount,
-              { color: theme.expense },
+              { color: isExpense ? theme.expense : theme.income },
             ]}
           >
-            -{formatCurrency(expense.amount)}
+            {isExpense ? '-' : '+'}{formatCurrency(transaction.amount)}
           </Text>
 
           {/* Description */}
           <Text style={[styles.description, { color: theme.text }]}>
-            {expense.description}
+            {transaction.description}
           </Text>
 
           {/* Details Grid */}
           <View style={styles.detailsGrid}>
-            {/* Category */}
+            {/* Category/Income Source */}
             <View style={styles.detailItem}>
-              <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Category</Text>
+              <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>
+                {isExpense ? 'Category' : 'Income Source'}
+              </Text>
               <View style={styles.detailValueRow}>
                 <View style={[styles.categoryDot, { backgroundColor: categoryColor }]} />
                 <Text style={[styles.detailValue, { color: theme.text }]}>
-                  {expense.category.charAt(0).toUpperCase() + expense.category.slice(1)}
+                  {isExpense ? categoryName : (transaction.incomeSource?.name || 'Manual Income')}
                 </Text>
               </View>
             </View>
@@ -224,36 +252,55 @@ const TransactionDetailsScreen: React.FC = () => {
               <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Type</Text>
               <View style={styles.detailValueRow}>
                 <Icon
-                  name="arrow-up"
+                  name={isExpense ? 'arrow-up' : 'arrow-down'}
                   size={16}
-                  color={theme.expense}
+                  color={isExpense ? theme.expense : theme.income}
                 />
                 <Text style={[styles.detailValue, { color: theme.text }]}>
-                  Expense
+                  {isExpense ? 'Expense' : 'Income'}
                 </Text>
               </View>
             </View>
 
-            {/* Payment Method */}
+            {/* Payment Method (expenses only) */}
+            {isExpense && transaction.paymentMethod && (
             <View style={styles.detailItem}>
               <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Payment Method</Text>
               <View style={styles.detailValueRow}>
                 <Icon
-                  name={getPaymentMethodIcon(expense.paymentMethod) as any}
-                  size={16}
-                  color={theme.textSecondary}
-                />
-                <Text style={[styles.detailValue, { color: theme.text }]}>
-                  {getPaymentMethodName(expense.paymentMethod)}
-                </Text>
+                    name={getPaymentMethodIcon(transaction.paymentMethod) as any}
+                    size={16}
+                    color={theme.textSecondary}
+                  />
+                  <Text style={[styles.detailValue, { color: theme.text }]}>
+                    {getPaymentMethodName(transaction.paymentMethod)}
+                  </Text>
+                </View>
               </View>
-            </View>
+            )}
+
+            {/* Auto Added (income only) */}
+            {!isExpense && transaction.autoAdded !== undefined && (
+              <View style={styles.detailItem}>
+                <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Source</Text>
+                <View style={styles.detailValueRow}>
+                  <Icon
+                    name={transaction.autoAdded ? 'auto-fix' : 'hand-pointing-right'}
+                    size={16}
+                    color={theme.textSecondary}
+                  />
+                  <Text style={[styles.detailValue, { color: theme.text }]}>
+                    {transaction.autoAdded ? 'Auto Added' : 'Manual Entry'}
+                  </Text>
+                </View>
+              </View>
+            )}
 
             {/* Date */}
             <View style={styles.detailItem}>
               <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Date</Text>
               <Text style={[styles.detailValue, { color: theme.text }]}>
-                {formatDate(expense.date)}
+                {formatDate(transaction.date)}
               </Text>
             </View>
 
@@ -279,7 +326,7 @@ const TransactionDetailsScreen: React.FC = () => {
             <View style={[styles.detailItem, styles.detailItemFull]}>
               <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>Transaction ID</Text>
               <Text style={[styles.detailValue, { color: theme.textTertiary, fontFamily: 'monospace' }]}>
-                {expense.id}
+                {transaction.id}
               </Text>
             </View>
           </View>
@@ -293,8 +340,8 @@ const TransactionDetailsScreen: React.FC = () => {
                 { backgroundColor: theme.card, borderColor: theme.border },
               ]}
               onPress={() => navigation.navigate('AIAssistant', {
-                context: { transactionId: expense.id },
-                initialQuery: `Tell me about this transaction: ${expense.description}`,
+                context: { transactionId: transaction.id },
+                initialQuery: `Tell me about this transaction: ${transaction.description}`,
               })}
             >
               <Icon name="robot" size={18} color={theme.primary} />
@@ -328,6 +375,9 @@ const TransactionDetailsScreen: React.FC = () => {
           </View>
         </Animated.View>
       </ScrollView>
+
+      {/* Alert Dialog */}
+      {AlertComponent}
     </SafeAreaView>
   );
 };
@@ -454,6 +504,7 @@ const styles = StyleSheet.create({
   },
   editButton: {},
   deleteButton: {},
+  aiButton: {},
   actionButtonText: {
     ...typography.labelLarge,
     fontWeight: '600',

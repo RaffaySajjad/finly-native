@@ -77,12 +77,18 @@ export const generateAIExpense = createAsyncThunk(
 
 /**
  * Async thunk to extract receipt data
+ * TODO: Implement actual OCR extraction in API service
  */
 export const extractReceiptData = createAsyncThunk(
   'expenses/extractReceipt',
   async (imageUri: string) => {
-    const extractedData = await apiService.extractReceiptData(imageUri);
-    return extractedData;
+    // Mock implementation until API service implements OCR
+    return {
+      amount: 0,
+      description: 'Receipt',
+      categoryId: '',
+      date: new Date().toISOString(),
+    };
   }
 );
 

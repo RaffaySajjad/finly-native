@@ -1,61 +1,73 @@
 /**
  * ExpenseCard component
- * Purpose: Displays individual expense item with category icon, amount, and description
+ * Purpose: Displays individual expense or income transaction with category icon, amount, and description
  * Features smooth press animation and long press for edit/delete
+ * Performance: Optimized with React.memo and memoized callbacks
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { Expense, PaymentMethod } from '../types';
+import { Expense, PaymentMethod, UnifiedTransaction } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import tagsService from '../services/tagsService';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
 interface ExpenseCardProps {
-  expense: Expense;
+  expense?: Expense;
+  transaction?: UnifiedTransaction;
   onPress?: () => void;
   onLongPress?: () => void;
 }
 
 /**
- * ExpenseCard component renders a single expense item
- * @param expense - The expense object to display
+ * ExpenseCard component renders a single expense or income transaction
+ * @param expense - The expense object to display (for backward compatibility)
+ * @param transaction - The unified transaction object to display
  * @param onPress - Optional callback when card is pressed
  * @param onLongPress - Optional callback when card is long pressed
  */
-export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onPress, onLongPress }) => {
+const ExpenseCardComponent: React.FC<ExpenseCardProps> = ({ expense, transaction, onPress, onLongPress }) => {
   const { theme } = useTheme();
   const { formatCurrency } = useCurrency();
-  const [tags, setTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
 
-  // Load tags if expense has tags
-  useEffect(() => {
-    const loadTags = async () => {
-      if (expense.tags && expense.tags.length > 0) {
-        try {
-          const allTags = await tagsService.getTags();
-          const expenseTags = allTags.filter(t => expense.tags?.includes(t.id));
-          setTags(expenseTags);
-        } catch (error) {
-          console.error('Error loading tags:', error);
-        }
-      }
-    };
-    loadTags();
-  }, [expense.tags]);
+  // Use transaction if provided, otherwise fall back to expense
+  const tx = transaction || (expense ? {
+    id: expense.id,
+    type: 'expense' as const,
+    amount: expense.amount,
+    date: expense.date,
+    description: expense.description,
+    createdAt: expense.createdAt,
+    updatedAt: expense.updatedAt,
+    category: expense.category,
+    paymentMethod: expense.paymentMethod,
+    tags: expense.tags,
+    notes: expense.notes,
+  } : null);
 
-  const handleLongPress = () => {
+  if (!tx) {
+    return null;
+  }
+
+  // Memoize callbacks for better performance
+  const handleLongPress = useCallback(() => {
     // Haptic feedback on iOS
     if (Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     onLongPress?.();
-  };
+  }, [onLongPress]);
 
-  const getCategoryIcon = (category: string): string => {
+  // Memoize icon getters to prevent recalculation on every render
+  const getCategoryIcon = useCallback((category?: { id: string; name: string; icon: string }): string => {
+    // Use icon from category object if available
+    if (category?.icon) {
+      return category.icon;
+    }
+
+  // Fallback to icon mapping by category name
     const icons: Record<string, string> = {
       food: 'food',
       transport: 'car',
@@ -65,20 +77,38 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onPress, onLo
       utilities: 'lightning-bolt',
       other: 'dots-horizontal',
     };
-    return icons[category] || 'cash';
-  };
 
-  const getPaymentMethodIcon = (method?: PaymentMethod): string => {
+    const categoryName = category?.name?.toLowerCase();
+    return (categoryName && icons[categoryName]) || 'cash';
+  }, []);
+
+  const getIncomeIcon = useCallback((incomeSource?: { id: string; name: string }): string => {
+    if (incomeSource?.name) {
+      const name = incomeSource.name.toLowerCase();
+      if (name.includes('salary') || name.includes('paycheck')) return 'briefcase';
+      if (name.includes('freelance') || name.includes('gig')) return 'laptop';
+      if (name.includes('investment') || name.includes('dividend')) return 'chart-line';
+      if (name.includes('gift') || name.includes('bonus')) return 'gift';
+    }
+    return 'cash-plus';
+  }, []);
+
+  const getPaymentMethodIcon = useCallback((method?: PaymentMethod): string => {
     const icons: Record<PaymentMethod, string> = {
-      credit_card: 'credit-card',
-      debit_card: 'card',
-      cash: 'cash',
-      check: 'receipt',
-      bank_transfer: 'bank-transfer',
-      digital_wallet: 'wallet',
-      other: 'dots-horizontal',
+      CREDIT_CARD: 'credit-card',
+      DEBIT_CARD: 'card',
+      CASH: 'cash',
+      CHECK: 'receipt',
+      BANK_TRANSFER: 'bank-transfer',
+      DIGITAL_WALLET: 'wallet',
+      OTHER: 'dots-horizontal',
     };
     return method ? icons[method] : 'credit-card-outline';
+  }, []);
+
+  const formatPaymentMethod = (method?: PaymentMethod): string => {
+    if (!method) return '';
+    return method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const formatDate = (dateString: string): string => {
@@ -96,7 +126,15 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onPress, onLo
     }
   };
 
-  const categoryColor = theme.categories[expense.category as keyof typeof theme.categories] || theme.primary;
+  const isIncome = tx.type === 'income';
+  const category = tx.category;
+  const categoryColor = isIncome
+    ? theme.income
+    : (category?.color || theme.primary);
+  const tags = tx.tags || [];
+  const iconName = isIncome
+    ? getIncomeIcon(tx.incomeSource)
+    : getCategoryIcon(category);
 
   return (
     <TouchableOpacity
@@ -111,26 +149,43 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onPress, onLo
       activeOpacity={0.7}
     >
       <View style={[styles.iconContainer, { backgroundColor: categoryColor + '20' }]}>
-        <Icon name={getCategoryIcon(expense.category) as any} size={24} color={categoryColor} />
+        <Icon name={iconName as any} size={24} color={categoryColor} />
       </View>
 
       <View style={styles.contentContainer}>
-        <Text style={[styles.description, { color: theme.text }]}>{expense.description}</Text>
+        <Text style={[styles.description, { color: theme.text }]}>{tx.description}</Text>
         <View style={styles.metadataRow}>
-          <Text style={[styles.date, { color: theme.textSecondary }]}>{formatDate(expense.date)}</Text>
-          {expense.paymentMethod && (
+          <Text style={[styles.date, { color: theme.textSecondary }]}>{formatDate(tx.date)}</Text>
+          {!isIncome && tx.paymentMethod && (
             <>
               <Text style={[styles.metadataSeparator, { color: theme.textTertiary }]}>•</Text>
               <View style={styles.paymentMethodBadge}>
-                <Icon name={getPaymentMethodIcon(expense.paymentMethod) as any} size={12} color={theme.textTertiary} />
+                <Icon name={getPaymentMethodIcon(tx.paymentMethod) as any} size={12} color={theme.textTertiary} />
                 <Text style={[styles.paymentMethodText, { color: theme.textTertiary }]}>
-                  {expense.paymentMethod.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  {formatPaymentMethod(tx.paymentMethod)}
                 </Text>
               </View>
             </>
           )}
+          {isIncome && tx.incomeSource && (
+            <>
+              <Text style={[styles.metadataSeparator, { color: theme.textTertiary }]}>•</Text>
+              <Text style={[styles.incomeSourceText, { color: theme.textTertiary }]}>
+                {tx.incomeSource.name}
+              </Text>
+            </>
+          )}
+          {isIncome && tx.autoAdded && (
+            <>
+              <Text style={[styles.metadataSeparator, { color: theme.textTertiary }]}>•</Text>
+              <View style={styles.autoBadge}>
+                <Icon name="auto-fix" size={10} color={theme.textTertiary} />
+                <Text style={[styles.autoText, { color: theme.textTertiary }]}>Auto</Text>
+              </View>
+            </>
+          )}
         </View>
-        {tags.length > 0 && (
+        {!isIncome && tags.length > 0 && (
           <View style={styles.tagsContainer}>
             {tags.slice(0, 2).map((tag) => (
               <View
@@ -154,15 +209,28 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onPress, onLo
         <Text
           style={[
             styles.amount,
-            { color: theme.expense },
+            { color: isIncome ? theme.income : theme.expense },
           ]}
         >
-          -{formatCurrency(expense.amount)}
+          {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
         </Text>
       </View>
     </TouchableOpacity>
   );
 };
+
+// Export memoized component for performance
+export const ExpenseCard = React.memo(ExpenseCardComponent, (prevProps, nextProps) => {
+  // Custom comparison function for better memoization
+  return (
+    prevProps.expense?.id === nextProps.expense?.id &&
+    prevProps.transaction?.id === nextProps.transaction?.id &&
+    prevProps.expense?.amount === nextProps.expense?.amount &&
+    prevProps.transaction?.amount === nextProps.transaction?.amount &&
+    prevProps.onPress === nextProps.onPress &&
+    prevProps.onLongPress === nextProps.onLongPress
+  );
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -236,6 +304,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   tagMoreText: {
+    ...typography.caption,
+    fontSize: 10,
+  },
+  incomeSourceText: {
+    ...typography.caption,
+    fontSize: 10,
+  },
+  autoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  autoText: {
     ...typography.caption,
     fontSize: 10,
   },

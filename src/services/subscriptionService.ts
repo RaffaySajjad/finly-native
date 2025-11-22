@@ -24,6 +24,8 @@ import { iapService, PurchaseResult } from './iap.service';
 import { api } from './apiClient';
 import { IAP_CONFIG, getProductId } from '../config/iap.config';
 import { Subscription } from '../types';
+import { store } from '../store';
+import { checkSubscriptionStatus } from '../store/slices/subscriptionSlice';
 
 const TRIAL_DAYS = 7;
 
@@ -39,6 +41,12 @@ export const subscriptionService = {
     try {
       await iapService.initialize();
       console.log('[Subscription] IAP initialized successfully');
+
+      // Set up purchase listener for background/interrupted purchases
+      iapService.setPurchaseListener(async (purchase) => {
+        console.log('[Subscription] Received purchase update:', purchase.transactionId);
+        await this.verifyAndActivate(purchase);
+      });
     } catch (error) {
       console.error('[Subscription] IAP initialization failed:', error);
       throw error;
@@ -54,7 +62,13 @@ export const subscriptionService = {
       const response = await api.get<{ subscription: Subscription }>('/subscriptions/status');
       
       if (response.success && response.data) {
-        return response.data.subscription;
+        const subscription = response.data.subscription;
+        // Ensure tier is lowercase and isActive is properly set
+        return {
+          ...subscription,
+          tier: subscription.tier.toLowerCase() as 'FREE' | 'PREMIUM',
+          isActive: subscription.isActive !== undefined ? subscription.isActive : true,
+        };
       }
       
       throw new Error('Failed to get subscription status');
@@ -63,7 +77,7 @@ export const subscriptionService = {
       
       // Return default free tier on error
       return {
-        tier: 'free',
+        tier: 'FREE',
         isActive: true,
         isTrial: false,
       };
@@ -127,9 +141,19 @@ export const subscriptionService = {
 
         if (response.success && response.data) {
           console.log('[Subscription] Backend validation successful');
+          
+          // Finish transaction only after successful validation
+          await iapService.finishTransaction(purchaseResult);
+          
+          const subscription = response.data.subscription;
+          // Normalize subscription data
           return {
             success: true,
-            subscription: response.data.subscription,
+            subscription: {
+              ...subscription,
+              tier: subscription.tier.toUpperCase() as 'FREE' | 'PREMIUM',
+              isActive: subscription.isActive !== undefined ? subscription.isActive : true,
+            },
           };
         }
 
@@ -141,6 +165,37 @@ export const subscriptionService = {
     } catch (error: any) {
       console.error('[Subscription] Purchase failed:', error);
       throw error;
+    }
+  },
+
+  /**
+   * Verify and activate subscription from purchase result
+   * Used by both direct purchase flow and background listeners
+   */
+  async verifyAndActivate(purchase: PurchaseResult): Promise<void> {
+    try {
+      console.log('[Subscription] Verifying purchase:', purchase.transactionId);
+      
+      const response = await api.post<{ subscription: Subscription }>('/subscriptions/verify-purchase', {
+        transactionId: purchase.transactionId,
+        receipt: purchase.receipt,
+        productId: purchase.productId,
+        platform: purchase.platform,
+      });
+
+      if (response.success && response.data) {
+        console.log('[Subscription] Purchase verified successfully');
+        
+        // Finish transaction
+        await iapService.finishTransaction(purchase);
+        
+        // Update local state
+        const subscription = response.data.subscription;
+        store.dispatch(checkSubscriptionStatus());
+      }
+    } catch (error) {
+      console.error('[Subscription] Verification failed:', error);
+      // Do NOT finish transaction here, allowing retry
     }
   },
 

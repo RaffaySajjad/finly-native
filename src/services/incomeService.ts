@@ -206,19 +206,19 @@ const matchesFrequency = (date: Date, source: IncomeSource): boolean => {
   const dayOfMonth = date.getDate();
 
   switch (source.frequency) {
-    case 'weekly':
+    case 'WEEKLY':
       return source.dayOfWeek !== undefined && dayOfWeek === source.dayOfWeek;
-    case 'biweekly':
+    case 'BIWEEKLY':
       // Simple biweekly: every 14 days from start date
       const startDate = new Date(source.startDate);
       const diffDays = Math.floor((date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
       return diffDays >= 0 && diffDays % 14 === 0;
-    case 'monthly':
+    case 'MONTHLY':
       return source.dayOfMonth !== undefined && dayOfMonth === source.dayOfMonth;
-    case 'custom':
+    case 'CUSTOM':
       // Custom dates: check if day of month matches any in customDates array
       return source.customDates !== undefined && source.customDates.includes(dayOfMonth);
-    case 'manual':
+    case 'MANUAL':
       return false; // Manual handled separately
     default:
       return false;

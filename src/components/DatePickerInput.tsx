@@ -38,7 +38,7 @@ export const DatePickerInput: React.FC<DatePickerInputProps> = ({
   maximumDate = new Date(),
   mode = 'date',
 }) => {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const [isPickerVisible, setPickerVisible] = useState(false);
 
   /**
@@ -146,11 +146,51 @@ export const DatePickerInput: React.FC<DatePickerInputProps> = ({
         onCancel={handleCancel}
         minimumDate={minimumDate}
         maximumDate={maximumDate}
-        // iOS specific styling
+        isDarkModeEnabled={isDark}
         accentColor={theme.primary}
         buttonTextColorIOS={theme.primary}
-        // Android specific styling
-        textColor={theme.text}
+        display={Platform.OS === 'android' ? 'spinner' : 'inline'}
+        themeVariant={isDark ? 'dark' : 'light'}
+        pickerContainerStyleIOS={{
+          alignItems: 'center',
+        }}
+        customCancelButtonIOS={({ onPress, label }) => (
+          <TouchableOpacity
+            onPress={onPress}
+            activeOpacity={0.9}
+            style={{
+              borderRadius: 14,
+              height: 57,
+              marginBottom: 8,
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: isDark ? '#0F0F0F' : '#F2F2F7',
+            }}
+          >
+            <Text style={{ color: theme.primary, fontSize: 17, fontWeight: '400' }}>
+              {label}
+            </Text>
+          </TouchableOpacity>
+        )}
+        customConfirmButtonIOS={({ onPress, label }) => (
+          <TouchableOpacity
+            onPress={onPress}
+            activeOpacity={0.7}
+            style={{
+              borderTopWidth: 0.5,
+              borderTopColor: isDark ? '#3A3A3C' : '#C6C6C8',
+              height: 57,
+              width: '100%',
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: 'transparent',
+            }}
+          >
+            <Text style={{ color: theme.primary, fontSize: 17, fontWeight: '600' }}>
+              {label}
+            </Text>
+          </TouchableOpacity>
+        )}
       />
     </View>
   );

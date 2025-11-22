@@ -50,11 +50,11 @@ export async function exportExpensesAsCSV(): Promise<string> {
       return 'Date,Amount,Category,Description,Type\n';
     }
 
-    const csvHeaders = 'Date,Amount,Category,Description,Type\n';
+    const csvHeaders = 'Date,Amount,Category,Description\n';
     const csvRows = expenses
       .map(
         (exp) =>
-          `${new Date(exp.date).toLocaleDateString()},${exp.amount},${exp.category},${exp.description.replace(/,/g, ';')},${exp.type}`
+          `${new Date(exp.date).toLocaleDateString()},${exp.amount},${exp.category?.name || 'Uncategorized'},${exp.description.replace(/,/g, ';')}`
       )
       .join('\n');
 

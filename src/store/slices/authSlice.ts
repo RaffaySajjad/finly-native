@@ -69,7 +69,19 @@ export const login = createAsyncThunk(
 
       return { user: response.user };
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Login failed. Please try again.');
+      // Extract error code and message
+      const errorCode = error?.code;
+      const errorMessage = error?.message || 'Login failed. Please try again.';
+      
+      console.log('[AuthSlice] Login error:', error);
+      console.log('[AuthSlice] Error code:', errorCode);
+      console.log('[AuthSlice] Error message:', errorMessage);
+      
+      // Preserve error code for frontend handling
+      return rejectWithValue({
+        message: errorMessage,
+        code: errorCode,
+      });
     }
   }
 );
@@ -122,40 +134,6 @@ export const signup = createAsyncThunk(
 );
 
 /**
- * Async thunk to verify email with OTP
- */
-export const verifyEmail = createAsyncThunk(
-  'auth/verifyEmail',
-  async ({ email, otp }: { email: string; otp: string }, { rejectWithValue }) => {
-    try {
-      const response = await authService.verifyEmail({ email, otp });
-
-      // Initialize user data after successful verification
-      await apiService.initializeUser(response.user.id);
-
-      return { user: response.user };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Verification failed. Please try again.');
-    }
-  }
-);
-
-/**
- * Async thunk to resend OTP
- */
-export const resendOTP = createAsyncThunk(
-  'auth/resendOTP',
-  async (email: string, { rejectWithValue }) => {
-    try {
-      await authService.resendOTP(email);
-      return { message: 'OTP sent successfully' };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to resend OTP');
-    }
-  }
-);
-
-/**
  * Async thunk to handle logout
  */
 export const logout = createAsyncThunk('auth/logout', async () => {
@@ -167,19 +145,22 @@ export const logout = createAsyncThunk('auth/logout', async () => {
  */
 export const deleteAccount = createAsyncThunk(
   'auth/deleteAccount',
-  async (_, { getState }) => {
-    const state = getState() as { auth: AuthState };
-    const user = state.auth.user;
+  async (feedback?: { reasonForDeletion?: string; feedback?: string }, { getState, rejectWithValue }) => {
+    try {
+      const state = getState() as { auth: AuthState };
+      const user = state.auth.user;
 
-    if (!user) {
-      throw new Error('No user logged in');
+      if (!user) {
+        throw new Error('No user logged in');
+      }
+
+      // Call backend to delete account with optional feedback
+      await authService.deleteAccount(feedback);
+
+      return;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to delete account');
     }
-
-    // TODO: Call backend to delete account
-    // await apiService.deleteAccount(user.id);
-
-    // Logout and clear tokens
-    await authService.logout();
   }
 );
 
@@ -262,37 +243,6 @@ const authSlice = createSlice({
         // User not authenticated yet - needs email verification
       })
       .addCase(signup.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload as string;
-      });
-
-    // Verify Email
-    builder
-      .addCase(verifyEmail.pending, state => {
-        state.isLoading = true;
-        state.error = null;
-      })
-      .addCase(verifyEmail.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.user = action.payload.user;
-        state.isAuthenticated = true;
-        state.pendingVerificationEmail = null;
-      })
-      .addCase(verifyEmail.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload as string;
-      });
-
-    // Resend OTP
-    builder
-      .addCase(resendOTP.pending, state => {
-        state.isLoading = true;
-        state.error = null;
-      })
-      .addCase(resendOTP.fulfilled, state => {
-        state.isLoading = false;
-      })
-      .addCase(resendOTP.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
       });

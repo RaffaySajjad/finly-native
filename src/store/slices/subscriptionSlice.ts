@@ -22,7 +22,7 @@ interface SubscriptionState {
 
 const initialState: SubscriptionState = {
   subscription: {
-    tier: 'free',
+    tier: 'FREE',
     isActive: true,
     isTrial: false,
   },
@@ -58,7 +58,7 @@ export const checkSubscriptionStatus = createAsyncThunk(
       const subscription = await subscriptionService.getSubscriptionStatus();
       
       // Generate usage limits based on tier
-      const usageLimits: UsageLimits = subscription.tier === 'premium' 
+      const usageLimits: UsageLimits = subscription.tier === 'PREMIUM' 
         ? {
             receiptScans: {
               used: 0,
@@ -125,7 +125,7 @@ export const checkSubscriptionStatus = createAsyncThunk(
  */
 export const subscribeToPremium = createAsyncThunk(
   'subscription/subscribe',
-  async (productType: 'monthly' | 'yearly' = 'monthly', { rejectWithValue }) => {
+  async (productType: 'monthly' | 'yearly' = 'monthly', { rejectWithValue, dispatch }) => {
     try {
       // Purchase via IAP service
       const result = await subscriptionService.purchasePremium(productType);
@@ -134,31 +134,72 @@ export const subscribeToPremium = createAsyncThunk(
         return rejectWithValue('Purchase failed');
       }
 
-      const subscription = result.subscription;
-
-      // Update usage limits for premium
-      const usageLimits: UsageLimits = {
-        receiptScans: {
-          used: 0,
-          limit: Infinity, // Unlimited for premium
-          resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        insights: {
-          used: 0,
-          limit: Infinity, // Unlimited for premium
-          resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        categories: {
-          used: 5,
-          limit: Infinity, // Unlimited for premium
-        },
+      // Use tier directly from backend (UPPERCASE)
+      const subscription = {
+        ...result.subscription,
+        tier: (result.subscription.tier as string).toUpperCase() as SubscriptionTier,
       };
 
-      // Cache locally
-      await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(subscription));
-      await AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(usageLimits));
+      // After successful purchase, refetch subscription status from backend to ensure we have latest
+      try {
+        const latestStatus = await subscriptionService.getSubscriptionStatus();
+        const normalizedLatest = {
+          ...latestStatus,
+          tier: (latestStatus.tier as string).toUpperCase() as SubscriptionTier,
+        };
+        
+        // Use the latest status from backend
+        const finalSubscription = normalizedLatest.tier === 'PREMIUM' ? normalizedLatest : subscription;
+        
+        // Update usage limits for premium
+        const usageLimits: UsageLimits = {
+          receiptScans: {
+            used: 0,
+            limit: Infinity, // Unlimited for premium
+            resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          insights: {
+            used: 0,
+            limit: Infinity, // Unlimited for premium
+            resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          categories: {
+            used: 5,
+            limit: Infinity, // Unlimited for premium
+          },
+        };
 
-      return { subscription, usageLimits };
+        // Cache locally
+        await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(finalSubscription));
+        await AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(usageLimits));
+
+        return { subscription: finalSubscription, usageLimits };
+      } catch (refetchError) {
+        // If refetch fails, use the purchase result
+        console.warn('[SubscriptionSlice] Failed to refetch status, using purchase result:', refetchError);
+        
+        const usageLimits: UsageLimits = {
+          receiptScans: {
+            used: 0,
+            limit: Infinity,
+            resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          insights: {
+            used: 0,
+            limit: Infinity,
+            resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          categories: {
+            used: 5,
+            limit: Infinity,
+          },
+        };
+
+        await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(subscription));
+        await AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(usageLimits));
+
+        return { subscription, usageLimits };
+      }
     } catch (error: any) {
       console.error('[SubscriptionSlice] Purchase failed:', error);
       return rejectWithValue(error.message || 'Subscription failed');
@@ -227,7 +268,7 @@ export const cancelSubscription = createAsyncThunk(
 
       // Revert to free tier
       const subscription: Subscription = {
-        tier: 'free',
+        tier: 'FREE',
         isActive: true,
         isTrial: false,
       };
@@ -269,13 +310,13 @@ const subscriptionSlice = createSlice({
   initialState,
   reducers: {
     incrementReceiptScans: (state) => {
-      if (state.subscription.tier === 'free') {
+      if (state.subscription.tier === 'FREE') {
         state.usageLimits.receiptScans.used += 1;
         AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(state.usageLimits));
       }
     },
     incrementInsights: (state) => {
-      if (state.subscription.tier === 'free') {
+      if (state.subscription.tier === 'FREE') {
         state.usageLimits.insights.used += 1;
         AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(state.usageLimits));
       }
@@ -292,7 +333,12 @@ const subscriptionSlice = createSlice({
       })
       .addCase(checkSubscriptionStatus.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.subscription = action.payload.subscription;
+        // Use tier directly (UPPERCASE)
+        const normalizedSubscription = {
+          ...action.payload.subscription,
+          tier: (action.payload.subscription.tier as string).toUpperCase() as SubscriptionTier,
+        };
+        state.subscription = normalizedSubscription;
         state.usageLimits = action.payload.usageLimits;
       })
       .addCase(checkSubscriptionStatus.rejected, (state) => {
@@ -307,8 +353,22 @@ const subscriptionSlice = createSlice({
       })
       .addCase(subscribeToPremium.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.subscription = action.payload.subscription;
+        // Use tier directly (UPPERCASE)
+        const normalizedSubscription = {
+          ...action.payload.subscription,
+          tier: (action.payload.subscription.tier as string).toUpperCase() as SubscriptionTier,
+          isActive: action.payload.subscription.isActive !== undefined 
+            ? action.payload.subscription.isActive 
+            : true,
+        };
+        state.subscription = normalizedSubscription;
         state.usageLimits = action.payload.usageLimits;
+        console.log('[SubscriptionSlice] Premium subscription activated:', {
+          tier: normalizedSubscription.tier,
+          isActive: normalizedSubscription.isActive,
+          isTrial: normalizedSubscription.isTrial,
+          fullSubscription: normalizedSubscription,
+        });
       })
       .addCase(subscribeToPremium.rejected, (state, action) => {
         state.isLoading = false;

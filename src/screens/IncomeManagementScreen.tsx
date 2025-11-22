@@ -33,17 +33,17 @@ import {
   deleteIncomeSource,
 } from '../services/incomeService';
 import { IncomeSource, IncomeFrequency } from '../types';
-import { BottomSheetBackground, CurrencyInput, DatePickerInput } from '../components';
+import { BottomSheetBackground, CurrencyInput, DatePickerInput, PullToRefreshScrollView } from '../components';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
 type IncomeManagementNavigationProp = StackNavigationProp<RootStackParamList>;
 
 const FREQUENCY_OPTIONS: Array<{ value: IncomeFrequency; label: string; icon: string }> = [
-  { value: 'weekly', label: 'Weekly', icon: 'calendar-week' },
-  { value: 'biweekly', label: 'Bi-weekly', icon: 'calendar-range' },
-  { value: 'monthly', label: 'Monthly', icon: 'calendar-month' },
-  { value: 'custom', label: 'Custom Dates', icon: 'calendar-edit' },
-  { value: 'manual', label: 'Manual Only', icon: 'hand-pointing-right' },
+  { value: 'WEEKLY', label: 'Weekly ', icon: 'calendar-week' },
+  { value: 'BIWEEKLY', label: 'Bi-weekly', icon: 'calendar-range' },
+  { value: 'MONTHLY', label: 'Monthly', icon: 'calendar-month' },
+  { value: 'CUSTOM', label: 'Custom Dates', icon: 'calendar-edit' },
+  { value: 'MANUAL', label: 'Manual Only', icon: 'hand-pointing-right' },
 ];
 
 const IncomeManagementScreen: React.FC = () => {
@@ -58,7 +58,7 @@ const IncomeManagementScreen: React.FC = () => {
   const [editingSource, setEditingSource] = useState<IncomeSource | null>(null);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
-  const [frequency, setFrequency] = useState<IncomeFrequency>('monthly');
+  const [frequency, setFrequency] = useState<IncomeFrequency>('MONTHLY');
   const [autoAdd, setAutoAdd] = useState(true);
   const [dayOfWeek, setDayOfWeek] = useState<number | undefined>(undefined);
   const [dayOfMonth, setDayOfMonth] = useState<number | undefined>(undefined);
@@ -78,7 +78,8 @@ const IncomeManagementScreen: React.FC = () => {
       setName(editingSource.name);
       setAmount(editingSource.amount.toString());
       setFrequency(editingSource.frequency);
-      setAutoAdd(editingSource.autoAdd);
+      // If frequency is MANUAL, force autoAdd to false
+      setAutoAdd(editingSource.frequency === 'MANUAL' ? false : editingSource.autoAdd);
       setDayOfWeek(editingSource.dayOfWeek);
       setDayOfMonth(editingSource.dayOfMonth);
       setCustomDates(editingSource.customDates || []);
@@ -88,6 +89,13 @@ const IncomeManagementScreen: React.FC = () => {
       resetForm();
     }
   }, [editingSource]);
+
+  // Sync autoAdd with frequency changes
+  useEffect(() => {
+    if (frequency === 'MANUAL') {
+      setAutoAdd(false);
+    }
+  }, [frequency]);
 
   const loadIncomeSources = async () => {
     try {
@@ -105,7 +113,7 @@ const IncomeManagementScreen: React.FC = () => {
   const resetForm = () => {
     setName('');
     setAmount('');
-    setFrequency('monthly');
+    setFrequency('MONTHLY');
     setAutoAdd(true);
     setDayOfWeek(undefined);
     setDayOfMonth(undefined);
@@ -142,32 +150,35 @@ const IncomeManagementScreen: React.FC = () => {
     }
 
     // Validate frequency-specific fields
-    if (frequency === 'weekly' && dayOfWeek === undefined) {
+    if (frequency === 'WEEKLY' && dayOfWeek === undefined) {
       Alert.alert('Missing Day', 'Please select a day of the week');
       return;
     }
 
-    if (frequency === 'monthly' && dayOfMonth === undefined) {
+    if (frequency === 'MONTHLY' && dayOfMonth === undefined) {
       Alert.alert('Missing Day', 'Please select a day of the month');
       return;
     }
 
-    if (frequency === 'custom' && customDates.length === 0) {
+    if (frequency === 'CUSTOM' && customDates.length === 0) {
       Alert.alert('Missing Dates', 'Please enter at least one custom date (e.g., 15, 30)');
       return;
     }
 
     setSaving(true);
     try {
+      // Ensure MANUAL frequency always has autoAdd = false
+      const finalAutoAdd = frequency === 'MANUAL' ? false : autoAdd;
+
       const sourceData = {
         name: name.trim(),
         amount: parseFloat(amount),
         frequency,
         startDate: startDate.toISOString(),
-        autoAdd,
-        dayOfWeek: frequency === 'weekly' ? dayOfWeek : undefined,
-        dayOfMonth: frequency === 'monthly' ? dayOfMonth : undefined,
-        customDates: frequency === 'custom' ? customDates : undefined,
+        autoAdd: finalAutoAdd,
+        dayOfWeek: frequency === 'WEEKLY' ? dayOfWeek : undefined,
+        dayOfMonth: frequency === 'MONTHLY' ? dayOfMonth : undefined,
+        customDates: frequency === 'CUSTOM' ? customDates : undefined,
       };
 
       if (editingSource) {
@@ -243,16 +254,16 @@ const IncomeManagementScreen: React.FC = () => {
 
   const getFrequencyLabel = (source: IncomeSource): string => {
     switch (source.frequency) {
-      case 'weekly':
+      case 'WEEKLY':
         const weekDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         return `Every ${weekDays[source.dayOfWeek || 0]}`;
-      case 'biweekly':
+      case 'BIWEEKLY':
         return 'Every 2 weeks';
-      case 'monthly':
+      case 'MONTHLY':
         return `Day ${source.dayOfMonth || 1} of each month`;
-      case 'custom':
+      case 'CUSTOM':
         return `Days ${source.customDates?.join(', ') || 'N/A'} of each month`;
-      case 'manual':
+      case 'MANUAL':
         return 'Manual entry only';
       default:
         return source.frequency;
@@ -260,7 +271,7 @@ const IncomeManagementScreen: React.FC = () => {
   };
 
   const getNextPaymentDate = (source: IncomeSource): string => {
-    if (!source.autoAdd || source.frequency === 'manual') {
+    if (!source.autoAdd || source.frequency === 'MANUAL') {
       return 'N/A';
     }
 
@@ -270,17 +281,17 @@ const IncomeManagementScreen: React.FC = () => {
 
     // Simple calculation - in production, use incomeService.calculateNextPaymentDate
     switch (source.frequency) {
-      case 'weekly':
+      case 'WEEKLY':
         while (next < now) {
           next.setDate(next.getDate() + 7);
         }
         break;
-      case 'biweekly':
+      case 'BIWEEKLY':
         while (next < now) {
           next.setDate(next.getDate() + 14);
         }
         break;
-      case 'monthly':
+      case 'MONTHLY':
         if (source.dayOfMonth) {
           next.setDate(source.dayOfMonth);
           if (next < now) {
@@ -288,7 +299,7 @@ const IncomeManagementScreen: React.FC = () => {
           }
         }
         break;
-      case 'custom':
+      case 'CUSTOM':
         // Find next custom date
         if (source.customDates && source.customDates.length > 0) {
           const today = now.getDate();
@@ -330,7 +341,11 @@ const IncomeManagementScreen: React.FC = () => {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <PullToRefreshScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        onRefresh={loadIncomeSources}
+      >
         {/* Info Card */}
         {/* <View style={[styles.infoCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
           <Icon name="information-outline" size={24} color={theme.primary} />
@@ -412,7 +427,16 @@ const IncomeManagementScreen: React.FC = () => {
           <Icon name="plus" size={24} color="#FFFFFF" />
           <Text style={styles.addButtonText}>Add Income Source</Text>
         </TouchableOpacity>
-      </ScrollView>
+
+        {/* Add Income Transaction Button */}
+        <TouchableOpacity
+          style={[styles.addButton, { backgroundColor: theme.income, marginTop: spacing.md }, elevation.md]}
+          onPress={() => navigation.navigate('AddIncome')}
+        >
+          <Icon name="cash-plus" size={24} color="#FFFFFF" />
+          <Text style={styles.addButtonText}>Record Manual Income</Text>
+        </TouchableOpacity>
+      </PullToRefreshScrollView>
 
       {/* Add/Edit Bottom Sheet */}
       <BottomSheet
@@ -488,7 +512,7 @@ const IncomeManagementScreen: React.FC = () => {
           </View>
 
           {/* Frequency-specific fields */}
-          {frequency === 'weekly' && (
+          {frequency === 'WEEKLY' && (
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Day of Week</Text>
               <View style={styles.daySelector}>
@@ -516,7 +540,7 @@ const IncomeManagementScreen: React.FC = () => {
             </View>
           )}
 
-          {frequency === 'monthly' && (
+          {frequency === 'MONTHLY' && (
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Day of Month</Text>
               <View style={styles.daySelector}>
@@ -559,16 +583,21 @@ const IncomeManagementScreen: React.FC = () => {
             </View>
           )}
 
-          {frequency === 'custom' && (
+          {frequency === 'CUSTOM' && (
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Days of Month</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-                placeholder="e.g., 15, 30 (comma-separated)"
+                placeholder="e.g., 15, 30 (comma-separated, 1-31)"
                 placeholderTextColor={theme.textTertiary}
                 value={customDatesInput}
                 onChangeText={handleCustomDatesChange}
               />
+              {customDatesInput.length > 0 && customDates.length === 0 && (
+                <Text style={[styles.errorText, { color: theme.expense }]}>
+                  Please enter valid days (1-31), separated by commas
+                </Text>
+              )}
               {customDates.length > 0 && (
                 <View style={styles.customDatesPreview}>
                   <Text style={[styles.customDatesLabel, { color: theme.textSecondary }]}>Will add income on:</Text>
@@ -592,7 +621,6 @@ const IncomeManagementScreen: React.FC = () => {
               date={startDate}
               onDateChange={setStartDate}
               label="Start Date"
-              minimumDate={new Date()}
             />
           </View>
 
@@ -601,14 +629,38 @@ const IncomeManagementScreen: React.FC = () => {
             <View style={styles.toggleInfo}>
               <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Auto-Add Income</Text>
               <Text style={[styles.toggleDescription, { color: theme.textTertiary }]}>
-                Automatically add this income on scheduled dates
+                {frequency === 'MANUAL'
+                  ? 'Manual-only income sources cannot be auto-added'
+                  : 'Automatically add this income on scheduled dates'}
               </Text>
             </View>
             <Switch
               value={autoAdd}
-              onValueChange={setAutoAdd}
+              onValueChange={(value) => {
+                if (value && frequency === 'MANUAL') {
+                  // If trying to enable autoAdd with MANUAL frequency, change frequency to MONTHLY
+                  Alert.alert(
+                    'Frequency Change',
+                    'To enable auto-add, the frequency will be changed to Monthly. You can adjust it after.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Change',
+                        onPress: () => {
+                          setFrequency('MONTHLY');
+                          setAutoAdd(true);
+                          setDayOfMonth(15); // Set a default day
+                        },
+                      },
+                    ]
+                  );
+                } else {
+                  setAutoAdd(value);
+                }
+              }}
+              disabled={frequency === 'MANUAL'}
               trackColor={{ false: theme.border, true: theme.primary + '60' }}
-              thumbColor={autoAdd ? theme.primary : theme.surface}
+              thumbColor={autoAdd && frequency !== 'MANUAL' ? theme.primary : theme.surface}
             />
           </View>
 
@@ -885,6 +937,11 @@ const styles = StyleSheet.create({
     ...typography.labelLarge,
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  errorText: {
+    ...typography.bodySmall,
+    marginTop: spacing.xs,
+    fontStyle: 'italic',
   },
 });
 

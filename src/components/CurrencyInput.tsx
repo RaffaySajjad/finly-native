@@ -21,6 +21,7 @@ interface CurrencyInputProps extends Omit<TextInputProps, 'value' | 'onChangeTex
   inputStyle?: any;
   symbolStyle?: any;
   large?: boolean;
+  TextInputComponent?: React.ComponentType<any>;
 }
 
 /**
@@ -42,6 +43,7 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   inputStyle,
   symbolStyle,
   large = false,
+  TextInputComponent = TextInput,
   ...textInputProps
 }) => {
   const { theme } = useTheme();
@@ -87,7 +89,7 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
           {getCurrencySymbol()}
         </Text>
       )}
-      <TextInput
+      <TextInputComponent
         {...textInputProps}
         style={[
           textStyle,

@@ -5,16 +5,14 @@
 
 export type ThemeMode = 'light' | 'dark';
 
-export type CategoryType = 'food' | 'transport' | 'shopping' | 'entertainment' | 'health' | 'utilities' | 'other';
-
 export type PaymentMethod =
-  | 'credit_card'
-  | 'debit_card'
-  | 'cash'
-  | 'check'
-  | 'bank_transfer'
-  | 'digital_wallet'
-  | 'other';
+  | 'CREDIT_CARD'
+  | 'DEBIT_CARD'
+  | 'CASH'
+  | 'CHECK'
+  | 'BANK_TRANSFER'
+  | 'DIGITAL_WALLET'
+  | 'OTHER';
 
 export interface Tag {
   id: string;
@@ -23,22 +21,33 @@ export interface Tag {
   createdAt: string;
 }
 
+export interface CategoryInfo {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+}
+
 export interface Expense {
   id: string;
   amount: number;
-  category: CategoryType;
+  categoryId: string;
+  category: CategoryInfo;
   description: string;
   date: string;
   paymentMethod?: PaymentMethod;
-  tags?: string[]; // Array of tag IDs
+  notes?: string;
+  tags?: Tag[]; // Array of tag objects (from API)
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type IncomeFrequency =
-  | 'weekly'
-  | 'biweekly'
-  | 'monthly'
-  | 'custom'
-  | 'manual';
+  | 'WEEKLY'
+  | 'BIWEEKLY'
+  | 'MONTHLY'
+  | 'CUSTOM'
+  | 'MANUAL';
 
 export interface IncomeSource {
   id: string;
@@ -50,17 +59,56 @@ export interface IncomeSource {
   dayOfWeek?: number; // For weekly: 0-6 (Sunday-Saturday)
   customDates?: number[]; // For custom: array of days of month (e.g., [15, 30] for 15th and 30th)
   autoAdd: boolean; // Whether to automatically add income on schedule
+  isActive?: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
+export interface IncomeTransaction {
+  id: string;
+  userId: string;
+  incomeSourceId?: string;
+  amount: number;
+  date: string;
+  description: string;
+  autoAdded: boolean;
+  createdAt: string;
+}
+
+export interface UnifiedTransaction {
+  id: string;
+  type: 'expense' | 'income';
+  amount: number;
+  date: string;
+  description: string;
+  createdAt: string;
+  updatedAt?: string;
+  // Expense-specific fields
+  category?: CategoryInfo;
+  paymentMethod?: PaymentMethod;
+  tags?: Tag[];
+  notes?: string;
+  // Income-specific fields
+  incomeSource?: {
+    id: string;
+    name: string;
+  };
+  autoAdded?: boolean;
+}
+
 export interface Category {
-  id: CategoryType;
+  id: string; // UUID string from database
   name: string;
   icon: string;
   color: string;
-  totalSpent: number;
+  totalSpent?: number; // Computed field, may not always be present
   budgetLimit?: number;
+  userId?: string | null;
+  isSystemCategory?: boolean;
+  isImportCreated?: boolean;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Insight {
@@ -89,10 +137,11 @@ export interface User {
   avatar?: string;
 }
 
-export type SubscriptionTier = 'free' | 'premium';
+export type SubscriptionTier = 'FREE' | 'PREMIUM' | 'ENTERPRISE';
 
 export interface Subscription {
   tier: SubscriptionTier;
+  status?: string; // Added status field
   isActive: boolean;
   startDate?: string;
   endDate?: string;
@@ -119,7 +168,7 @@ export interface UsageLimits {
 
 export interface Receipt {
   id: string;
-  imageUri: string;
+  imageUrl: string;
   extractedData?: {
     merchant: string;
     date: string;
@@ -132,7 +181,7 @@ export interface Receipt {
       quantity: number;
     }>;
   };
-  category?: CategoryType;
+  categoryId?: string;
   expenseId?: string;
   createdAt: string;
 }
@@ -140,6 +189,6 @@ export interface Receipt {
 export interface CategoryRule {
   id: string;
   merchantPattern: string;
-  category: CategoryType;
+  categoryId: string;
   isActive: boolean;
 }

@@ -9,11 +9,9 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Image,
   TextInput,
-  RefreshControl,
   StatusBar,
   Alert,
 } from 'react-native';
@@ -22,7 +20,7 @@ import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
-import { PremiumBadge, UpgradePrompt } from '../components';
+import { PremiumBadge, UpgradePrompt, PullToRefreshScrollView } from '../components';
 import receiptService from '../services/receiptService';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -41,7 +39,6 @@ const ReceiptGalleryScreen: React.FC = () => {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [filteredReceipts, setFilteredReceipts] = useState<Receipt[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
   useEffect(() => {
@@ -71,8 +68,6 @@ const ReceiptGalleryScreen: React.FC = () => {
       setFilteredReceipts(data);
     } catch (error) {
       console.error('Error loading receipts:', error);
-    } finally {
-      setRefreshing(false);
     }
   };
 
@@ -85,9 +80,11 @@ const ReceiptGalleryScreen: React.FC = () => {
     }
   };
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadReceipts();
+  /**
+   * Handles pull-to-refresh - reloads receipts
+   */
+  const handleRefresh = async (): Promise<void> => {
+    await loadReceipts();
   };
 
   const handleDeleteReceipt = (receipt: Receipt) => {
@@ -154,12 +151,10 @@ const ReceiptGalleryScreen: React.FC = () => {
         </View>
       )}
 
-      <ScrollView
+      <PullToRefreshScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.primary} />
-        }
+        onRefresh={handleRefresh}
       >
         {filteredReceipts.length > 0 ? (
           <View style={styles.receiptsGrid}>
@@ -177,7 +172,7 @@ const ReceiptGalleryScreen: React.FC = () => {
                 onLongPress={() => handleDeleteReceipt(receipt)}
               >
                 <Image
-                  source={{ uri: receipt.imageUri }}
+                  source={{ uri: receipt.imageUrl }}
                   style={styles.receiptImage}
                   resizeMode="cover"
                 />
@@ -210,7 +205,7 @@ const ReceiptGalleryScreen: React.FC = () => {
             </Text>
           </View>
         )}
-      </ScrollView>
+      </PullToRefreshScrollView>
 
       {/* Upgrade Prompt */}
       <UpgradePrompt

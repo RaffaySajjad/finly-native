@@ -19,11 +19,13 @@ import {
   Animated,
   Platform,
   Modal,
+  Keyboard,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -31,10 +33,26 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useBottomSheet } from '../contexts/BottomSheetContext';
-import { ExpenseCard, ExpenseOptionsSheet, SkeletonCard, ConfettiCelebration, BottomSheetBackground, PremiumBadge, CurrencyInput, SpendingBreakdown } from '../components';
+import {
+  ExpenseCard,
+  ExpenseOptionsSheet,
+  SkeletonCard,
+  ConfettiCelebration,
+  BottomSheetBackground,
+  PremiumBadge,
+  CurrencyInput,
+  SpendingBreakdown,
+  SectionHeader,
+  EmptyState,
+  IconButton,
+  PrimaryButton,
+  InputGroup,
+  GradientCard,
+  PullToRefreshScrollView,
+} from '../components';
 import { useSubscription } from '../hooks/useSubscription';
 import { apiService } from '../services/api';
-import { Expense, MonthlyStats, CategoryType, Insight, Category } from '../types';
+import { Expense, MonthlyStats, Insight, Category, UnifiedTransaction } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import * as Haptics from 'expo-haptics';
@@ -56,26 +74,56 @@ const DashboardScreen: React.FC = () => {
   const optionsSheetRef = useRef<BottomSheet>(null);
   const balanceAdjustSheetRef = useRef<BottomSheet>(null);
   
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [transactions, setTransactions] = useState<UnifiedTransaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<UnifiedTransaction | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
 
   // Balance adjustment state
   const [newBalance, setNewBalance] = useState('');
   const [isAdjustingBalance, setIsAdjustingBalance] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Animation values
   const gradientAnimation = useRef(new Animated.Value(0)).current;
   const insightOpacity = useRef(new Animated.Value(0)).current;
 
+  // Dynamic snap points based on keyboard
+  const balanceSheetSnapPoints = useMemo(() => {
+    if (keyboardHeight > 0) {
+      // When keyboard is visible, calculate snap point to keep input visible
+      const screenHeight = Dimensions.get('window').height;
+      const sheetHeight = 300; // Approximate content height
+      const snapPoint = ((sheetHeight + keyboardHeight + 20) / screenHeight) * 100;
+      return [`${Math.min(snapPoint, 90)}%`]; // Cap at 90%
+    }
+    return ['45%']; // Default when keyboard is hidden
+  }, [keyboardHeight]);
+
   // Initialize app data on mount
   useEffect(() => {
     initializeApp();
+  }, []);
+
+  // Handle keyboard show/hide for bottom sheet
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => setKeyboardHeight(e.endCoordinates.height)
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardHeight(0)
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
   }, []);
 
   // Refresh data when screen gains focus
@@ -122,13 +170,13 @@ const DashboardScreen: React.FC = () => {
 
   const loadData = async (): Promise<void> => {
     try {
-      const [expensesData, categoriesData, statsData, insightsData] = await Promise.all([
-        apiService.getExpenses(),
+      const [transactionsData, categoriesData, statsData, insightsData] = await Promise.all([
+        apiService.getUnifiedTransactions({ limit: 5 }),
         apiService.getCategories(),
         apiService.getMonthlyStats(),
         apiService.getInsights(),
       ]);
-      setExpenses(expensesData.slice(0, 5));
+      setTransactions(transactionsData);
       setCategories(categoriesData);
       setStats(statsData);
       setInsights(insightsData);
@@ -147,20 +195,44 @@ const DashboardScreen: React.FC = () => {
   };
 
 
-  const handleExpenseLongPress = (expense: Expense) => {
-    setSelectedExpense(expense);
-    optionsSheetRef.current?.expand();
+  const handleTransactionLongPress = (transaction: UnifiedTransaction) => {
+    if (transaction.type === 'expense') {
+      setSelectedTransaction(transaction);
+      optionsSheetRef.current?.expand();
+      if (Platform.OS === 'ios') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+    }
   };
 
-  const handleEditExpense = (expense: Expense) => {
-    navigation.navigate('AddExpense', { expense });
+  const handleEditTransaction = (transaction: UnifiedTransaction) => {
+    setSelectedTransaction(null);
+    if (transaction.type === 'expense') {
+      const expense: Expense = {
+        id: transaction.id,
+        amount: transaction.amount,
+        categoryId: transaction.category!.id,
+        category: transaction.category!,
+        description: transaction.description,
+        date: transaction.date,
+        paymentMethod: transaction.paymentMethod,
+        notes: transaction.notes,
+        tags: transaction.tags,
+        createdAt: transaction.createdAt,
+        updatedAt: transaction.updatedAt || transaction.createdAt,
+      };
+      navigation.navigate('AddExpense', { expense });
+    }
   };
 
-  const handleDeleteExpense = async (expense: Expense) => {
+  const handleDeleteTransaction = async (transaction: UnifiedTransaction) => {
+    setSelectedTransaction(null);
     try {
-      await apiService.deleteExpense(expense.id);
-      await loadData(); // Refresh all data
-      Alert.alert('Deleted', 'Transaction deleted successfully');
+      if (transaction.type === 'expense') {
+        await apiService.deleteExpense(transaction.id);
+        await loadData(); // Refresh all data
+        Alert.alert('Deleted', 'Transaction deleted successfully');
+      }
     } catch (error) {
       Alert.alert('Error', 'Failed to delete transaction');
       console.error(error);
@@ -212,33 +284,29 @@ const DashboardScreen: React.FC = () => {
         {/* Header with Trends and Settings buttons */}
         <View style={[styles.header, { backgroundColor: theme.background }]}>
           <View style={styles.headerLeft}>
-            <TouchableOpacity
-              style={[styles.headerButton, { backgroundColor: theme.card, borderColor: theme.border }]}
+            <IconButton
+              icon="crown"
               onPress={() => navigation.navigate('Subscription')}
-              activeOpacity={0.8}
-            >
-              <Icon name="crown" size={18} color={theme.warning} />
-            </TouchableOpacity>
+              color={theme.warning}
+            />
           </View>
           <View style={styles.headerRight}>
-            <TouchableOpacity
-              style={[styles.headerButton, { backgroundColor: theme.card, borderColor: theme.border }]}
+            <IconButton
+              icon="chart-line"
               onPress={() => navigation.navigate('Trends')}
-            >
-              <Icon name="chart-line" size={20} color={theme.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.headerButton, { backgroundColor: theme.card, borderColor: theme.border }]}
+              color={theme.primary}
+            />
+            <IconButton
+              icon="cog"
               onPress={() => navigation.navigate('Settings')}
-            >
-              <Icon name="cog" size={20} color={theme.text} />
-            </TouchableOpacity>
+            />
           </View>
         </View>
 
-        <ScrollView
+        <PullToRefreshScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 120 }}
+          onRefresh={loadData}
         >
           {/* Premium Status Banner */}
           {/* {!isPremium && (
@@ -274,11 +342,9 @@ const DashboardScreen: React.FC = () => {
                     outputRange: [0.9, 1],
                   })
                 }]}>
-                  <LinearGradient
+                  <GradientCard
                     colors={[theme.primary, theme.primaryDark, theme.primaryLight]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.gradientCard}
+                    contentStyle={styles.gradientCard}
                   >
                     <View style={styles.balanceHeader}>
                       <Text style={styles.balanceLabel}>Total Balance</Text>
@@ -316,7 +382,7 @@ const DashboardScreen: React.FC = () => {
                     <View style={styles.viewHistoryHint}>
                       <Text style={styles.viewHistoryText}>Tap to edit • Long press for history →</Text>
                     </View>
-                  </LinearGradient>
+                  </GradientCard>
                 </Animated.View>
               </TouchableOpacity>
             </View>
@@ -356,12 +422,11 @@ const DashboardScreen: React.FC = () => {
 
           {/* Recent Transactions */}
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent Transactions</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('TransactionsList')}>
-                <Text style={[styles.seeAll, { color: theme.primary }]}>See All</Text>
-              </TouchableOpacity>
-            </View>
+            <SectionHeader
+              title="Recent Transactions"
+              showSeeAll
+              onSeeAllPress={() => navigation.navigate('TransactionsList')}
+            />
 
             {loading ? (
               // Show skeleton loaders while loading
@@ -370,33 +435,75 @@ const DashboardScreen: React.FC = () => {
                 <SkeletonCard />
                 <SkeletonCard />
               </>
-            ) : expenses.length > 0 ? (
-              expenses.map((expense) => (
-                <ExpenseCard
-                  key={expense.id}
-                  expense={expense}
-                  onPress={() => navigation.navigate('TransactionDetails', { expense })}
-                  onLongPress={() => handleExpenseLongPress(expense)}
+            ) : transactions.length > 0 ? (
+              <FlatList
+                data={transactions.slice(0, 20)}
+                renderItem={({ item: transaction }) => (
+                  <ExpenseCard
+                      transaction={transaction}
+                      onPress={() => {
+                        navigation.navigate('TransactionDetails', { transaction });
+                      }}
+                      onLongPress={() => handleTransactionLongPress(transaction)}
+                    />
+                  )}
+                  keyExtractor={(item) => item.id}
+                  scrollEnabled={false}
+                  nestedScrollEnabled={true}
+                  removeClippedSubviews={true}
+                  maxToRenderPerBatch={5}
+                  updateCellsBatchingPeriod={50}
+                  windowSize={5}
+                  initialNumToRender={5}
+                  ListEmptyComponent={
+                    <EmptyState
+                      icon="receipt-text-outline"
+                      title="No transactions yet"
+                    />
+                  }
+                  ListFooterComponent={
+                    transactions.length > 20 ? (
+                      <TouchableOpacity
+                        style={[styles.viewAllFooter, { backgroundColor: theme.card, borderColor: theme.border }]}
+                        onPress={() => navigation.navigate('TransactionsList')}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.viewAllFooterText, { color: theme.text }]}>
+                          +{transactions.length - 20} more transactions
+                        </Text>
+                        <Icon name="chevron-right" size={20} color={theme.primary} />
+                      </TouchableOpacity>
+                    ) : null
+                  }
                 />
-              ))
             ) : (
-              <View style={styles.emptyState}>
-                <Icon name="receipt-text-outline" size={64} color={theme.textTertiary} />
-                <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
-                  No transactions yet
-                </Text>
-              </View>
+                  <EmptyState
+                    icon="receipt-text-outline"
+                    title="No transactions yet"
+                  />
             )}
           </View>
-        </ScrollView>
+        </PullToRefreshScrollView>
 
         {/* Expense Options Sheet */}
-        {selectedExpense && (
+        {selectedTransaction && selectedTransaction.type === 'expense' && (
           <ExpenseOptionsSheet
-            expense={selectedExpense}
-            onEdit={handleEditExpense}
-            onDelete={handleDeleteExpense}
-            onClose={() => setSelectedExpense(null)}
+            expense={{
+              id: selectedTransaction.id,
+              amount: selectedTransaction.amount,
+              categoryId: selectedTransaction.category!.id,
+              category: selectedTransaction.category!,
+              description: selectedTransaction.description,
+              date: selectedTransaction.date,
+              paymentMethod: selectedTransaction.paymentMethod,
+              notes: selectedTransaction.notes,
+              tags: selectedTransaction.tags,
+              createdAt: selectedTransaction.createdAt,
+              updatedAt: selectedTransaction.updatedAt || selectedTransaction.createdAt,
+            }}
+            onEdit={() => handleEditTransaction(selectedTransaction)}
+            onDelete={() => handleDeleteTransaction(selectedTransaction)}
+            onClose={() => setSelectedTransaction(null)}
           />
         )}
 
@@ -410,10 +517,13 @@ const DashboardScreen: React.FC = () => {
         <BottomSheet
           ref={balanceAdjustSheetRef}
           index={-1}
-          snapPoints={['45%']}
+          snapPoints={balanceSheetSnapPoints}
           enablePanDownToClose
           backgroundComponent={BottomSheetBackground}
           handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+          keyboardBehavior="extend"
+          keyboardBlurBehavior="restore"
+          android_keyboardInputMode="adjustResize"
         >
           <BottomSheetScrollView
             style={styles.bottomSheetContent}
@@ -435,21 +545,17 @@ const DashboardScreen: React.FC = () => {
                   showSymbol={true}
                   allowDecimals={true}
                   inputStyle={styles.currencyInputField}
+                  TextInputComponent={BottomSheetTextInput}
                 />
               </View>
             </View>
 
-            <TouchableOpacity
-              style={[styles.saveButton, { backgroundColor: theme.primary }, elevation.sm]}
+            <PrimaryButton
+              label="Update Balance"
               onPress={handleAdjustBalance}
-              disabled={isAdjustingBalance}
-            >
-              {isAdjustingBalance ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.saveButtonText}>Update Balance</Text>
-              )}
-            </TouchableOpacity>
+              loading={isAdjustingBalance}
+              fullWidth
+            />
           </BottomSheetScrollView>
         </BottomSheet>
 
@@ -488,12 +594,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   balanceCardContainer: {
-    padding: spacing.md,
-    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
   balanceCard: {
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
+    padding: spacing.md,
   },
   gradientCard: {
     padding: spacing.xl,
@@ -1079,6 +1185,19 @@ const styles = StyleSheet.create({
     ...typography.labelLarge,
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  viewAllFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    marginTop: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+  },
+  viewAllFooterText: {
+    ...typography.bodyMedium,
+    fontWeight: '600',
   },
 });
 

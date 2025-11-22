@@ -27,8 +27,8 @@ import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
-import { ExpenseCard, BottomSheetBackground, CurrencyInput } from '../components';
-import { Expense, Category } from '../types';
+import { ExpenseCard, BottomSheetBackground, CurrencyInput, PullToRefreshScrollView } from '../components';
+import { Expense, Category, UnifiedTransaction } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { RootStackParamList } from '../navigation/types';
 
@@ -73,7 +73,7 @@ const CategoryDetailsScreen: React.FC = () => {
           useNativeDriver: true,
         }),
         Animated.timing(progressAnim, {
-          toValue: category.budgetLimit ? (category.totalSpent / category.budgetLimit) : 0,
+          toValue: category.budgetLimit ? ((category.totalSpent || 0) / category.budgetLimit) : 0,
           duration: 1000,
           useNativeDriver: false,
         }),
@@ -95,8 +95,8 @@ const CategoryDetailsScreen: React.FC = () => {
         setNewBudget(cat.budgetLimit?.toString() || '');
       }
 
-      // Filter expenses for this category (all expenses are expenses now)
-      const categoryExpenses = expensesData.filter(e => e.category === categoryId);
+      // Filter expenses for this category
+      const categoryExpenses = expensesData.filter(e => e.categoryId === categoryId);
       setExpenses(categoryExpenses);
     } catch (error) {
       console.error('Error loading category data:', error);
@@ -144,7 +144,21 @@ const CategoryDetailsScreen: React.FC = () => {
   };
 
   const handleExpenseTap = (expense: Expense) => {
-    navigation.navigate('TransactionDetails', { expense });
+    // Convert Expense to UnifiedTransaction format
+    const transaction: UnifiedTransaction = {
+      id: expense.id,
+      type: 'expense',
+      amount: expense.amount,
+      date: expense.date,
+      description: expense.description,
+      createdAt: expense.createdAt,
+      updatedAt: expense.updatedAt || expense.createdAt,
+      category: expense.category,
+      paymentMethod: expense.paymentMethod,
+      tags: expense.tags,
+      notes: expense.notes,
+    };
+    navigation.navigate('TransactionDetails', { transaction });
   };
 
   if (loading || !category) {
@@ -157,9 +171,9 @@ const CategoryDetailsScreen: React.FC = () => {
     );
   }
 
-  const categoryColor = theme.categories[category.id as keyof typeof theme.categories] || theme.primary;
-  const budgetPercentage = category.budgetLimit ? (category.totalSpent / category.budgetLimit) * 100 : 0;
-  const remaining = category.budgetLimit ? category.budgetLimit - category.totalSpent : 0;
+  const categoryColor = category.color || theme.primary;
+  const budgetPercentage = category.budgetLimit ? ((category.totalSpent || 0) / category.budgetLimit) * 100 : 0;
+  const remaining = category.budgetLimit ? category.budgetLimit - (category.totalSpent || 0) : 0;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -180,7 +194,10 @@ const CategoryDetailsScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <PullToRefreshScrollView 
+        showsVerticalScrollIndicator={false}
+        onRefresh={loadData}
+      >
         {/* Category Card */}
         <Animated.View
           style={[
@@ -197,16 +214,16 @@ const CategoryDetailsScreen: React.FC = () => {
           <Text style={[styles.categoryName, { color: theme.text }]}>{category.name}</Text>
 
           <Text style={[styles.totalSpent, { color: categoryColor }]}>
-            {formatCurrency(category.totalSpent)}
+            {formatCurrency(category.totalSpent || 0)}
           </Text>
-          <Text style={[styles.totalLabel, { color: theme.textSecondary }]}>Total Spent</Text>
+          <Text style={[styles.totalLabel, { color: theme.textSecondary }]}>This Month</Text>
 
           {/* Progress Ring/Bar */}
           {category.budgetLimit && (
             <View style={styles.budgetSection}>
               <View style={styles.budgetInfo}>
                 <Text style={[styles.budgetLabel, { color: theme.textSecondary }]}>
-                  Budget
+                  Monthly Budget
                 </Text>
                 <Text style={[styles.budgetValue, { color: theme.text }]}>
                   {formatCurrency(category.budgetLimit)}
@@ -269,7 +286,7 @@ const CategoryDetailsScreen: React.FC = () => {
             </View>
           )}
         </View>
-      </ScrollView>
+      </PullToRefreshScrollView>
 
       {/* Budget Edit Bottom Sheet */}
       <BottomSheet

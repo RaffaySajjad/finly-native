@@ -24,6 +24,14 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { apiService } from '../services/api';
+import {
+  getCurrencies,
+  saveUserCurrency,
+  Currency,
+  getUserCurrency,
+} from '../services/currencyService';
+import { useEffect } from 'react';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -35,6 +43,7 @@ interface OnboardingSlide {
   title: string;
   description: string;
   color: string;
+  type?: 'currency' | 'import' | 'standard';
 }
 
 const ONBOARDING_STORAGE_KEY = '@finly_onboarding_completed';
@@ -78,6 +87,15 @@ const OnboardingScreen: React.FC = () => {
       title: 'Import from Other Apps',
       description: 'Switching from Wallet by BudgetBakers or another app? Import your existing transactions with just a CSV file. We\'ll handle duplicates automatically.',
       color: '#EC4899',
+      type: 'import',
+    },
+    {
+      id: 'currency',
+      icon: 'currency-usd',
+      title: 'Select Currency',
+      description: 'Choose your preferred currency for tracking expenses and income.',
+      color: '#10B981',
+      type: 'currency',
     },
   ];
   const { theme } = useTheme();
@@ -87,15 +105,81 @@ const OnboardingScreen: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [wantsToImport, setWantsToImport] = useState<boolean | null>(null);
   const [shouldShowImportSlide, setShouldShowImportSlide] = useState(true);
+  const [hasTransactions, setHasTransactions] = useState<boolean | null>(null);
 
-  // Filter slides based on import preference
+  // Currency state
+  const [currency, setCurrency] = useState('USD');
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [loadingCurrencies, setLoadingCurrencies] = useState(false);
+  const { setCurrency: setGlobalCurrency } = useCurrency();
+
+  // Check if user already has transactions on mount
+  useEffect(() => {
+    const checkExistingTransactions = async () => {
+      try {
+        // Check for expenses or income transactions
+        const [expenses, incomeTransactions] = await Promise.all([
+          apiService.getExpenses({ limit: 1 }).catch(() => []),
+          apiService.getIncomeTransactions({ limit: 1 }).catch(() => []),
+        ]);
+
+        const hasAnyTransactions = (expenses && expenses.length > 0) ||
+          (incomeTransactions && incomeTransactions.length > 0);
+
+        setHasTransactions(hasAnyTransactions);
+
+        // If user has transactions, skip import slide
+        if (hasAnyTransactions) {
+          setShouldShowImportSlide(false);
+        }
+      } catch (error) {
+        console.error('[Onboarding] Error checking transactions:', error);
+        // On error, show import slide (default behavior)
+        setHasTransactions(false);
+      }
+    };
+
+    checkExistingTransactions();
+    loadCurrencies();
+  }, []);
+
+  const loadCurrencies = async () => {
+    setLoadingCurrencies(true);
+    try {
+      const [currencyList, savedCurrency] = await Promise.all([
+        getCurrencies(),
+        getUserCurrency(),
+      ]);
+      setCurrencies(currencyList);
+      setCurrency(savedCurrency);
+    } catch (error) {
+      console.error('Error loading currencies:', error);
+    } finally {
+      setLoadingCurrencies(false);
+    }
+  };
+
+  const handleCurrencySelect = async (curr: string) => {
+    setCurrency(curr);
+    await saveUserCurrency(curr);
+    await setGlobalCurrency(curr);
+  };
+
+  // Filter slides based on import preference and existing transactions
   const filteredSlides = onboardingSlides.filter((slide, index) => {
-    // Show import slide only if user hasn't decided yet or wants to import
-    if (slide.id === '5' && !shouldShowImportSlide) {
+    // Show import slide only if user hasn't decided yet, wants to import, and has no existing transactions
+    if (slide.id === '5' && (!shouldShowImportSlide || hasTransactions)) {
       return false;
     }
     return true;
   });
+
+  // Ensure currentIndex is valid when slides change
+  useEffect(() => {
+    if (currentIndex >= filteredSlides.length) {
+      setCurrentIndex(Math.max(0, filteredSlides.length - 1));
+    }
+  }, [filteredSlides.length]);
 
   const handleImportChoice = async (choice: boolean) => {
     setWantsToImport(choice);
@@ -104,18 +188,21 @@ const OnboardingScreen: React.FC = () => {
       // User wants to import - navigate to CSV import screen
       navigation.navigate('CSVImport');
     } else {
-      // User doesn't want to import - mark import as skipped and complete onboarding
+      // User doesn't want to import - mark import as skipped
       setShouldShowImportSlide(false);
       // Mark import as shown/skipped so it doesn't appear after income setup
       await AsyncStorage.setItem(IMPORT_SHOWN_KEY, 'true');
-      // Complete onboarding since we're at the last slide
-      handleComplete();
+      // Don't complete yet, proceed to currency selection
     }
   };
 
   const handleNext = () => {
-    // Special handling for import question slide (now index 4, which is the last slide)
-    if (currentIndex === 4 && wantsToImport === null) {
+    // Special handling for import question slide (now last slide)
+    const currentSlide = filteredSlides[currentIndex];
+
+    if (!currentSlide) return;
+
+    if (currentSlide.type === 'import' && wantsToImport === null) {
       return; // Don't proceed if they haven't answered
     }
 
@@ -155,11 +242,89 @@ const OnboardingScreen: React.FC = () => {
     }
   );
 
-  const renderImportQuestionSlide = () => {
+  const renderCurrencySelectionSlide = (index: number) => {
     const inputRange = [
-      3 * width,
-      4 * width,
-      5 * width,
+      (index - 1) * width,
+      index * width,
+      (index + 1) * width,
+    ];
+
+    const opacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.3, 1, 0.3],
+      extrapolate: 'clamp',
+    });
+
+    const scale = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.8, 1, 0.8],
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <Animated.View
+        key={'currency-slide'}
+        style={[
+          styles.slide,
+          {
+            opacity,
+            transform: [{ scale }],
+          },
+        ]}
+      >
+        <View style={[styles.iconContainer, { backgroundColor: '#10B981' + '20' }]}>
+          <Icon name="currency-usd" size={80} color="#10B981" />
+        </View>
+        <Text style={[styles.title, { color: theme.text }]}>
+          Select Currency
+        </Text>
+        <Text style={[styles.description, { color: theme.textSecondary, marginBottom: spacing.xl }]}>
+          Choose your preferred currency for tracking expenses.
+        </Text>
+
+        <View style={styles.currencyListContainer}>
+          <ScrollView
+            style={styles.currencyList}
+            contentContainerStyle={styles.currencyListContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {currencies.map((curr) => (
+              <TouchableOpacity
+                key={curr.code}
+                style={[
+                  styles.currencyOption,
+                  {
+                    backgroundColor: currency === curr.code ? theme.primary + '20' : theme.card,
+                    borderColor: currency === curr.code ? theme.primary : theme.border,
+                  },
+                ]}
+                onPress={() => handleCurrencySelect(curr.code)}
+              >
+                <View style={styles.currencyInfo}>
+                  <View style={styles.currencyHeader}>
+                    <Text style={styles.currencyFlag}>{curr.flag}</Text>
+                    <Text style={[styles.currencyCode, { color: theme.text }]}>{curr.code}</Text>
+                  </View>
+                  <Text style={[styles.currencyName, { color: theme.textSecondary }]}>
+                    {curr.name}
+                  </Text>
+                </View>
+                {currency === curr.code && (
+                  <Icon name="check-circle" size={24} color={theme.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </Animated.View>
+    );
+  };
+
+  const renderImportQuestionSlide = (index: number) => {
+    const inputRange = [
+      (index - 1) * width,
+      index * width,
+      (index + 1) * width,
     ];  
 
     const opacity = scrollX.interpolate({
@@ -192,7 +357,7 @@ const OnboardingScreen: React.FC = () => {
           Want to Import Your Data?
         </Text>
         <Text style={[styles.description, { color: theme.textSecondary }]}>
-          Switching from Wallet by BudgetBakers or another app? You can import your existing transactions now.
+          Switching from another app? You can import your existing transactions now.
         </Text>
         
         <View style={styles.importButtonsContainer}>
@@ -290,9 +455,12 @@ const OnboardingScreen: React.FC = () => {
         scrollEventThrottle={16}
       >
         {filteredSlides.map((slide, index) => {
+          if (slide.type === 'currency') {
+            return renderCurrencySelectionSlide(index);
+          }
           // Render import question slide instead of regular import slide
-          if (slide.id === '5' && shouldShowImportSlide) {
-            return renderImportQuestionSlide();
+          if (slide.type === 'import' && shouldShowImportSlide) {
+            return renderImportQuestionSlide(index);
           }
           return renderSlide(slide, index);
         })}
@@ -355,7 +523,7 @@ const OnboardingScreen: React.FC = () => {
         )}
 
         {/* Hide Next button on import question slide if they haven't answered */}
-        {!(currentIndex === 4 && wantsToImport === null && shouldShowImportSlide) && (
+        {!(filteredSlides[currentIndex]?.type === 'import' && wantsToImport === null && shouldShowImportSlide) && (
           <TouchableOpacity
             style={[styles.nextButton, { backgroundColor: theme.primary }, elevation.md]}
             onPress={handleNext}
@@ -490,6 +658,47 @@ const styles = StyleSheet.create({
   importButtonTextSecondary: {
     ...typography.labelLarge,
     fontWeight: '700',
+  },
+  currencyListContainer: {
+    height: 240,
+    width: '100%',
+    marginTop: spacing.md,
+  },
+  currencyList: {
+    flex: 1,
+    width: '100%',
+  },
+  currencyListContent: {
+    paddingHorizontal: spacing.lg,
+  },
+  currencyOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+  },
+  currencyInfo: {
+    flex: 1,
+  },
+  currencyCode: {
+    ...typography.titleMedium,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  currencyName: {
+    ...typography.bodySmall,
+  },
+  currencyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: 2,
+  },
+  currencyFlag: {
+    fontSize: 24,
   },
 });
 

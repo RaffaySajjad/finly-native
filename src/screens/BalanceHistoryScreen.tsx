@@ -18,16 +18,18 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { LineChart } from 'react-native-chart-kit';
+import { LineChart } from 'react-native-gifted-charts';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useSubscription } from '../hooks/useSubscription';
 import { apiService } from '../services/api';
 import { calculateIncomeForPeriod } from '../services/incomeService';
 import { getStartingBalance } from '../services/userService';
 import { Expense, MonthlyStats } from '../types';
+import { PullToRefreshScrollView } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
@@ -59,15 +61,18 @@ type BalanceHistoryNavigationProp = StackNavigationProp<RootStackParamList>;
 const BalanceHistoryScreen: React.FC = () => {
   const { theme } = useTheme();
   const { formatCurrency } = useCurrency();
+  const { isPremium } = useSubscription();
   const navigation = useNavigation<BalanceHistoryNavigationProp>();
   const [loading, setLoading] = useState(true);
   const [balanceData, setBalanceData] = useState<BalanceHistoryData | null>(null);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
+  const [selectedDataPoint, setSelectedDataPoint] = useState<{ date: string; balance: number; index: number } | null>(null);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const gradientAnimation = useRef(new Animated.Value(0)).current;
+  const tooltipAnim = useRef(new Animated.Value(0)).current;
 
   useFocusEffect(
     React.useCallback(() => {
@@ -116,63 +121,79 @@ const BalanceHistoryScreen: React.FC = () => {
       const currentStats = await apiService.getMonthlyStats();
       setStats(currentStats);
 
-      // Calculate daily balances
+      // Calculate daily balances - go back 30 days from today
       const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 30); // Go back 30 days
+      startDate.setHours(0, 0, 0, 0);
       
       // Sort expenses by date
       const sortedExpenses = [...expenses].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       );
 
-      // Calculate balance over time
-      let runningBalance = await getStartingBalance(); // Start with user's starting balance
+      // Calculate balance over time - start from user's starting balance
+      let runningBalance = await getStartingBalance();
       const dailyBalances: Array<{ date: string; balance: number }> = [];
       
-      // Calculate income and expenses before this month
-      const preMonthExpenses = sortedExpenses.filter(e => new Date(e.date) < startOfMonth);
-      const preMonthExpensesTotal = preMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+      // Calculate income and expenses before the start date
+      const preStartExpenses = sortedExpenses.filter(e => new Date(e.date) < startDate);
+      const preStartExpensesTotal = preStartExpenses.reduce((sum, e) => sum + e.amount, 0);
       
-      // Calculate income from income sources for period before this month
-      const preMonthStart = new Date(0); // Start from beginning
-      const preMonthIncome = await calculateIncomeForPeriod(preMonthStart, new Date(startOfMonth.getTime() - 1));
+      // Calculate income from income sources for period before start date
+      const preStartIncome = await calculateIncomeForPeriod(new Date(0), new Date(startDate.getTime() - 1));
       
-      runningBalance = runningBalance + preMonthIncome - preMonthExpensesTotal;
+      runningBalance = runningBalance + preStartIncome - preStartExpensesTotal;
 
-      // Calculate daily balances for current month
-      for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(now.getFullYear(), now.getMonth(), day);
-        const dateStr = date.toISOString().split('T')[0];
-        
-        // Add transactions for this day
+      // Calculate daily balances for the last 30 days
+      const currentDate = new Date(startDate);
+      const endDate = new Date(now);
+      endDate.setHours(23, 59, 59, 999);
+
+      while (currentDate <= endDate) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+
+      // Get expenses for this day
         const dayExpenses = sortedExpenses.filter(e => {
           const expenseDate = new Date(e.date).toISOString().split('T')[0];
           return expenseDate === dateStr;
         });
 
-        // All expenses are expenses now - subtract from balance
+        // Subtract expenses from balance
         dayExpenses.forEach(expense => {
           runningBalance -= expense.amount;
         });
 
         // Calculate income from income sources for this day
-        const dayStart = new Date(date);
+        const dayStart = new Date(currentDate);
         dayStart.setHours(0, 0, 0, 0);
-        const dayEnd = new Date(date);
+        const dayEnd = new Date(currentDate);
         dayEnd.setHours(23, 59, 59, 999);
         const dayIncome = await calculateIncomeForPeriod(dayStart, dayEnd);
         runningBalance += dayIncome;
 
         dailyBalances.push({ date: dateStr, balance: runningBalance });
+
+        // Move to next day
+        currentDate.setDate(currentDate.getDate() + 1);
       }
 
-      // Calculate monthly balances (last 6 months)
+      // Calculate monthly balances (last 6 months) - cumulative balance
       const monthlyBalances: Array<{ month: string; balance: number; income: number; expenses: number }> = [];
+      let cumulativeBalance = await getStartingBalance();
+
+      // Calculate balance before the first month we're showing
+      const firstMonthDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      const preFirstMonthExpenses = sortedExpenses.filter(e => new Date(e.date) < firstMonthDate);
+      const preFirstMonthExpensesTotal = preFirstMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+      const preFirstMonthIncome = await calculateIncomeForPeriod(new Date(0), new Date(firstMonthDate.getTime() - 1));
+      cumulativeBalance = cumulativeBalance + preFirstMonthIncome - preFirstMonthExpensesTotal;
+
       for (let i = 5; i >= 0; i--) {
         const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
         const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+        monthEnd.setHours(23, 59, 59, 999);
         
         const monthExpenses = sortedExpenses.filter(e => {
           const expenseDate = new Date(e.date);
@@ -182,36 +203,46 @@ const BalanceHistoryScreen: React.FC = () => {
         // Calculate income from income sources for this month
         const monthIncome = await calculateIncomeForPeriod(monthStart, monthEnd);
         
-        // All expenses are expenses now
+        // Calculate expenses for this month
         const monthExpensesTotal = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-        const monthBalance = monthIncome - monthExpensesTotal;
+        // Update cumulative balance (add income, subtract expenses)
+        cumulativeBalance = cumulativeBalance + monthIncome - monthExpensesTotal;
         
         monthlyBalances.push({
           month: monthDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-          balance: monthBalance,
+          balance: cumulativeBalance, // End-of-month balance
           income: monthIncome,
           expenses: monthExpensesTotal,
         });
       }
 
-      // Calculate projection
+      // Calculate projection based on current month
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       const today = now.getDate();
       const daysRemaining = daysInMonth - today;
-      const currentMonthExpenses = dailyBalances
-        .slice(0, today)
-        .reduce((sum, d, idx) => {
-          if (idx === 0) return sum;
-          const prevBalance = dailyBalances[idx - 1].balance;
-          const currBalance = d.balance;
-          return sum + Math.max(0, prevBalance - currBalance); // Only count spending, not income
-        }, 0);
-      
-      const dailySpendingRate = today > 0 ? currentMonthExpenses / today : 0;
+
+      // Calculate spending rate from recent daily balances (last 7 days or available days)
+      const recentDays = dailyBalances.slice(-7);
+      let totalSpending = 0;
+      let daysWithSpending = 0;
+
+      for (let i = 1; i < recentDays.length; i++) {
+        const prevBalance = recentDays[i - 1].balance;
+        const currBalance = recentDays[i].balance;
+        const change = prevBalance - currBalance;
+        if (change > 0) { // Only count decreases (spending)
+          totalSpending += change;
+          daysWithSpending++;
+        }
+      }
+
+      const dailySpendingRate = daysWithSpending > 0 ? totalSpending / daysWithSpending : 0;
       const projectedEndOfMonth = currentStats.balance - (dailySpendingRate * daysRemaining);
       
-      // Generate insights
-      const insights: Array<{
+      // Generate insights - try AI first, fallback to local
+      let insights: Array<{
         id: string;
         type: 'info' | 'warning' | 'success';
         title: string;
@@ -219,100 +250,124 @@ const BalanceHistoryScreen: React.FC = () => {
         icon: string;
       }> = [];
 
-      // Projection insight
-      if (projectedEndOfMonth < 0) {
-        insights.push({
-          id: 'projection_warning',
-          type: 'warning',
-          title: '⚠️ Projected Negative Balance',
-          description: `At your current spending rate, you'll have ${formatCurrency(Math.abs(projectedEndOfMonth))} less than needed by month end. Consider reducing expenses.`,
-          icon: 'alert-circle',
-        });
-      } else if (projectedEndOfMonth > currentStats.balance * 0.5) {
-        insights.push({
-          id: 'projection_success',
-          type: 'success',
-          title: '✅ Great Spending Pace',
-          description: `You're on track to end the month with ${formatCurrency(projectedEndOfMonth)}. Keep it up!`,
-          icon: 'check-circle',
-        });
-      } else {
-        insights.push({
-          id: 'projection_info',
-          type: 'info',
-          title: '📊 Month-End Projection',
-          description: `Based on your current spending rate, you're projected to have ${formatCurrency(projectedEndOfMonth)} by month end.`,
-          icon: 'chart-line',
-        });
-      }
+      const balanceDataForAI = {
+        dailyBalances,
+        monthlyBalances,
+        projection: {
+          endOfMonth: projectedEndOfMonth,
+          daysRemaining,
+          dailySpendingRate,
+          isPositive: projectedEndOfMonth >= 0,
+        },
+      };
 
-      // Spending rate insight
-      if (dailySpendingRate > 0) {
-        const monthlyProjection = dailySpendingRate * 30;
-        if (monthlyProjection > currentStats.totalIncome * 0.9) {
+      // Try AI-powered insights (for premium users or if available)
+      try {
+        const aiInsights = await apiService.getBalanceInsights(balanceDataForAI);
+        if (aiInsights && aiInsights.length > 0) {
+          insights = aiInsights;
+        } else {
+          throw new Error('No AI insights returned');
+        }
+      } catch (error) {
+        // Fallback to local rule-based insights
+        console.log('[BalanceHistory] Using local insights (AI unavailable or failed)');
+
+        // Projection insight
+        if (projectedEndOfMonth < 0) {
           insights.push({
-            id: 'spending_rate_warning',
+            id: 'projection_warning',
             type: 'warning',
-            title: 'High Daily Spending',
-            description: `You're spending ${formatCurrency(dailySpendingRate)} per day on average. At this rate, you'll exceed your income this month.`,
-            icon: 'trending-up',
+            title: '⚠️ Projected Negative Balance',
+            description: `At your current spending rate, you'll have ${formatCurrency(Math.abs(projectedEndOfMonth))} less than needed by month end. Consider reducing expenses.`,
+            icon: 'alert-circle',
+          });
+        } else if (projectedEndOfMonth > currentStats.balance * 0.5) {
+          insights.push({
+            id: 'projection_success',
+            type: 'success',
+            title: '✅ Great Spending Pace',
+            description: `You're on track to end the month with ${formatCurrency(projectedEndOfMonth)}. Keep it up!`,
+            icon: 'check-circle',
           });
         } else {
           insights.push({
-            id: 'spending_rate_info',
+            id: 'projection_info',
             type: 'info',
-            title: 'Daily Spending Rate',
-            description: `Your average daily spending is ${formatCurrency(dailySpendingRate)}. This translates to ~${formatCurrency(monthlyProjection)} per month.`,
-            icon: 'calendar-clock',
+            title: '📊 Month-End Projection',
+            description: `Based on your current spending rate, you're projected to have ${formatCurrency(projectedEndOfMonth)} by month end.`,
+            icon: 'chart-line',
           });
         }
-      }
 
-      // Balance trend insight
-      if (dailyBalances.length >= 7) {
-        const last7Days = dailyBalances.slice(-7);
-        const firstBalance = last7Days[0].balance;
-        const lastBalance = last7Days[last7Days.length - 1].balance;
-        const trend = lastBalance - firstBalance;
-        
-        if (trend < -100) {
-          insights.push({
-            id: 'trend_warning',
-            type: 'warning',
-            title: 'Declining Balance Trend',
-            description: `Your balance decreased by ${formatCurrency(Math.abs(trend))} over the last 7 days. Review recent expenses.`,
-            icon: 'trending-down',
-          });
-        } else if (trend > 100) {
-          insights.push({
-            id: 'trend_success',
-            type: 'success',
-            title: 'Growing Balance',
-            description: `Your balance increased by ${formatCurrency(trend)} over the last 7 days. Excellent financial management!`,
-            icon: 'trending-up',
-          });
+        // Spending rate insight
+        if (dailySpendingRate > 0) {
+          const monthlyProjection = dailySpendingRate * 30;
+          if (monthlyProjection > currentStats.totalIncome * 0.9) {
+            insights.push({
+              id: 'spending_rate_warning',
+              type: 'warning',
+              title: 'High Daily Spending',
+              description: `You're spending ${formatCurrency(dailySpendingRate)} per day on average. At this rate, you'll exceed your income this month.`,
+              icon: 'trending-up',
+            });
+          } else {
+            insights.push({
+              id: 'spending_rate_info',
+              type: 'info',
+              title: 'Daily Spending Rate',
+              description: `Your average daily spending is ${formatCurrency(dailySpendingRate)}. This translates to ~${formatCurrency(monthlyProjection)} per month.`,
+              icon: 'calendar-clock',
+            });
+          }
         }
-      }
 
-      // Savings rate insight
-      if (currentStats.totalIncome > 0) {
-        const savingsRate = (currentStats.balance / currentStats.totalIncome) * 100;
-        if (savingsRate >= 20) {
-          insights.push({
-            id: 'savings_success',
-            type: 'success',
-            title: 'Excellent Savings Rate',
-            description: `You're saving ${savingsRate.toFixed(1)}% of your income. This is above the recommended 20%!`,
-            icon: 'piggy-bank',
-          });
-        } else if (savingsRate < 10) {
-          insights.push({
-            id: 'savings_warning',
-            type: 'warning',
-            title: 'Low Savings Rate',
-            description: `You're saving ${savingsRate.toFixed(1)}% of your income. Aim for at least 20% for financial security.`,
-            icon: 'alert',
-          });
+        // Balance trend insight
+        if (dailyBalances.length >= 7) {
+          const last7Days = dailyBalances.slice(-7);
+          const firstBalance = last7Days[0].balance;
+          const lastBalance = last7Days[last7Days.length - 1].balance;
+          const trend = lastBalance - firstBalance;
+
+          if (trend < -100) {
+            insights.push({
+              id: 'trend_warning',
+              type: 'warning',
+              title: 'Declining Balance Trend',
+              description: `Your balance decreased by ${formatCurrency(Math.abs(trend))} over the last 7 days. Review recent expenses.`,
+              icon: 'trending-down',
+            });
+          } else if (trend > 100) {
+            insights.push({
+              id: 'trend_success',
+              type: 'success',
+              title: 'Growing Balance',
+              description: `Your balance increased by ${formatCurrency(trend)} over the last 7 days. Excellent financial management!`,
+              icon: 'trending-up',
+            });
+          }
+        }
+
+        // Savings rate insight
+        if (currentStats.totalIncome > 0) {
+          const savingsRate = (currentStats.balance / currentStats.totalIncome) * 100;
+          if (savingsRate >= 20) {
+            insights.push({
+              id: 'savings_success',
+              type: 'success',
+              title: 'Excellent Savings Rate',
+              description: `You're saving ${savingsRate.toFixed(1)}% of your income. This is above the recommended 20%!`,
+              icon: 'piggy-bank',
+            });
+          } else if (savingsRate < 10) {
+            insights.push({
+              id: 'savings_warning',
+              type: 'warning',
+              title: 'Low Savings Rate',
+              description: `You're saving ${savingsRate.toFixed(1)}% of your income. Aim for at least 20% for financial security.`,
+              icon: 'alert',
+            });
+          }
         }
       }
 
@@ -360,46 +415,154 @@ const BalanceHistoryScreen: React.FC = () => {
     );
   }
 
-  // Prepare line chart data for last 30 days
-  const last30Days = balanceData.dailyBalances.slice(-30);
-  const lineChartData = {
-    labels: last30Days.map((d, idx) => {
-      // Show every 5th day label
-      if (idx % 5 === 0 || idx === last30Days.length - 1) {
-        const date = new Date(d.date);
-        return (date.getDate()).toString();
-      }
-      return '';
-    }),
-    datasets: [
-      {
-        data: last30Days.map(d => Math.max(0, d.balance)), // Ensure non-negative for chart
-        color: (opacity = 1) => theme.primary,
-        strokeWidth: 3,
-      },
-    ],
+  // Prepare line chart data for react-native-gifted-charts
+  const chartData = balanceData.dailyBalances.length > 0
+    ? balanceData.dailyBalances
+    : [{ date: new Date().toISOString().split('T')[0], balance: stats.balance }];
+
+  console.log('[BalanceChart] ===== CHART DATA PREPARATION =====');
+  console.log('[BalanceChart] Raw chartData length:', chartData.length);
+  console.log('[BalanceChart] First 3 raw data points:', chartData.slice(0, 3).map(d => ({ date: d.date, balance: d.balance })));
+  console.log('[BalanceChart] Last 3 raw data points:', chartData.slice(-3).map(d => ({ date: d.date, balance: d.balance })));
+
+  // Format data for gifted-charts LineChart
+  // Calculate how many labels to show (max 7 labels for readability)
+  const labelInterval = Math.max(1, Math.floor(chartData.length / 7));
+  console.log('[BalanceChart] Label interval:', labelInterval);
+
+  const lineData = chartData.map((d, index) => {
+    // Show labels for evenly spaced points (first, last, and every Nth point)
+    const showLabel = index === 0 ||
+      index === chartData.length - 1 ||
+      index % labelInterval === 0;
+
+    let label = '';
+    if (showLabel) {
+      const date = new Date(d.date);
+      // Show day number only (e.g., "20", "25", "30")
+      label = date.getDate().toString();
+    }
+
+    return {
+      value: d.balance,
+      label: label,
+      date: d.date,
+      index,
+    };
+  });
+
+  console.log('[BalanceChart] Formatted lineData length:', lineData.length);
+  console.log('[BalanceChart] First 3 formatted points:', lineData.slice(0, 3));
+  console.log('[BalanceChart] Last 3 formatted points:', lineData.slice(-3));
+  console.log('[BalanceChart] Labels with values:', lineData.filter(d => d.label !== '').map(d => ({ label: d.label, value: d.value })));
+  console.log('[BalanceChart] All values array:', lineData.map(d => d.value));
+
+  // Calculate Y-axis range with smart padding
+  const allValues = chartData.map(d => d.balance);
+  const minValue = Math.min(...allValues);
+  const maxValue = Math.max(...allValues);
+  const range = maxValue - minValue;
+
+  const rangePercentage = range > 0 ? (range / Math.abs(maxValue)) * 100 : 0;
+
+  console.log('[BalanceChart] ===== Y-AXIS CALCULATION =====');
+  console.log('[BalanceChart] Raw values - min:', minValue, 'max:', maxValue, 'range:', range);
+  console.log('[BalanceChart] Range percentage of max:', rangePercentage.toFixed(2) + '%');
+
+  // Smart Y-axis range calculation
+  let yAxisMin: number;
+  let yAxisMax: number;
+  let paddingType = '';
+
+  if (range === 0) {
+    // All values are the same - create a small range around the value
+    const padding = Math.max(Math.abs(maxValue) * 0.05, 100);
+    yAxisMin = minValue - padding;
+    yAxisMax = maxValue + padding;
+    paddingType = 'identical-values';
+    console.log('[BalanceChart] All values identical, padding:', padding);
+  } else if (rangePercentage < 1) {
+    // Very small range (< 1% of max) - use 50% padding on each side to make trend visible
+    const padding = range * 0.5;
+    yAxisMin = minValue - padding;
+    yAxisMax = maxValue + padding;
+    paddingType = 'very-small-range-50%';
+    console.log('[BalanceChart] Very small range (<1%), using 50% padding:', padding);
+  } else if (rangePercentage < 5) {
+    // Small range (1-5% of max) - use 30% padding
+    const padding = range * 0.3;
+    yAxisMin = minValue - padding;
+    yAxisMax = maxValue + padding;
+    paddingType = 'small-range-30%';
+    console.log('[BalanceChart] Small range (1-5%), using 30% padding:', padding);
+  } else {
+    // Normal range - use 10% padding
+    const padding = range * 0.1;
+    yAxisMin = minValue - padding;
+    yAxisMax = maxValue + padding;
+    paddingType = 'normal-range-10%';
+    console.log('[BalanceChart] Normal range, using 10% padding:', padding);
+  }
+
+  console.log('[BalanceChart] Before zero-adjustment - yAxisMin:', yAxisMin, 'yAxisMax:', yAxisMax);
+
+  // For very small ranges, don't force zero - keep the range focused on the data
+  // Only adjust if we're very close to zero (within 1% of the value)
+  if (minValue < 0 && maxValue < 0) {
+    // All negative - only cap at zero if we're very close, otherwise keep focused range
+    if (yAxisMax > -Math.abs(maxValue) * 0.01) {
+      // Very close to zero, cap it
+      yAxisMax = Math.min(0, maxValue + range * 0.1);
+      console.log('[BalanceChart] All negative, capping max at zero:', yAxisMax);
+    } else {
+      // Keep the focused range - don't force zero
+      console.log('[BalanceChart] All negative, keeping focused range (not forcing zero)');
+    }
+  } else if (minValue > 0 && maxValue > 0) {
+    // All positive - only cap at zero if very close
+    if (yAxisMin < Math.abs(minValue) * 0.01) {
+      yAxisMin = Math.max(0, minValue - range * 0.1);
+      console.log('[BalanceChart] All positive, capping min at zero:', yAxisMin);
+    } else {
+      console.log('[BalanceChart] All positive, keeping focused range (not forcing zero)');
+    }
+  }
+
+  console.log('[BalanceChart] Final Y-axis range - min:', yAxisMin, 'max:', yAxisMax);
+  console.log('[BalanceChart] Padding type used:', paddingType);
+  console.log('[BalanceChart] Effective range:', yAxisMax - yAxisMin);
+  console.log('[BalanceChart] Data will occupy:', ((range / (yAxisMax - yAxisMin)) * 100).toFixed(2) + '% of chart height');
+
+  // Format Y-axis labels (label comes as a number string from the library)
+  const formatYAxisLabel = (label: string): string => {
+    const value = parseFloat(label);
+    if (isNaN(value)) return label;
+
+    // Handle negative values
+    const absValue = Math.abs(value);
+    const sign = value < 0 ? '-' : '';
+
+    if (absValue >= 1000000) {
+      return `${sign}$${(absValue / 1000000).toFixed(1)}M`;
+    } else if (absValue >= 1000) {
+      return `${sign}$${(absValue / 1000).toFixed(1)}k`;
+    }
+    return `${sign}$${Math.round(absValue)}`;
   };
 
-  const chartConfig = {
-    backgroundColor: theme.card,
-    backgroundGradientFrom: theme.card,
-    backgroundGradientTo: theme.card,
-    decimalPlaces: 0,
-    color: (opacity = 1) => theme.primary + Math.round(opacity * 255).toString(16).padStart(2, '0'),
-    labelColor: (opacity = 1) => theme.textSecondary + Math.round(opacity * 255).toString(16).padStart(2, '0'),
-    style: {
-      borderRadius: borderRadius.lg,
-    },
-    propsForDots: {
-      r: '6',
-      strokeWidth: '2',
-      stroke: theme.primary,
-    },
-    propsForBackgroundLines: {
-      strokeDasharray: '',
-      stroke: theme.border,
-      strokeWidth: 1,
-    },
+  // Handle data point press
+  const handleDataPointPress = (item: typeof lineData[0]) => {
+    setSelectedDataPoint({
+      date: item.date,
+      balance: item.value,
+      index: item.index,
+    });
+    Animated.spring(tooltipAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 7,
+    }).start();
   };
 
   return (
@@ -416,7 +579,11 @@ const BalanceHistoryScreen: React.FC = () => {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <PullToRefreshScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        onRefresh={loadBalanceHistory}
+      >
         {/* Current Balance Card */}
         <Animated.View
           style={[
@@ -503,31 +670,156 @@ const BalanceHistoryScreen: React.FC = () => {
         </Animated.View>
 
         {/* Balance Trend Chart */}
-        <Animated.View
-          style={[
-            styles.chartCard,
-            { backgroundColor: theme.card, borderColor: theme.border },
-            elevation.sm,
-            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-          ]}
-        >
-          <Text style={[styles.chartTitle, { color: theme.text }]}>Balance Trend (Last 30 Days)</Text>
-          <LineChart
-            data={lineChartData}
-            width={width - 64}
-            height={220}
-            chartConfig={chartConfig}
-            bezier
-            style={styles.chart}
-            withInnerLines
-            withOuterLines
-            withVerticalLabels
-            withHorizontalLabels
-            withDots
-            withShadow={false}
-            fromZero={false}
-          />
-        </Animated.View>
+        {balanceData.dailyBalances.length > 0 && (
+          <Animated.View
+            style={[
+              styles.chartCard,
+              { backgroundColor: theme.card, borderColor: theme.border },
+              elevation.sm,
+              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+            ]}
+          >
+            <View style={styles.chartHeader}>
+              <Text style={[styles.chartTitle, { color: theme.text }]}>
+                Balance Trend ({balanceData.dailyBalances.length} Days)
+              </Text>
+              {selectedDataPoint && (
+                <Animated.View
+                  style={[
+                    styles.chartTooltip,
+                    {
+                      backgroundColor: theme.card,
+                      borderColor: theme.border,
+                      opacity: tooltipAnim,
+                      transform: [{ scale: tooltipAnim }],
+                    },
+                  ]}
+                >
+                  <Text style={[styles.tooltipDate, { color: theme.textSecondary }]}>
+                    {new Date(selectedDataPoint.date).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </Text>
+                  <Text style={[styles.tooltipBalance, { color: theme.text }]}>
+                    {formatCurrency(selectedDataPoint.balance)}
+                  </Text>
+                </Animated.View>
+              )}
+            </View>
+            <View style={styles.chartContainer}>
+              {(() => {
+                const chartWidth = width - (spacing.lg * 2) - (spacing.md * 2) - 20;
+                const chartSpacing = lineData.length > 1
+                  ? (chartWidth - 60) / (lineData.length - 1)
+                  : 0;
+
+                console.log('[BalanceChart] ===== CHART CONFIGURATION =====');
+                console.log('[BalanceChart] Screen width:', width);
+                console.log('[BalanceChart] Chart width:', chartWidth);
+                console.log('[BalanceChart] Chart height: 240');
+                console.log('[BalanceChart] Data points count:', lineData.length);
+                console.log('[BalanceChart] Calculated spacing:', chartSpacing);
+                console.log('[BalanceChart] Initial spacing: 20, End spacing: 20');
+                console.log('[BalanceChart] Y-axis maxValue:', yAxisMax);
+                console.log('[BalanceChart] Theme primary color:', theme.primary);
+                console.log('[BalanceChart] Chart props:', {
+                  curved: true,
+                  areaChart: false,
+                  thickness: 3,
+                  noOfSections: 5,
+                  isAnimated: true,
+                });
+
+                return (
+                  <LineChart
+                    data={lineData}
+                    width={chartWidth}
+                    height={240}
+                    spacing={chartSpacing}
+                    thickness={3}
+                    color={theme.primary}
+                    hideRules={false}
+                    rulesType="solid"
+                    rulesColor={theme.border}
+                    yAxisColor={theme.border}
+                    xAxisColor={theme.border}
+                    yAxisTextStyle={{ color: theme.textSecondary, fontSize: 11 }}
+                    xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 10, width: 30 }}
+                    curved
+                    areaChart={false}
+                    hideYAxisText={false}
+                    yAxisLabelWidth={70}
+                    yAxisLabelPrefix=""
+                    yAxisLabelSuffix=""
+                    maxValue={yAxisMax}
+                    noOfSections={5}
+                    formatYLabel={formatYAxisLabel}
+                    onPress={(item: typeof lineData[0]) => {
+                      console.log('[BalanceChart] Data point pressed:', {
+                        index: item.index,
+                        value: item.value,
+                        label: item.label,
+                        date: item.date,
+                      });
+                      handleDataPointPress(item);
+                    }}
+                    pointerConfig={{
+                      pointer1Color: theme.primary,
+                      pointerStripUptoDataPoint: true,
+                      pointerStripColor: theme.primary + '40',
+                      pointerStripWidth: 2,
+                      activatePointersOnLongPress: true,
+                      autoAdjustPointerLabelPosition: true,
+                      shiftPointerLabelX: 0,
+                      shiftPointerLabelY: -40,
+                      pointerLabelComponent: (items: any[]) => {
+                        console.log('[BalanceChart] Tooltip rendering, items:', items);
+                        if (!items || items.length === 0) {
+                          console.log('[BalanceChart] No items in tooltip');
+                          return null;
+                        }
+                        const item = items[0];
+                        console.log('[BalanceChart] Tooltip item:', {
+                          index: item.index,
+                          value: item.value,
+                          date: item.date,
+                        });
+                        // Find the corresponding data point from lineData to get the date
+                        const itemData = lineData[item.index] || lineData.find(d => d.value === item.value);
+                        const displayDate = itemData?.date || item.date;
+                        console.log('[BalanceChart] Tooltip displayDate:', displayDate);
+                        return (
+                          <View style={[styles.pointerLabel, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                            <Text style={[styles.pointerLabelDate, { color: theme.textSecondary }]}>
+                              {displayDate ? new Date(displayDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                            </Text>
+                            <Text style={[styles.pointerLabelText, { color: theme.text }]}>
+                              {formatCurrency(item.value)}
+                            </Text>
+                          </View>
+                        );
+                      },
+                    }}
+                    textShiftY={-2}
+                    textShiftX={-5}
+                    textFontSize={10}
+                    textColor={theme.textSecondary}
+                    dataPointsColor={theme.primary}
+                    dataPointsRadius={4}
+                    dataPointsWidth={4}
+                    initialSpacing={20}
+                    endSpacing={20}
+                    backgroundColor={theme.card}
+                    isAnimated
+                    animationDuration={800}
+                    showVerticalLines={false}
+                  />
+                );
+              })()}
+            </View>
+          </Animated.View>
+        )}
 
         {/* Monthly Balance History */}
         <Animated.View
@@ -622,7 +914,7 @@ const BalanceHistoryScreen: React.FC = () => {
         )}
 
         <View style={{ height: spacing.xl }} />
-      </ScrollView>
+      </PullToRefreshScrollView>
     </SafeAreaView>
   );
 };
@@ -760,13 +1052,55 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: spacing.md,
     marginBottom: spacing.md,
+  },
+  chartHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: spacing.md,
   },
   chartTitle: {
     ...typography.titleMedium,
     fontWeight: '600',
-    alignSelf: 'flex-start',
-    marginBottom: spacing.sm,
+    flex: 1,
+  },
+  chartTooltip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    alignItems: 'flex-end',
+  },
+  tooltipDate: {
+    ...typography.caption,
+    fontSize: 10,
+  },
+  tooltipBalance: {
+    ...typography.titleSmall,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  chartContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  pointerLabel: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  pointerLabelDate: {
+    ...typography.caption,
+    fontSize: 9,
+    marginBottom: 2,
+  },
+  pointerLabelText: {
+    ...typography.labelSmall,
+    fontWeight: '600',
   },
   chart: {
     borderRadius: borderRadius.md,

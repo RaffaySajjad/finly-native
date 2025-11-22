@@ -34,27 +34,31 @@ const SubscriptionScreen: React.FC = () => {
   const {
     subscription,
     isPremium,
+    isFree,
     isTrial,
+    isCanceled,
     isLoading,
     subscribe,
     startTrial,
     cancel,
+    checkStatus,
   } = useSubscription();
 
   const [processing, setProcessing] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
 
   useEffect(() => {
+    // Only check status once on mount, not on every checkStatus change
     checkStatus();
-  }, []);
-
-  const checkStatus = async () => {
-    // Subscription status is checked automatically via Redux
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only run on mount
 
   const handleUpgrade = async () => {
     setProcessing(true);
     try {
-      await subscribe();
+      await subscribe(selectedPlan);
+      // Refetch subscription status to ensure UI updates
+      await checkStatus();
       Alert.alert('Success', 'Welcome to Premium! 🎉');
       navigation.goBack();
     } catch (error) {
@@ -81,26 +85,34 @@ const SubscriptionScreen: React.FC = () => {
   };
 
   const handleCancel = async () => {
-    Alert.alert(
-      'Cancel Subscription',
-      'Are you sure you want to cancel your subscription? You will lose access to Premium features at the end of your billing period.',
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes, Cancel',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await cancel();
-              Alert.alert('Cancelled', 'Your subscription has been cancelled.');
-              navigation.goBack();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to cancel subscription.');
-            }
-          },
+    const isTrialUser = isTrial && !isFree;
+    const title = isTrialUser ? 'End Trial' : 'Cancel Subscription';
+    const message = isTrialUser
+      ? 'Are you sure you want to end your trial? You will lose access to Premium features immediately.'
+      : 'Are you sure you want to cancel your subscription? You will lose access to Premium features at the end of your billing period.';
+    const confirmText = isTrialUser ? 'Yes, End Trial' : 'Yes, Cancel';
+
+    Alert.alert(title, message, [
+      { text: 'No', style: 'cancel' },
+      {
+        text: confirmText,
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await cancel();
+            Alert.alert(
+              isTrialUser ? 'Trial Ended' : 'Cancelled',
+              isTrialUser
+                ? 'Your trial has been ended. You can start a new subscription anytime.'
+                : 'Your subscription has been cancelled.'
+            );
+            navigation.goBack();
+          } catch (error) {
+            Alert.alert('Error', `Failed to ${isTrialUser ? 'end trial' : 'cancel subscription'}.`);
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const premiumFeatures = [
@@ -144,17 +156,24 @@ const SubscriptionScreen: React.FC = () => {
               { backgroundColor: theme.success + '20', borderColor: theme.success },
             ]}
           >
-            <Icon name="check-circle" size={32} color={theme.success} />
+            <Icon name={isCanceled ? "alert-circle-outline" : "check-circle"} size={32} color={isCanceled ? theme.warning : theme.success} />
             <Text style={[styles.statusTitle, { color: theme.text }]}>
-              {isTrial ? 'Free Trial Active' : 'Premium Active'}
+              {isCanceled
+                ? (isTrial ? 'Trial Canceled' : 'Premium Canceled')
+                : (isTrial ? 'Free Trial Active' : 'Premium Active')
+              }
             </Text>
             {subscription.endDate && (
               <>
-                {isTrial && <TrialBadge endDate={subscription.endDate} size="medium" />}
+                {isTrial && !isCanceled && <TrialBadge endDate={subscription.endDate} size="medium" />}
                 <Text style={[styles.statusSubtitle, { color: theme.textSecondary }]}>
-                  {isTrial
-                    ? `Trial ends ${new Date(subscription.endDate).toLocaleDateString()}`
-                    : `Renews ${new Date(subscription.endDate).toLocaleDateString()}`}
+                  {isCanceled
+                    ? `Expires on ${new Date(subscription.endDate).toLocaleDateString()}`
+                    : (isTrial
+                      ? `Trial ends ${new Date(subscription.endDate).toLocaleDateString()}`
+                      : `Renews ${new Date(subscription.endDate).toLocaleDateString()}`
+                    )
+                  }
                 </Text>
               </>
             )}
@@ -189,10 +208,64 @@ const SubscriptionScreen: React.FC = () => {
         >
           <View style={styles.planHeader}>
             <PremiumBadge size="medium" />
+
+            {/* Plan Selector */}
+            {(!isPremium || isCanceled) && (
+              <View style={[styles.planSelector, { backgroundColor: theme.background }]}>
+                <TouchableOpacity
+                  style={[
+                    styles.planOption,
+                    selectedPlan === 'monthly' && { backgroundColor: theme.primary },
+                  ]}
+                  onPress={() => setSelectedPlan('monthly')}
+                >
+                  <Text
+                    style={[
+                      styles.planOptionText,
+                      { color: selectedPlan === 'monthly' ? '#FFFFFF' : theme.textSecondary },
+                    ]}
+                  >
+                    Monthly
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.planOption,
+                    selectedPlan === 'yearly' && { backgroundColor: theme.primary },
+                  ]}
+                  onPress={() => setSelectedPlan('yearly')}
+                >
+                  <Text
+                    style={[
+                      styles.planOptionText,
+                      { color: selectedPlan === 'yearly' ? '#FFFFFF' : theme.textSecondary },
+                    ]}
+                  >
+                    Yearly
+                  </Text>
+                  {selectedPlan !== 'yearly' && (
+                    <View style={[styles.saveBadge, { backgroundColor: theme.success }]}>
+                      <Text style={styles.saveBadgeText}>-40%</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
             <View style={styles.priceContainer}>
-              <Text style={[styles.price, { color: theme.text }]}>$4.99</Text>
-              <Text style={[styles.pricePeriod, { color: theme.textSecondary }]}>/month</Text>
+              <Text style={[styles.price, { color: theme.text }]}>
+                {selectedPlan === 'monthly' ? '$4.99' : '$35.99'}
+              </Text>
+              <Text style={[styles.pricePeriod, { color: theme.textSecondary }]}>
+                /{selectedPlan === 'monthly' ? 'month' : 'year'}
+              </Text>
             </View>
+
+            {selectedPlan === 'yearly' && (
+              <Text style={[styles.savingsText, { color: theme.success }]}>
+                Save 40% ($23.89/year)
+              </Text>
+            )}
           </View>
 
           <View style={styles.featuresList}>
@@ -216,20 +289,68 @@ const SubscriptionScreen: React.FC = () => {
             ))}
           </View>
 
-          {!isPremium ? (
+          {/* Free or Canceled User: Show Subscribe options */}
+          {(isFree || isCanceled) && (
+            <>
+              {isFree && (
+                <TouchableOpacity
+                  style={[styles.trialButton, { backgroundColor: theme.primary }, elevation.sm]}
+                  onPress={handleStartTrial}
+                  disabled={processing}
+                >
+                  {processing ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Text style={styles.trialButtonText}>Start 7-Day Free Trial</Text>
+                      <Text style={styles.trialButtonSubtext}>
+                        Then {selectedPlan === 'monthly' ? '$4.99/month' : '$35.99/year'} • Cancel anytime
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[
+                  styles.upgradeButton,
+                  {
+                    backgroundColor: isCanceled ? theme.primary : theme.card,
+                    borderColor: isCanceled ? theme.primary : theme.border
+                  },
+                ]}
+                onPress={handleUpgrade}
+                disabled={processing}
+              >
+                {processing ? (
+                  <ActivityIndicator color={isCanceled ? '#FFFFFF' : theme.primary} />
+                ) : (
+                    <Text style={[
+                      styles.upgradeButtonText,
+                      { color: isCanceled ? '#FFFFFF' : theme.primary }
+                    ]}>
+                    Subscribe Now
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+
+          {/* Trial User: Show Upgrade to Premium and Cancel Trial buttons */}
+          {isTrial && !isFree && !isCanceled && (
             <>
               <TouchableOpacity
                 style={[styles.trialButton, { backgroundColor: theme.primary }, elevation.sm]}
-                onPress={handleStartTrial}
+                onPress={handleUpgrade}
                 disabled={processing}
               >
                 {processing ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <>
-                    <Text style={styles.trialButtonText}>Start 7-Day Free Trial</Text>
+                    <Text style={styles.trialButtonText}>Upgrade to Premium</Text>
                     <Text style={styles.trialButtonSubtext}>
-                      Then $4.99/month • Cancel anytime
+                      Continue enjoying Premium features • {selectedPlan === 'monthly' ? '$4.99/month' : '$35.99/year'}
                     </Text>
                   </>
                 )}
@@ -237,22 +358,21 @@ const SubscriptionScreen: React.FC = () => {
 
               <TouchableOpacity
                 style={[
-                  styles.upgradeButton,
-                  { backgroundColor: theme.card, borderColor: theme.border },
+                  styles.cancelButton,
+                  { backgroundColor: theme.expense + '20', borderColor: theme.expense },
                 ]}
-                onPress={handleUpgrade}
+                onPress={handleCancel}
                 disabled={processing}
               >
-                {processing ? (
-                  <ActivityIndicator color={theme.primary} />
-                ) : (
-                  <Text style={[styles.upgradeButtonText, { color: theme.primary }]}>
-                    Subscribe Now
-                  </Text>
-                )}
+                <Text style={[styles.cancelButtonText, { color: theme.expense }]}>
+                  End Trial
+                </Text>
               </TouchableOpacity>
             </>
-          ) : (
+          )}
+
+          {/* Paying Premium User: Show Cancel Subscription button */}
+          {isPremium && !isTrial && !isFree && !isCanceled && (
             <TouchableOpacity
               style={[
                 styles.cancelButton,
@@ -417,6 +537,43 @@ const styles = StyleSheet.create({
   },
   comparisonContainer: {
     marginBottom: spacing.lg,
+  },
+  planSelector: {
+    flexDirection: 'row',
+    borderRadius: borderRadius.lg,
+    padding: 4,
+    marginBottom: spacing.lg,
+    width: '100%',
+    maxWidth: 300,
+  },
+  planOption: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md - 2,
+    flexDirection: 'row',
+  },
+  planOptionText: {
+    ...typography.labelLarge,
+    fontWeight: '600',
+  },
+  saveBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    marginLeft: spacing.xs,
+  },
+  saveBadgeText: {
+    ...typography.labelSmall,
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 10,
+  },
+  savingsText: {
+    ...typography.labelMedium,
+    fontWeight: '600',
+    marginTop: spacing.xs,
   },
 });
 

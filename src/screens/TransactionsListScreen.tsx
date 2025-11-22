@@ -4,7 +4,7 @@
  * Features: Search, filter by category/payment method/tags, sort options
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   Alert,
   Platform,
   Modal,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -24,10 +25,10 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '../contexts/ThemeContext';
-import { ExpenseCard, ExpenseOptionsSheet } from '../components';
+import { ExpenseCard, ExpenseOptionsSheet, PullToRefreshFlatList } from '../components';
 import { apiService } from '../services/api';
 import tagsService from '../services/tagsService';
-import { Expense, CategoryType, PaymentMethod, Tag } from '../types';
+import { Expense, PaymentMethod, Tag, UnifiedTransaction } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
@@ -40,23 +41,24 @@ const TransactionsListScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<TransactionsListNavigationProp>();
 
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
+  const [transactions, setTransactions] = useState<UnifiedTransaction[]>([]);
+  const [filteredTransactions, setFilteredTransactions] = useState<UnifiedTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState<CategoryType[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedTransactionType, setSelectedTransactionType] = useState<'all' | 'expense' | 'income'>('all');
   const [selectedDateRange, setSelectedDateRange] = useState<'all' | 'today' | 'week' | 'month' | '3months' | '6months' | 'year' | 'custom'>('all');
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [tags, setTags] = useState<Tag[]>([]);
-  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<UnifiedTransaction | null>(null);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
 
-  const categories: Array<{ id: CategoryType; name: string; icon: string }> = [
+  const categories: Array<{ id: string; name: string; icon: string }> = [
     { id: 'food', name: 'Food', icon: 'food' },
     { id: 'transport', name: 'Transport', icon: 'car' },
     { id: 'shopping', name: 'Shopping', icon: 'shopping' },
@@ -67,13 +69,13 @@ const TransactionsListScreen: React.FC = () => {
   ];
 
   const PAYMENT_METHODS: Array<{ id: PaymentMethod; name: string; icon: string }> = [
-    { id: 'credit_card', name: 'Credit Card', icon: 'credit-card' },
-    { id: 'debit_card', name: 'Debit Card', icon: 'card' },
-    { id: 'cash', name: 'Cash', icon: 'cash' },
-    { id: 'check', name: 'Check', icon: 'receipt' },
-    { id: 'bank_transfer', name: 'Bank Transfer', icon: 'bank-transfer' },
-    { id: 'digital_wallet', name: 'Digital Wallet', icon: 'wallet' },
-    { id: 'other', name: 'Other', icon: 'dots-horizontal' },
+    { id: 'CREDIT_CARD', name: 'Credit Card', icon: 'credit-card' },
+    { id: 'DEBIT_CARD', name: 'Debit Card', icon: 'card' },
+    { id: 'CASH', name: 'Cash', icon: 'cash' },
+    { id: 'CHECK', name: 'Check', icon: 'receipt' },
+    { id: 'BANK_TRANSFER', name: 'Bank Transfer', icon: 'bank-transfer' },
+    { id: 'DIGITAL_WALLET', name: 'Digital Wallet', icon: 'wallet' },
+    { id: 'OTHER', name: 'Other', icon: 'dots-horizontal' },
   ];
 
   useFocusEffect(
@@ -89,14 +91,21 @@ const TransactionsListScreen: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const expensesData = await apiService.getExpenses();
-      setExpenses(expensesData);
-      setFilteredExpenses(expensesData);
+      const transactionsData = await apiService.getUnifiedTransactions();
+      setTransactions(transactionsData);
+      setFilteredTransactions(transactionsData);
     } catch (error) {
       console.error('Error loading transactions:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  /**
+   * Handles pull-to-refresh - reloads transactions and tags
+   */
+  const handleRefresh = async (): Promise<void> => {
+    await Promise.all([loadData(), loadTags()]);
   };
 
   const loadTags = async () => {
@@ -108,34 +117,44 @@ const TransactionsListScreen: React.FC = () => {
     }
   };
 
-  // Filter and sort expenses
+  // Filter and sort transactions
   useEffect(() => {
-    let filtered = [...expenses];
+    let filtered = [...transactions];
+
+    // Transaction type filter
+    if (selectedTransactionType !== 'all') {
+      filtered = filtered.filter((tx) => tx.type === selectedTransactionType);
+    }
 
     // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
-        (expense) =>
-          expense.description.toLowerCase().includes(query) ||
-          expense.category.toLowerCase().includes(query)
+        (tx) =>
+          tx.description.toLowerCase().includes(query) ||
+          (tx.type === 'expense' && tx.category?.name.toLowerCase().includes(query)) ||
+          (tx.type === 'income' && tx.incomeSource?.name.toLowerCase().includes(query))
       );
     }
 
-    // Category filter
+    // Category filter (only for expenses)
     if (selectedCategories.length > 0) {
-      filtered = filtered.filter((expense) => selectedCategories.includes(expense.category));
+      filtered = filtered.filter(
+        (tx) => tx.type === 'expense' && tx.category && selectedCategories.includes(tx.category.id)
+      );
     }
 
-    // Payment method filter
+    // Payment method filter (only for expenses)
     if (selectedPaymentMethods.length > 0) {
-      filtered = filtered.filter((expense) => expense.paymentMethod && selectedPaymentMethods.includes(expense.paymentMethod));
+      filtered = filtered.filter(
+        (tx) => tx.type === 'expense' && tx.paymentMethod && selectedPaymentMethods.includes(tx.paymentMethod)
+      );
     }
 
-    // Tag filter
+    // Tag filter (only for expenses)
     if (selectedTags.length > 0) {
       filtered = filtered.filter(
-        (expense) => expense.tags && expense.tags.some(tagId => selectedTags.includes(tagId))
+        (tx) => tx.type === 'expense' && tx.tags && tx.tags.some(tag => selectedTags.includes(tag.id))
       );
     }
 
@@ -166,9 +185,9 @@ const TransactionsListScreen: React.FC = () => {
           break;
         case 'custom':
           if (customStartDate && customEndDate) {
-            filtered = filtered.filter((expense) => {
-              const expenseDate = new Date(expense.date);
-              return expenseDate >= customStartDate && expenseDate <= customEndDate;
+            filtered = filtered.filter((tx) => {
+              const txDate = new Date(tx.date);
+              return txDate >= customStartDate && txDate <= customEndDate;
             });
           }
           break;
@@ -177,9 +196,9 @@ const TransactionsListScreen: React.FC = () => {
       }
 
       if (selectedDateRange !== 'custom') {
-        filtered = filtered.filter((expense) => {
-          const expenseDate = new Date(expense.date);
-          return expenseDate >= startDate!;
+        filtered = filtered.filter((tx) => {
+          const txDate = new Date(tx.date);
+          return txDate >= startDate!;
         });
       }
     }
@@ -195,25 +214,51 @@ const TransactionsListScreen: React.FC = () => {
       }
     });
 
-    setFilteredExpenses(filtered);
-  }, [expenses, searchQuery, selectedCategories, selectedPaymentMethods, selectedTags, selectedDateRange, customStartDate, customEndDate, sortBy, sortOrder]);
+    setFilteredTransactions(filtered);
+  }, [transactions, searchQuery, selectedCategories, selectedPaymentMethods, selectedTags, selectedTransactionType, selectedDateRange, customStartDate, customEndDate, sortBy, sortOrder]);
 
-  const handleExpenseLongPress = (expense: Expense) => {
-    setSelectedExpense(expense);
+  const handleTransactionLongPress = useCallback((transaction: UnifiedTransaction) => {
+    setSelectedTransaction(transaction);
     if (Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-  };
+  }, []);
 
-  const handleEditExpense = (expense: Expense) => {
-    setSelectedExpense(null);
+  const handleTransactionPress = useCallback((transaction: UnifiedTransaction) => {
+    navigation.navigate('TransactionDetails', { transaction });
+  }, [navigation]);
+
+  const handleEditTransaction = (transaction: UnifiedTransaction) => {
+    setSelectedTransaction(null);
+    if (transaction.type === 'expense') {
+      const expense: Expense = {
+        id: transaction.id,
+        amount: transaction.amount,
+        categoryId: transaction.category!.id,
+        category: transaction.category!,
+        description: transaction.description,
+        date: transaction.date,
+        paymentMethod: transaction.paymentMethod,
+        notes: transaction.notes,
+        tags: transaction.tags,
+        createdAt: transaction.createdAt,
+        updatedAt: transaction.updatedAt || transaction.createdAt,
+      };
     navigation.navigate('AddExpense', { expense });
+    } else {
+      Alert.alert('Info', 'Income transaction editing not yet implemented');
+    }
   };
 
-  const handleDeleteExpense = async (expense: Expense) => {
-    setSelectedExpense(null);
+  const handleDeleteTransaction = async (transaction: UnifiedTransaction) => {
+    setSelectedTransaction(null);
     try {
-      await apiService.deleteExpense(expense.id);
+      if (transaction.type === 'expense') {
+        await apiService.deleteExpense(transaction.id);
+      } else {
+        Alert.alert('Info', 'Income transaction deletion not yet implemented');
+        return;
+      }
       await loadData();
       Alert.alert('Deleted', 'Transaction deleted successfully');
     } catch (error) {
@@ -226,13 +271,49 @@ const TransactionsListScreen: React.FC = () => {
     setSelectedCategories([]);
     setSelectedPaymentMethods([]);
     setSelectedTags([]);
+    setSelectedTransactionType('all');
     setSelectedDateRange('all');
     setCustomStartDate(null);
     setCustomEndDate(null);
     setSearchQuery('');
   };
 
-  const hasActiveFilters = selectedCategories.length > 0 || selectedPaymentMethods.length > 0 || selectedTags.length > 0 || selectedDateRange !== 'all' || searchQuery.trim();
+  const hasActiveFilters = selectedCategories.length > 0 || selectedPaymentMethods.length > 0 || selectedTags.length > 0 || selectedTransactionType !== 'all' || selectedDateRange !== 'all' || searchQuery.trim();
+
+  // Memoize filtered transactions for better performance
+  const memoizedFilteredTransactions = useMemo(() => filteredTransactions, [filteredTransactions]);
+
+  // Render functions for FlatList
+  const renderTransactionItem = useCallback(({ item }: { item: UnifiedTransaction }) => (
+    <ExpenseCard
+      transaction={item}
+      onPress={() => handleTransactionPress(item)}
+      onLongPress={() => handleTransactionLongPress(item)}
+    />
+  ), [handleTransactionPress, handleTransactionLongPress]);
+
+  const keyExtractor = useCallback((item: UnifiedTransaction) => item.id, []);
+
+  const renderEmptyState = useCallback(() => (
+    <View style={styles.emptyState}>
+      <Icon name="receipt-text-outline" size={64} color={theme.textTertiary} />
+      <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
+        {hasActiveFilters ? 'No transactions match your filters' : 'No transactions yet'}
+      </Text>
+      {hasActiveFilters && (
+        <TouchableOpacity
+          style={[styles.clearFiltersButton, { backgroundColor: theme.primary }]}
+          onPress={clearFilters}
+        >
+          <Text style={styles.clearFiltersText}>Clear Filters</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  ), [hasActiveFilters, theme]);
+
+  const renderListFooter = useCallback(() => (
+    <View style={{ height: spacing.xl }} />
+  ), []);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -509,55 +590,57 @@ const TransactionsListScreen: React.FC = () => {
       {hasActiveFilters && (
         <View style={styles.resultsContainer}>
           <Text style={[styles.resultsText, { color: theme.textSecondary }]}>
-            {filteredExpenses.length} {filteredExpenses.length === 1 ? 'transaction' : 'transactions'} found
+            {filteredTransactions.length} {filteredTransactions.length === 1 ? 'transaction' : 'transactions'} found
           </Text>
         </View>
       )}
 
-      {/* Transactions List */}
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.primary} />
-          </View>
-        ) : filteredExpenses.length > 0 ? (
-          filteredExpenses.map((expense) => (
-            <ExpenseCard
-              key={expense.id}
-              expense={expense}
-              onPress={() => navigation.navigate('TransactionDetails', { expense })}
-              onLongPress={() => handleExpenseLongPress(expense)}
-            />
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <Icon name="receipt-text-outline" size={64} color={theme.textTertiary} />
-            <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
-              {hasActiveFilters ? 'No transactions match your filters' : 'No transactions yet'}
-            </Text>
-            {hasActiveFilters && (
-              <TouchableOpacity
-                style={[styles.clearFiltersButton, { backgroundColor: theme.primary }]}
-                onPress={clearFilters}
-              >
-                <Text style={styles.clearFiltersText}>Clear Filters</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-      </ScrollView>
+      {/* Transactions List - Using FlatList for virtualization */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+        </View>
+      ) : (
+        <PullToRefreshFlatList
+          data={memoizedFilteredTransactions}
+          renderItem={renderTransactionItem}
+          keyExtractor={keyExtractor}
+          ListEmptyComponent={renderEmptyState}
+          ListFooterComponent={renderListFooter}
+          contentContainerStyle={[
+            styles.scrollContent,
+            memoizedFilteredTransactions.length === 0 && styles.emptyContentContainer,
+          ]}
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          windowSize={10}
+          initialNumToRender={15}
+          onRefresh={handleRefresh}
+        />
+      )}
 
-          {/* Expense Options Sheet */}
-          {selectedExpense && (
+      {/* Expense Options Sheet */}
+      {selectedTransaction && selectedTransaction.type === 'expense' && (
             <ExpenseOptionsSheet
-              expense={selectedExpense}
-              onEdit={handleEditExpense}
-              onDelete={handleDeleteExpense}
-              onClose={() => setSelectedExpense(null)}
+          expense={{
+            id: selectedTransaction.id,
+            amount: selectedTransaction.amount,
+            categoryId: selectedTransaction.category!.id,
+            category: selectedTransaction.category!,
+            description: selectedTransaction.description,
+            date: selectedTransaction.date,
+            paymentMethod: selectedTransaction.paymentMethod,
+            notes: selectedTransaction.notes,
+            tags: selectedTransaction.tags,
+            createdAt: selectedTransaction.createdAt,
+            updatedAt: selectedTransaction.updatedAt || selectedTransaction.createdAt,
+          }}
+          onEdit={() => handleEditTransaction(selectedTransaction)}
+          onDelete={() => handleDeleteTransaction(selectedTransaction)}
+          onClose={() => setSelectedTransaction(null)}
             />
           )}
 
@@ -577,6 +660,38 @@ const TransactionsListScreen: React.FC = () => {
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+              {/* Transaction Type Filter */}
+              <View style={[styles.modalSection, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.modalSectionTitle, { color: theme.text }]}>Transaction Type</Text>
+                <View style={styles.dateRangeGrid}>
+                  {(['all', 'expense', 'income'] as const).map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.dateRangeButton,
+                        {
+                          backgroundColor: selectedTransactionType === type ? theme.primary + '20' : theme.background,
+                          borderColor: selectedTransactionType === type ? theme.primary : theme.border,
+                        },
+                      ]}
+                      onPress={() => setSelectedTransactionType(type)}
+                    >
+                      <Text
+                        style={[
+                          styles.dateRangeButtonText,
+                          {
+                            color: selectedTransactionType === type ? theme.primary : theme.textSecondary,
+                            fontWeight: selectedTransactionType === type ? '600' : '400',
+                          },
+                        ]}
+                      >
+                        {type === 'all' ? 'All' : type === 'expense' ? 'Expenses' : 'Income'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
                   {/* Date Range Filter */}
                   <View style={[styles.modalSection, { borderBottomColor: theme.border }]}>
                     <Text style={[styles.modalSectionTitle, { color: theme.text }]}>Time Period</Text>
@@ -879,6 +994,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.sm,
+  },
+  emptyContentContainer: {
+    flexGrow: 1,
   },
   loadingContainer: {
     flex: 1,

@@ -12,10 +12,10 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -24,31 +24,22 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
 import tagsService from '../services/tagsService';
-import { CategoryType, PaymentMethod, Tag } from '../types';
+import { PaymentMethod, Tag, Category } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
-import { CurrencyInput, DatePickerInput } from '../components';
+import { CurrencyInput, DatePickerInput, CategoryPickerModal, PullToRefreshScrollView, InputGroup } from '../components';
+import { useAlert } from '../hooks/useAlert';
 
 type AddExpenseRouteProp = RouteProp<RootStackParamList, 'AddExpense'>;
 
-const CATEGORIES: Array<{ id: CategoryType; name: string; icon: string }> = [
-  { id: 'food', name: 'Food', icon: 'food' },
-  { id: 'transport', name: 'Transport', icon: 'car' },
-  { id: 'shopping', name: 'Shopping', icon: 'shopping' },
-  { id: 'entertainment', name: 'Entertainment', icon: 'movie' },
-  { id: 'health', name: 'Health', icon: 'heart-pulse' },
-  { id: 'utilities', name: 'Utilities', icon: 'lightning-bolt' },
-  { id: 'other', name: 'Other', icon: 'dots-horizontal' },
-];
-
 const PAYMENT_METHODS: Array<{ id: PaymentMethod; name: string; icon: string }> = [
-  { id: 'credit_card', name: 'Credit Card', icon: 'credit-card' },
-  { id: 'debit_card', name: 'Debit Card', icon: 'card' },
-  { id: 'cash', name: 'Cash', icon: 'cash' },
-  { id: 'check', name: 'Check', icon: 'receipt' },
-  { id: 'bank_transfer', name: 'Bank Transfer', icon: 'bank-transfer' },
-  { id: 'digital_wallet', name: 'Digital Wallet', icon: 'wallet' },
-  { id: 'other', name: 'Other', icon: 'dots-horizontal' },
+  { id: 'CREDIT_CARD', name: 'Credit Card', icon: 'credit-card' },
+  { id: 'DEBIT_CARD', name: 'Debit Card', icon: 'card' },
+  { id: 'CASH', name: 'Cash', icon: 'cash' },
+  { id: 'CHECK', name: 'Check', icon: 'receipt' },
+  { id: 'BANK_TRANSFER', name: 'Bank Transfer', icon: 'bank-transfer' },
+  { id: 'DIGITAL_WALLET', name: 'Digital Wallet', icon: 'wallet' },
+  { id: 'OTHER', name: 'Other', icon: 'dots-horizontal' },
 ];
 
 /**
@@ -58,28 +49,41 @@ const AddExpenseScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<AddExpenseRouteProp>();
   const { theme } = useTheme();
-  const { getCurrencySymbol } = useCurrency();
+  const { getCurrencySymbol, convertToUSD, convertFromUSD } = useCurrency();
 
   const editingExpense = route.params?.expense;
   // Only treat as editing if the expense has an ID (receipt scanning pre-fills data without ID)
   const isEditing = !!editingExpense?.id;
 
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState<CategoryType>('food');
+  const [category, setCategory] = useState<string>(''); // Store category ID instead
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(new Date());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | undefined>(undefined);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [showPaymentMethodPicker, setShowPaymentMethodPicker] = useState(false);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showTagsPicker, setShowTagsPicker] = useState(false);
   const [showCreateTagModal, setShowCreateTagModal] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Load tags on mount
+  // Error states for validation
+  const [amountError, setAmountError] = useState('');
+  const [descriptionError, setDescriptionError] = useState('');
+  const [categoryError, setCategoryError] = useState('');
+  const [tagNameError, setTagNameError] = useState('');
+
+  // Alert hook for non-validation errors
+  const { showError, showSuccess, AlertComponent } = useAlert();
+
+  // Load tags and categories on mount
   useEffect(() => {
     loadTags();
+    loadCategories();
   }, []);
 
   const loadTags = async () => {
@@ -91,29 +95,73 @@ const AddExpenseScreen: React.FC = () => {
     }
   };
 
+  const loadCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      const loadedCategories = await apiService.getCategories();
+      setCategories(loadedCategories);
+
+      // Set default category to first one if available and no category selected
+      if (loadedCategories.length > 0 && !category) {
+        setCategory(loadedCategories[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading categories:', error);
+      showError('Error', 'Failed to load categories. Please try again.');
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  /**
+   * Handles pull-to-refresh - reloads categories and tags
+   */
+  const handleRefresh = async (): Promise<void> => {
+    await Promise.all([loadTags(), loadCategories()]);
+  };
+
   // Pre-fill form when editing or when data is passed from receipt scanner
   useEffect(() => {
     if (editingExpense) {
-      if (editingExpense.amount) setAmount(editingExpense.amount.toString());
-      if (editingExpense.category) setCategory(editingExpense.category);
+      // Convert amount from USD (base currency) to display currency for editing
+      if (editingExpense.amount) {
+        const amountInDisplayCurrency = convertFromUSD(editingExpense.amount);
+        setAmount(amountInDisplayCurrency.toString());
+      }
+      if (editingExpense.categoryId) setCategory(editingExpense.categoryId); // Use categoryId
       if (editingExpense.description) setDescription(editingExpense.description);
       if (editingExpense.date) setDate(new Date(editingExpense.date));
       if (editingExpense.paymentMethod) setPaymentMethod(editingExpense.paymentMethod);
-      if (editingExpense.tags) setSelectedTags(editingExpense.tags);
+      if (editingExpense.tags) {
+        setSelectedTags(editingExpense.tags.map(tag => typeof tag === 'string' ? tag : tag.id));
+      }
     }
-  }, [editingExpense]);
+  }, [editingExpense, convertFromUSD]);
 
   /**
    * Handles transaction creation or update
    */
   const handleSave = async (): Promise<void> => {
+    // Clear previous errors
+    setAmountError('');
+    setDescriptionError('');
+    setCategoryError('');
+
+    // Validate amount
     if (!amount || parseFloat(amount) <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid amount');
+      setAmountError('Please enter a valid amount');
       return;
     }
 
+    // Validate description
     if (!description.trim()) {
-      Alert.alert('Missing Description', 'Please add a description');
+      setDescriptionError('Please add a description');
+      return;
+    }
+
+    // Validate category
+    if (!category) {
+      setCategoryError('Please select a category');
       return;
     }
 
@@ -122,39 +170,43 @@ const AddExpenseScreen: React.FC = () => {
     try {
       if (isEditing && editingExpense?.id) {
         // Update existing expense
-        await apiService.editExpense(editingExpense.id, {
-          amount: parseFloat(amount),
-          category,
+        // Convert amount from display currency to USD before sending
+        const amountInUSD = convertToUSD(parseFloat(amount));
+        await apiService.updateExpense(editingExpense.id, {
+          amount: amountInUSD,
+          categoryId: category,
           description: description.trim(),
-          date: date.toISOString(),
+          date,
           paymentMethod: paymentMethod || undefined,
           tags: selectedTags.length > 0 ? selectedTags : undefined,
         });
 
-        Alert.alert(
+        showSuccess(
           'Success',
           'Transaction updated successfully!',
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
       } else {
       // Create new expense
-        await apiService.createExpense({
-          amount: parseFloat(amount),
-          category,
+        // Convert amount from display currency to USD before sending
+        const amountInUSD = convertToUSD(parseFloat(amount));
+        await apiService.addExpense({
+          amount: amountInUSD,
+          categoryId: category,
           description: description.trim(),
-          date: date.toISOString(),
+          date,
           paymentMethod: paymentMethod || undefined,
           tags: selectedTags.length > 0 ? selectedTags : undefined,
         });
 
-        Alert.alert(
+        showSuccess(
           'Success',
           'Expense added successfully!',
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to save transaction. Please try again.');
+      showError('Error', 'Failed to save transaction. Please try again.');
       console.error('Error saving transaction:', error);
     } finally {
       setSaving(false);
@@ -165,8 +217,10 @@ const AddExpenseScreen: React.FC = () => {
    * Handles creating a new tag
    */
   const handleCreateTag = async (): Promise<void> => {
+    setTagNameError('');
+
     if (!newTagName.trim()) {
-      Alert.alert('Invalid Tag', 'Please enter a tag name');
+      setTagNameError('Please enter a tag name');
       return;
     }
 
@@ -177,7 +231,7 @@ const AddExpenseScreen: React.FC = () => {
       setNewTagName('');
       setShowCreateTagModal(false);
     } catch (error) {
-      Alert.alert('Error', 'Failed to create tag. Please try again.');
+      showError('Error', 'Failed to create tag. Please try again.');
       console.error('Error creating tag:', error);
     }
   };
@@ -193,20 +247,35 @@ const AddExpenseScreen: React.FC = () => {
     }
   };
 
+  // Get selected category display info
+  const selectedCategory = categories.find(cat => cat.id === category);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <PullToRefreshScrollView
+          showsVerticalScrollIndicator={false}
+          onRefresh={handleRefresh}
+        >
           {/* Amount Input */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>AMOUNT</Text>
-            <View style={[styles.amountContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View style={[
+              styles.amountContainer,
+              {
+                backgroundColor: theme.card,
+                borderColor: amountError ? theme.expense : theme.border,
+              }
+            ]}>
               <CurrencyInput
                 value={amount}
-                onChangeText={setAmount}
+                onChangeText={(text) => {
+                  setAmount(text);
+                  if (amountError) setAmountError('');
+                }}
                 placeholder="0.00"
                 placeholderTextColor={theme.textTertiary}
                 autoFocus
@@ -216,56 +285,86 @@ const AddExpenseScreen: React.FC = () => {
                 inputStyle={styles.amountInputField}
               />
             </View>
+            {amountError && (
+              <Text style={[styles.errorText, { color: theme.expense }]}>{amountError}</Text>
+            )}
           </View>
 
           {/* Category Selection */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>CATEGORY</Text>
-            <View style={styles.categoriesGrid}>
-              {CATEGORIES.map((cat) => (
+            {loadingCategories ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator color={theme.primary} />
+                <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+                  Loading categories...
+                </Text>
+              </View>
+            ) : categories.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Icon name="alert-circle" size={24} color={theme.textSecondary} />
+                <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                  No categories available. Please set up categories first.
+                </Text>
+              </View>
+            ) : (
+              <>
                 <TouchableOpacity
-                  key={cat.id}
-                  style={[
-                    styles.categoryButton,
-                    {
-                      backgroundColor: category === cat.id ? theme.primary + '20' : theme.card,
-                      borderColor: category === cat.id ? theme.primary : theme.border,
-                    },
-                  ]}
-                  onPress={() => setCategory(cat.id)}
-                >
-                  <Icon name={cat.icon as any} size={24} color={category === cat.id ? theme.primary : theme.textSecondary} />
-                  <Text
-                    style={[
-                      styles.categoryLabel,
-                      {
-                        color: category === cat.id ? theme.primary : theme.textSecondary,
-                        fontWeight: category === cat.id ? '600' : '400',
-                      },
-                    ]}
-                  >
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                      style={[
+                        styles.pickerButton,
+                        {
+                          backgroundColor: theme.card,
+                          borderColor: categoryError ? theme.expense : theme.border,
+                        },
+                      ]}
+                      onPress={() => {
+                        setShowCategoryPicker(true);
+                        if (categoryError) setCategoryError('');
+                      }}
+                    >
+                      <View style={styles.pickerButtonContent}>
+                        {selectedCategory ? (
+                          <>
+                            <View style={[styles.categoryIconContainer, { backgroundColor: selectedCategory.color + '20' }]}>
+                              <Icon name={selectedCategory.icon as any} size={20} color={selectedCategory.color} />
+                            </View>
+                            <Text style={[styles.pickerButtonText, { color: theme.text }]}>
+                              {selectedCategory.name}
+                            </Text>
+                          </>
+                        ) : (
+                          <>
+                            <Icon name="folder-outline" size={18} color={theme.textSecondary} />
+                            <Text style={[styles.pickerButtonText, { color: theme.textSecondary }]}>
+                              Select category
+                            </Text>
+                          </>
+                        )}
+                      </View>
+                      <Icon name="chevron-down" size={20} color={theme.textTertiary} />
+                    </TouchableOpacity>
+                {categoryError && (
+                  <Text style={[styles.errorText, { color: theme.expense }]}>{categoryError}</Text>
+                )}
+              </>
+            )}
           </View>
 
           {/* Description Input */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>DESCRIPTION</Text>
-            <TextInput
-              style={[
-                styles.descriptionInput,
-                { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
-              ]}
+            <InputGroup
+              label="DESCRIPTION"
               placeholder="What was it for?"
-              placeholderTextColor={theme.textTertiary}
               value={description}
-              onChangeText={setDescription}
+              onChangeText={(text) => {
+                setDescription(text);
+                if (descriptionError) setDescriptionError('');
+              }}
+              error={descriptionError}
               multiline
               numberOfLines={3}
               textAlignVertical="top"
+              containerStyle={styles.descriptionInputContainer}
             />
           </View>
 
@@ -367,7 +466,7 @@ const AddExpenseScreen: React.FC = () => {
           </View>
 
           <View style={{ height: spacing.xl }} />
-        </ScrollView>
+        </PullToRefreshScrollView>
 
         {/* Save Button */}
         <View style={[styles.footer, { backgroundColor: theme.background }]}>
@@ -445,6 +544,15 @@ const AddExpenseScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Category Picker Modal */}
+      <CategoryPickerModal
+        visible={showCategoryPicker}
+        categories={categories}
+        selectedCategoryId={category}
+        onSelect={(categoryId) => setCategory(categoryId)}
+        onClose={() => setShowCategoryPicker(false)}
+      />
 
       {/* Tags Picker Modal */}
       <Modal
@@ -529,16 +637,17 @@ const AddExpenseScreen: React.FC = () => {
                 <Icon name="close" size={24} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
-            <TextInput
-              style={[
-                styles.tagInput,
-                { backgroundColor: theme.background, borderColor: theme.border, color: theme.text },
-              ]}
+            <InputGroup
+              label=""
               placeholder="Tag name (e.g., Business, Personal)"
-              placeholderTextColor={theme.textTertiary}
               value={newTagName}
-              onChangeText={setNewTagName}
+              onChangeText={(text) => {
+                setNewTagName(text);
+                if (tagNameError) setTagNameError('');
+              }}
+              error={tagNameError}
               autoFocus
+              containerStyle={styles.tagInputContainer}
             />
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -560,6 +669,9 @@ const AddExpenseScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Alert Dialog */}
+      {AlertComponent}
     </SafeAreaView>
   );
 };
@@ -626,12 +738,42 @@ const styles = StyleSheet.create({
     ...typography.labelSmall,
     marginTop: spacing.xs,
   },
+  loadingContainer: {
+    paddingVertical: spacing.xl,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  loadingText: {
+    ...typography.bodySmall,
+  },
+  emptyContainer: {
+    paddingVertical: spacing.xl,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  emptyText: {
+    ...typography.bodySmall,
+    textAlign: 'center',
+  },
+  descriptionInputContainer: {
+    marginBottom: 0,
+  },
   descriptionInput: {
     ...typography.bodyMedium,
     borderRadius: borderRadius.md,
     borderWidth: 1,
     padding: spacing.md,
     minHeight: 100,
+  },
+  tagInputContainer: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    marginBottom: 0,
+  },
+  errorText: {
+    ...typography.bodySmall,
+    marginTop: spacing.xs,
+    color: '#EF4444',
   },
   footer: {
     paddingHorizontal: spacing.md,
@@ -714,14 +856,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
   modalTitle: {
     ...typography.titleLarge,
     fontWeight: '600',
   },
   modalScrollView: {
-    maxHeight: 400,
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.md,
   },
   modalOption: {
     flexDirection: 'row',
@@ -796,6 +939,96 @@ const styles = StyleSheet.create({
     ...typography.labelLarge,
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  categoryIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: borderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    ...typography.bodyMedium,
+    paddingVertical: spacing.xs,
+  },
+  categorySection: {
+    marginBottom: spacing.lg,
+  },
+  categorySectionTitle: {
+    ...typography.labelMedium,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: spacing.sm,
+    marginHorizontal: spacing.lg,
+    fontWeight: '600',
+  },
+  categoryGridModal: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: spacing.lg,
+    gap: spacing.sm,
+  },
+  categoryButtonModal: {
+    width: '30%',
+    aspectRatio: 0.9,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.sm,
+    position: 'relative',
+  },
+  categoryIconContainerModal: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+  },
+  categoryLabelModal: {
+    ...typography.labelSmall,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  selectedIndicator: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 20,
+    height: 20,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyCategoryContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyCategoryText: {
+    ...typography.bodyMedium,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  emptyCategorySubtext: {
+    ...typography.bodySmall,
+    marginTop: spacing.xs,
+    textAlign: 'center',
   },
 });
 

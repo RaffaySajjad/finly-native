@@ -11,9 +11,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -24,9 +24,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
-import { importWalletCSV, validateWalletCSV } from '../services/csvImportService';
+import { startCSVImport, pollImportStatus, validateWalletCSV, ImportJobStatus } from '../services/csvImportService';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAlert } from '../hooks/useAlert';
 
 type CSVImportNavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -46,38 +47,35 @@ const IMPORT_SOURCES: ImportSource[] = [
     id: 'wallet',
     name: 'Wallet by BudgetBakers',
     icon: 'wallet',
-    description: 'Import from Wallet CSV export',
+    description: 'Import transactions from Wallet CSV export',
     available: true,
   },
   {
     id: 'mint',
     name: 'Mint',
     icon: 'leaf',
-    description: 'Import from Mint CSV export',
-    available: false,
-    comingSoon: true,
+    description: 'Import transactions from Mint CSV export',
+    available: true,
   },
   {
     id: 'ynab',
-    name: 'YNAB (You Need A Budget)',
+    name: 'YNAB',
     icon: 'chart-line',
-    description: 'Import from YNAB CSV export',
-    available: false,
-    comingSoon: true,
+    description: 'Import transactions from YNAB CSV export',
+    available: true,
   },
   {
     id: 'excel',
     name: 'Excel / Google Sheets',
     icon: 'file-excel',
     description: 'Import from custom CSV format',
-    available: false,
-    comingSoon: true,
+    available: true,
   },
   {
     id: 'personal_capital',
     name: 'Personal Capital',
     icon: 'chart-pie',
-    description: 'Import from Personal Capital CSV',
+    description: 'Import transactions from Personal Capital CSV',
     available: false,
     comingSoon: true,
   },
@@ -90,6 +88,8 @@ const CSVImportScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<CSVImportNavigationProp>();
   const route = useRoute();
+  const { showError, showSuccess, showInfo, showWarning, AlertComponent } = useAlert();
+
   const [selectedSource, setSelectedSource] = useState<ImportSource | null>(
     IMPORT_SOURCES.find(s => s.available) || null
   );
@@ -98,6 +98,7 @@ const CSVImportScreen: React.FC = () => {
     current: number;
     total: number;
     percentage: number;
+    stage?: string;
   } | null>(null);
   const [importResult, setImportResult] = useState<{
     imported: number;
@@ -110,7 +111,7 @@ const CSVImportScreen: React.FC = () => {
 
   const handleSelectFile = async () => {
     if (!selectedSource || !selectedSource.available) {
-      Alert.alert('Coming Soon', 'This import source is not yet available. We\'re working on it!');
+      showInfo('Coming Soon', 'This import source is not yet available. We\'re working on it!');
       return;
     }
 
@@ -126,7 +127,7 @@ const CSVImportScreen: React.FC = () => {
 
       const file = result.assets[0];
       if (!file.uri) {
-        Alert.alert('Error', 'Failed to read file');
+        showError('Error', 'Failed to read file. Please try again.');
         return;
       }
 
@@ -134,17 +135,22 @@ const CSVImportScreen: React.FC = () => {
       const fileObj = new File(file.uri);
       const fileContent = await fileObj.text();
       
-      // Validate CSV format (Wallet-specific for now)
+      // Validate CSV format based on selected source
       if (selectedSource.id === 'wallet') {
         const validation = validateWalletCSV(fileContent);
         if (!validation.valid) {
-          Alert.alert('Invalid CSV', validation.error || 'CSV file format is not supported');
+          showError('Invalid CSV Format', validation.error || 'The CSV file format is not recognized. Please ensure you\'re using the correct export format for this source.');
           return;
         }
       }
+      // For other sources, basic validation (file is not empty)
+      else if (fileContent.trim().length === 0) {
+        showError('Invalid CSV File', 'The selected file appears to be empty. Please ensure you\'ve exported your transactions correctly.');
+        return;
+      }
 
       // Confirm import
-      Alert.alert(
+      showInfo(
         'Import Transactions',
         `This will import transactions from ${selectedSource.name}. Duplicate transactions will be automatically skipped. Continue?`,
         [
@@ -157,29 +163,44 @@ const CSVImportScreen: React.FC = () => {
         ]
       );
     } catch (error: any) {
-      Alert.alert('Error', `Failed to select file: ${error.message}`);
+      showError('Error', `Failed to select file: ${error.message || 'An unexpected error occurred'}`);
       console.error('File selection error:', error);
     }
   };
 
   const handleImport = async (csvContent: string) => {
-    if (!selectedSource || selectedSource.id !== 'wallet') {
-      Alert.alert('Error', 'Only Wallet by BudgetBakers import is currently supported');
+    if (!selectedSource || !selectedSource.available) {
+      showError('Unavailable Source', 'This import source is not yet available. Please select an available source.');
       return;
     }
 
     setImporting(true);
     setImportResult(null);
-    setImportProgress({ current: 0, total: 0, percentage: 0 });
+    setImportProgress({ current: 0, total: 0, percentage: 0, stage: 'starting' });
 
     try {
       if (Platform.OS === 'ios') {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
 
-      const result = await importWalletCSV(csvContent, (progress) => {
-        setImportProgress(progress);
-      });
+      // Start async import job
+      const { jobId } = await startCSVImport(csvContent);
+
+      // Poll for job status until completion
+      const result = await pollImportStatus(
+        jobId,
+        (status: ImportJobStatus) => {
+          // Update progress from job status
+          const progress = status.progress || { current: 0, total: 0, percentage: 0 };
+          setImportProgress({
+            current: progress.current || 0,
+            total: progress.total || 0,
+            percentage: progress.percentage || 0,
+            stage: progress.stage || 'processing',
+          });
+        },
+        2000 // Poll every 2 seconds to avoid rate limiting
+      );
 
       setImportResult(result);
       setImportProgress(null);
@@ -193,9 +214,13 @@ const CSVImportScreen: React.FC = () => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
 
-      Alert.alert(
-        'Import Complete! 🎉',
-        `Successfully imported ${result.imported} transactions.\n${result.skipped} transactions were skipped (duplicates or invalid).`,
+      const skippedMessage = result.skipped > 0
+        ? `\n${result.skipped} transaction${result.skipped === 1 ? '' : 's'} ${result.skipped === 1 ? 'was' : 'were'} skipped (duplicates or invalid entries).`
+        : '';
+
+      showSuccess(
+        'Import Complete',
+        `Successfully imported ${result.imported} transaction${result.imported === 1 ? '' : 's'}.${skippedMessage}`,
         [
           {
             text: 'OK',
@@ -214,7 +239,7 @@ const CSVImportScreen: React.FC = () => {
         ]
       );
     } catch (error: any) {
-      Alert.alert('Import Failed', error.message || 'Failed to import transactions');
+      showError('Import Failed', error.message || 'Failed to import transactions. Please check your file format and try again.');
       console.error('Import error:', error);
       setImportProgress(null);
     } finally {
@@ -285,14 +310,14 @@ const CSVImportScreen: React.FC = () => {
           <View style={[styles.firstTimeCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
             <Icon name="information-outline" size={24} color={theme.primary} />
             <Text style={[styles.firstTimeText, { color: theme.text }]}>
-              Want to import your existing transactions? We support multiple import sources.
+              Import your existing transactions from popular finance apps. Select your source below to get started.
             </Text>
           </View>
         )}
 
         {/* Import Sources */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>SELECT SOURCE</Text>
+          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>SELECT IMPORT SOURCE</Text>
           <View style={styles.sourcesList}>
             {IMPORT_SOURCES.map((source) => (
               <TouchableOpacity
@@ -313,7 +338,7 @@ const CSVImportScreen: React.FC = () => {
                       Haptics.selectionAsync();
                     }
                   } else {
-                    Alert.alert('Coming Soon', `${source.name} import is coming soon!`);
+                    showInfo('Coming Soon', `${source.name} import support is coming soon!`);
                   }
                 }}
                 disabled={!source.available}
@@ -349,26 +374,18 @@ const CSVImportScreen: React.FC = () => {
         </View>
 
         {/* Selected Source Instructions */}
-        {selectedSource && selectedSource.available && selectedSource.id === 'wallet' && (
+        {selectedSource && selectedSource.available && (
           <>
-            {/* How to Export */}
+            {/* General Export Info */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>HOW TO EXPORT</Text>
-              <View style={styles.stepsList}>
-                {[
-                  { step: '1', text: 'Open Wallet by BudgetBakers app' },
-                  { step: '2', text: 'Go to Settings → Export' },
-                  { step: '3', text: 'Select CSV format' },
-                  { step: '4', text: 'Export your transactions' },
-                  { step: '5', text: 'Select the file here to import' },
-                ].map((item, index) => (
-                  <View key={index} style={styles.stepItem}>
-                    <View style={[styles.stepNumber, { backgroundColor: theme.primary + '20' }]}>
-                      <Text style={[styles.stepNumberText, { color: theme.primary }]}>{item.step}</Text>
-                    </View>
-                    <Text style={[styles.stepText, { color: theme.text }]}>{item.text}</Text>
-                  </View>
-                ))}
+              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>GETTING YOUR CSV FILE</Text>
+              <View style={[styles.infoCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
+                <Icon name="information-outline" size={20} color={theme.primary} />
+                <Text style={[styles.infoText, { color: theme.text }]}>
+                  Export your transactions from {selectedSource.name} using either the mobile app or web interface.
+                  Look for an "Export" or "Download" option in your account settings or transactions section,
+                  and select CSV format. Once exported, select the file here to import.
+                </Text>
               </View>
             </View>
 
@@ -377,9 +394,9 @@ const CSVImportScreen: React.FC = () => {
               <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>WHAT GETS IMPORTED</Text>
               <View style={styles.featuresList}>
                 {[
-                  { icon: 'cash-multiple', text: 'Income and Expense transactions' },
+                  { icon: 'cash-multiple', text: 'Income and expense transactions' },
                   { icon: 'calendar', text: 'Transaction dates' },
-                  { icon: 'tag', text: 'Categories (mapped automatically)' },
+                  { icon: 'tag', text: 'Categories (automatically mapped)' },
                   { icon: 'credit-card', text: 'Payment methods' },
                   { icon: 'text', text: 'Notes and descriptions' },
                 ].map((feature, index) => (
@@ -390,34 +407,79 @@ const CSVImportScreen: React.FC = () => {
                 ))}
               </View>
             </View>
+
+            {/* Disclaimer */}
+            <View style={styles.section}>
+              <View style={[styles.disclaimerCard, { backgroundColor: theme.warning + '15', borderColor: theme.warning + '40' }, elevation.sm]}>
+                <Icon name="alert-circle-outline" size={20} color={theme.warning} />
+                <View style={styles.disclaimerContent}>
+                  <Text style={[styles.disclaimerTitle, { color: theme.warning }]}>Important Disclaimer</Text>
+                  <Text style={[styles.disclaimerText, { color: theme.text }]}>
+                    • Duplicate transactions will be automatically detected and skipped{'\n'}
+                    • Only transactions with valid dates, amounts, and required fields will be imported{'\n'}
+                    • Category mapping is automatic but may require manual adjustment{'\n'}
+                    • Please review imported transactions for accuracy{'\n'}
+                    • We recommend backing up your data before importing
+                  </Text>
+                </View>
+              </View>
+            </View>
           </>
         )}
 
-        {/* Progress Indicator */}
-        {importing && importProgress && (
-          <View style={[styles.progressCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
-            <View style={styles.progressHeader}>
-              <ActivityIndicator size="small" color={theme.primary} />
-              <Text style={[styles.progressTitle, { color: theme.text }]}>Importing...</Text>
-            </View>
-            <View style={styles.progressBarContainer}>
-              <View style={[styles.progressBarBackground, { backgroundColor: theme.border }]}>
-                <View
-                  style={[
-                    styles.progressBarFill,
-                    {
-                      width: `${importProgress.percentage}%`,
-                      backgroundColor: theme.primary,
-                    },
-                  ]}
-                />
+        {/* Progress Modal - Full Screen Overlay */}
+        <Modal
+          visible={importing && importProgress !== null}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+        >
+          <View style={styles.progressModalOverlay}>
+            <View style={[styles.progressModal, { backgroundColor: theme.card }]}>
+              <View style={styles.progressModalContent}>
+                {/* Icon */}
+                <View style={[styles.progressIconContainer, { backgroundColor: theme.primary + '20' }]}>
+                  <ActivityIndicator size="large" color={theme.primary} />
+                </View>
+
+                {/* Title */}
+                <Text style={[styles.progressModalTitle, { color: theme.text }]}>
+                  Importing Transactions
+                </Text>
+
+                {/* Progress Bar */}
+                <View style={styles.progressBarContainerModal}>
+                  <View style={[styles.progressBarBackgroundModal, { backgroundColor: theme.border }]}>
+                    <View
+                      style={[
+                        styles.progressBarFillModal,
+                        {
+                          width: `${importProgress?.percentage || 0}%`,
+                          backgroundColor: theme.primary,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+
+                {/* Progress Text */}
+                <Text style={[styles.progressModalText, { color: theme.textSecondary }]}>
+                  {importProgress?.current || 0} of {importProgress?.total || 0} transactions
+                </Text>
+
+                {/* Percentage */}
+                <Text style={[styles.progressPercentage, { color: theme.primary }]}>
+                  {importProgress?.percentage || 0}%
+                </Text>
+
+                {/* Status Message */}
+                <Text style={[styles.progressStatus, { color: theme.textTertiary }]}>
+                  Please wait while we import your transactions...
+                </Text>
               </View>
             </View>
-            <Text style={[styles.progressText, { color: theme.textSecondary }]}>
-              {importProgress.current} of {importProgress.total} transactions ({importProgress.percentage}%)
-            </Text>
           </View>
-        )}
+        </Modal>
 
         {/* Import Button */}
         {selectedSource && selectedSource.available && (
@@ -483,6 +545,9 @@ const CSVImportScreen: React.FC = () => {
 
         <View style={{ height: spacing.xl }} />
       </ScrollView>
+
+      {/* Alert Dialog */}
+      {AlertComponent}
     </SafeAreaView>
   );
 };
@@ -716,6 +781,97 @@ const styles = StyleSheet.create({
   errorText: {
     ...typography.bodySmall,
     marginBottom: spacing.xs,
+  },
+  progressModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressModal: {
+    width: '85%',
+    maxWidth: 400,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    ...elevation.lg,
+  },
+  progressModalContent: {
+    alignItems: 'center',
+  },
+  progressIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  progressModalTitle: {
+    ...typography.headlineSmall,
+    fontWeight: '700',
+    marginBottom: spacing.xl,
+    textAlign: 'center',
+  },
+  progressModalText: {
+    ...typography.bodyMedium,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  progressPercentage: {
+    ...typography.headlineMedium,
+    fontWeight: '700',
+    marginTop: spacing.sm,
+  },
+  progressStatus: {
+    ...typography.bodySmall,
+    marginTop: spacing.lg,
+    textAlign: 'center',
+  },
+  progressBarContainerModal: {
+    width: '100%',
+    marginBottom: spacing.md,
+  },
+  progressBarBackgroundModal: {
+    height: 12,
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+  },
+  progressBarFillModal: {
+    height: '100%',
+    borderRadius: borderRadius.md,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+  },
+  infoText: {
+    ...typography.bodyMedium,
+    flex: 1,
+    lineHeight: 22,
+  },
+  disclaimerCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+  },
+  disclaimerContent: {
+    flex: 1,
+  },
+  disclaimerTitle: {
+    ...typography.labelLarge,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
+  disclaimerText: {
+    ...typography.bodySmall,
+    lineHeight: 20,
   },
 });
 

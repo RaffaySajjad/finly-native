@@ -5,7 +5,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CategoryRule, CategoryType } from '../types';
+import { CategoryRule } from '../types';
 
 const RULES_STORAGE_KEY = '@finly_category_rules';
 
@@ -61,7 +61,7 @@ export async function deleteCategoryRule(ruleId: string): Promise<void> {
 export function categorizeByRules(
   merchant: string,
   rules: CategoryRule[]
-): CategoryType | null {
+): string | null {
   const merchantLower = merchant.toLowerCase();
 
   for (const rule of rules) {
@@ -71,7 +71,7 @@ export function categorizeByRules(
     const pattern = rule.merchantPattern.toLowerCase();
     
     if (merchantLower.includes(pattern) || pattern.includes(merchantLower)) {
-      return rule.category;
+      return rule.categoryId;
     }
   }
 
@@ -80,43 +80,52 @@ export function categorizeByRules(
 
 /**
  * Smart categorization based on merchant name
+ * Returns categoryId by matching category names
  */
-export function smartCategorize(merchant: string): CategoryType {
+export function smartCategorize(merchant: string, categories: Array<{ id: string; name: string }>): string {
   const merchantLower = merchant.toLowerCase();
+
+  // Helper to find category by name
+  const findCategoryId = (categoryName: string): string => {
+    const matched = categories.find(cat => 
+      cat.name.toLowerCase() === categoryName.toLowerCase()
+    );
+    return matched?.id || categories.find(c => c.name.toLowerCase() === 'other')?.id || categories[0]?.id || '';
+  };
 
   // Built-in smart categorization
   if (
     merchantLower.match(/\b(starbucks|coffee|cafe|restaurant|food|dining|mcdonalds|chipotle|subway|pizza|burger|taco|waffle|bakery)\b/)
   ) {
-    return 'food';
+    return findCategoryId('food');
   }
   if (
     merchantLower.match(/\b(uber|lyft|taxi|gas|fuel|transport|car|parking|shell|chevron|exxon)\b/)
   ) {
-    return 'transport';
+    return findCategoryId('transport');
   }
   if (
     merchantLower.match(/\b(target|amazon|walmart|shopping|store|mall|nike|adidas|best buy|home depot)\b/)
   ) {
-    return 'shopping';
+    return findCategoryId('shopping');
   }
   if (
     merchantLower.match(/\b(movie|cinema|netflix|spotify|entertainment|game|steam|disney)\b/)
   ) {
-    return 'entertainment';
+    return findCategoryId('entertainment');
   }
   if (
     merchantLower.match(/\b(pharmacy|cvs|walgreens|doctor|hospital|health|medicine|gym|fitness)\b/)
   ) {
-    return 'health';
+    return findCategoryId('health');
   }
   if (
     merchantLower.match(/\b(electric|gas company|water|utility|internet|phone|verizon|at&t)\b/)
   ) {
-    return 'utilities';
+    return findCategoryId('utilities');
   }
 
-  return 'other';
+  return findCategoryId('other');
 }
 
 export default {

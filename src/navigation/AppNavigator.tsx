@@ -28,6 +28,7 @@ import InsightsScreen from '../screens/InsightsScreen';
 import TrendsScreen from '../screens/TrendsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AddExpenseScreen from '../screens/AddExpenseScreen';
+import AddIncomeScreen from '../screens/AddIncomeScreen';
 import ReceiptUploadScreen from '../screens/ReceiptUploadScreen';
 import TransactionDetailsScreen from '../screens/TransactionDetailsScreen';
 import CategoryDetailsScreen from '../screens/CategoryDetailsScreen';
@@ -42,17 +43,15 @@ import TransactionsListScreen from '../screens/TransactionsListScreen';
 import CategoryOnboardingScreen from '../screens/CategoryOnboardingScreen';
 import IncomeManagementScreen from '../screens/IncomeManagementScreen';
 import CSVImportScreen from '../screens/CSVImportScreen';
+import ExportTransactionsScreen from '../screens/ExportTransactionsScreen';
 import AIAssistantScreen from '../screens/AIAssistantScreen';
+
 import IncomeSetupScreen, { hasCompletedIncomeSetup } from '../screens/IncomeSetupScreen';
 import OnboardingScreen, { hasCompletedOnboarding } from '../screens/OnboardingScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
-import VerifyEmailScreen from '../screens/VerifyEmailScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const IMPORT_SHOWN_KEY = '@finly_import_shown';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
@@ -79,7 +78,6 @@ const AuthNavigator: React.FC = () => {
     >
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Signup" component={SignupScreen} />
-      <AuthStack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
       <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <AuthStack.Screen name="ResetPassword" component={ResetPasswordScreen} />
     </AuthStack.Navigator>
@@ -206,7 +204,6 @@ const AppNavigator: React.FC = () => {
   const { isAuthenticated, isLoading } = useAppSelector((state) => state.auth);
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [incomeSetupComplete, setIncomeSetupComplete] = useState<boolean | null>(null);
-  const [importShown, setImportShown] = useState<boolean | null>(null);
 
   // Check onboarding status
   const checkOnboarding = useCallback(async () => {
@@ -218,16 +215,6 @@ const AppNavigator: React.FC = () => {
   const checkIncomeSetup = useCallback(async () => {
     const completed = await hasCompletedIncomeSetup();
     setIncomeSetupComplete(completed);
-  }, []);
-
-  // Check if import modal has been shown
-  const checkImportShown = useCallback(async () => {
-    try {
-      const shown = await AsyncStorage.getItem(IMPORT_SHOWN_KEY);
-      setImportShown(shown === 'true');
-    } catch {
-      setImportShown(false);
-    }
   }, []);
 
   // Check auth status on mount
@@ -247,9 +234,8 @@ const AppNavigator: React.FC = () => {
       // If user just logged out/in, flags remain and onboarding won't show
       checkOnboarding();
       checkIncomeSetup();
-      checkImportShown();
     }
-  }, [isAuthenticated, checkOnboarding, checkIncomeSetup, checkImportShown]);
+  }, [isAuthenticated, checkOnboarding, checkIncomeSetup]);
 
   // Check income setup after onboarding completes
   useEffect(() => {
@@ -258,13 +244,6 @@ const AppNavigator: React.FC = () => {
     }
   }, [onboardingComplete, checkIncomeSetup]);
 
-  // Check import shown status after income setup completes
-  useEffect(() => {
-    if (incomeSetupComplete) {
-      checkImportShown();
-    }
-  }, [incomeSetupComplete, checkImportShown]);
-
   // Re-check onboarding and income setup periodically to catch completion
   useEffect(() => {
     // Check immediately first
@@ -272,8 +251,6 @@ const AppNavigator: React.FC = () => {
       checkOnboarding();
     } else if (!incomeSetupComplete) {
       checkIncomeSetup();
-    } else if (incomeSetupComplete && importShown === null) {
-      checkImportShown();
     }
 
     const interval = setInterval(() => {
@@ -281,16 +258,14 @@ const AppNavigator: React.FC = () => {
         checkOnboarding();
       } else if (!incomeSetupComplete) {
         checkIncomeSetup();
-      } else if (incomeSetupComplete && importShown === null) {
-        checkImportShown();
       }
     }, 200); // Check every 200ms for faster response
 
     return () => clearInterval(interval);
-  }, [checkOnboarding, checkIncomeSetup, checkImportShown, onboardingComplete, incomeSetupComplete, importShown]);
+  }, [checkOnboarding, checkIncomeSetup, onboardingComplete, incomeSetupComplete]);
 
   // Show loading screen while checking auth state and onboarding
-  if (isLoading || onboardingComplete === null || (onboardingComplete && incomeSetupComplete === null) || (incomeSetupComplete && importShown === null)) {
+  if (isLoading || onboardingComplete === null || (onboardingComplete && incomeSetupComplete === null)) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
         <ActivityIndicator size="large" color={theme.primary} />
@@ -373,6 +348,15 @@ const AppNavigator: React.FC = () => {
                 headerShown: false,
               }}
             />
+              <Stack.Screen
+                name="ExportTransactions"
+                component={ExportTransactionsScreen}
+                options={{
+                  title: 'Export Transactions',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
           </>
         ) : !incomeSetupComplete ? (
           // Income Setup - shown after onboarding for first-time users
@@ -380,19 +364,7 @@ const AppNavigator: React.FC = () => {
             name="IncomeSetup"
             component={IncomeSetupScreen}
             options={{ headerShown: false, gestureEnabled: false }}
-          />
-        ) : !importShown ? (
-          // Import Modal - shown after income setup completes (first time only)
-          <Stack.Screen
-            name="CSVImport"
-            component={(props: any) => <CSVImportScreen {...props} route={{ ...props.route, params: { firstTime: true } }} />}
-            options={{
-              title: 'Import Transactions',
-              presentation: 'modal',
-              headerShown: false,
-              gestureEnabled: false,
-            }}
-          />
+              />
         ) : (
                   // Main App Stack - shown when user is authenticated, onboarded, and income setup is complete
           <>
@@ -411,6 +383,15 @@ const AppNavigator: React.FC = () => {
                 }}
               />
               <Stack.Screen
+                    name="AddIncome"
+                    component={AddIncomeScreen}
+                    options={{
+                      title: 'Add Income',
+                      presentation: 'modal',
+                      headerShown: false,
+                    }}
+                  />
+                  <Stack.Screen
                 name="ReceiptUpload"
                 component={ReceiptUploadScreen}
                 options={{
@@ -555,6 +536,15 @@ const AppNavigator: React.FC = () => {
                       }}
                     />
                     <Stack.Screen
+                    name="ExportTransactions"
+                    component={ExportTransactionsScreen}
+                    options={{
+                      title: 'Export Transactions',
+                      presentation: 'modal',
+                      headerShown: false,
+                    }}
+                  />
+                  <Stack.Screen
                       name="AIAssistant"
                       component={AIAssistantScreen}
                       options={{
@@ -576,7 +566,7 @@ const AppNavigator: React.FC = () => {
         )}
       </Stack.Navigator>
       {/* SharedBottomSheet - rendered outside Stack to be always accessible */}
-      {isAuthenticated && onboardingComplete && incomeSetupComplete && importShown && (
+      {isAuthenticated && onboardingComplete && incomeSetupComplete && (
         <SharedBottomSheet />
       )}
     </NavigationContainer>

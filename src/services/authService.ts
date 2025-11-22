@@ -49,14 +49,6 @@ interface LoginPayload {
 }
 
 /**
- * Verify email request payload
- */
-interface VerifyEmailPayload {
-  email: string;
-  otp: string;
-}
-
-/**
  * Reset password request payload
  */
 interface ResetPasswordPayload {
@@ -86,7 +78,7 @@ class AuthService {
 
       return {
         user: response.data!.user,
-        message: response.message || 'Account created successfully. Please check your email for verification code.',
+        message: response.message || 'Account created successfully. Please check your email for a verification link.',
       };
     } catch (error: any) {
       console.error('[AuthService] Signup error:', error);
@@ -96,48 +88,21 @@ class AuthService {
   }
 
   /**
-   * Verify email with OTP
-   * Returns tokens and fully authenticated user
+   * Resend verification email
    */
-  async verifyEmail(payload: VerifyEmailPayload): Promise<AuthResponse> {
+  async resendVerificationEmail(email: string): Promise<{ message: string }> {
     try {
-      const response = await api.post<AuthResponse>(API_ENDPOINTS.AUTH.VERIFY_EMAIL, payload);
+      const response = await api.post<{ message: string }>(API_ENDPOINTS.AUTH.RESEND_VERIFICATION, { email });
 
       if (!response.success) {
-        throw new Error(response.error?.message || 'Email verification failed');
-      }
-
-      const { user, tokens } = response.data!;
-
-      // Store tokens and user data
-      await Promise.all([
-        tokenManager.setTokens(tokens.accessToken, tokens.refreshToken),
-        AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user)),
-      ]);
-
-      return response.data!;
-    } catch (error: any) {
-      console.error('[AuthService] Verify email error:', error);
-      throw this.handleError(error);
-    }
-  }
-
-  /**
-   * Resend OTP for email verification
-   */
-  async resendOTP(email: string): Promise<{ message: string }> {
-    try {
-      const response = await api.post<{ message: string }>(API_ENDPOINTS.AUTH.RESEND_OTP, { email });
-
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to resend OTP');
+        throw new Error(response.error?.message || 'Failed to resend verification email');
       }
 
       return {
-        message: response.message || 'OTP sent successfully',
+        message: response.message || 'Verification email sent successfully',
       };
     } catch (error: any) {
-      console.error('[AuthService] Resend OTP error:', error);
+      console.error('[AuthService] Resend verification email error:', error);
       throw this.handleError(error);
     }
   }
@@ -150,7 +115,16 @@ class AuthService {
       const response = await api.post<AuthResponse>(API_ENDPOINTS.AUTH.LOGIN, payload);
 
       if (!response.success) {
-        throw new Error(response.error?.message || 'Login failed');
+        console.log('[AuthService] Login failed response:', response);
+        const error = response.error;
+        if (error) {
+          console.log('[AuthService] Error details:', error);
+          // Create error with code preserved for frontend handling
+          const err: any = new Error(error.message || 'Login failed');
+          err.code = error.code; // Preserve error code
+          throw err;
+        }
+        throw new Error('Login failed');
       }
 
       const { user, tokens } = response.data!;
@@ -161,10 +135,33 @@ class AuthService {
         AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user)),
       ]);
 
+      // Clear onboarding flags to always show onboarding after login
+      await Promise.all([
+        AsyncStorage.removeItem('@finly_onboarding_completed'),
+        AsyncStorage.removeItem('@finly_income_setup_completed'),
+      ]);
+
       return response.data!;
     } catch (error: any) {
       console.error('[AuthService] Login error:', error);
-      throw this.handleError(error);
+      console.error('[AuthService] Login error code:', error?.code);
+      console.error('[AuthService] Login error response:', error?.response?.data);
+      
+      // If error already has a code from API response (EMAIL_NOT_VERIFIED, etc.), preserve it
+      if (error.code && error.code !== 'ERR_NETWORK' && error.code !== 'ERR_BAD_REQUEST' && error.code !== 'ECONNREFUSED' && error.code !== 'ENOTFOUND') {
+        // Error already processed from API response, just rethrow with code preserved
+        console.log('[AuthService] Preserving error code:', error.code);
+        throw error;
+      }
+      
+      // Handle Axios errors (network errors, etc.) or extract error from response
+      const handledError = this.handleError(error);
+      // Preserve code if it was set during error creation above
+      if (error.code && !handledError.code) {
+        handledError.code = error.code;
+      }
+      console.log('[AuthService] Final error code:', handledError.code);
+      throw handledError;
     }
   }
 
@@ -181,6 +178,35 @@ class AuthService {
     } finally {
       // Always clear local tokens and user data
       await tokenManager.clearTokens();
+    }
+  }
+
+  /**
+   * Delete user account permanently
+   * This will delete all user data including expenses, categories, income, etc.
+   * @param feedback - Optional feedback about why the user is deleting their account
+   */
+  async deleteAccount(feedback?: { reasonForDeletion?: string; feedback?: string }): Promise<void> {
+    try {
+      console.log('[AuthService] Deleting account...', feedback ? 'with feedback' : 'without feedback');
+      const response = await api.delete(API_ENDPOINTS.AUTH.DELETE_ACCOUNT, {
+        data: feedback || {},
+      });
+
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to delete account');
+      }
+
+      console.log('[AuthService] Account deleted successfully');
+
+      // Clear local data after successful deletion
+      await tokenManager.clearTokens();
+      await AsyncStorage.removeItem(STORAGE_KEYS.USER_DATA);
+      await AsyncStorage.removeItem('@finly_onboarding_completed');
+      await AsyncStorage.removeItem('@finly_income_setup_completed');
+    } catch (error: any) {
+      console.error('[AuthService] Delete account error:', error);
+      throw this.handleError(error);
     }
   }
 
@@ -220,6 +246,55 @@ class AuthService {
       };
     } catch (error: any) {
       console.error('[AuthService] Reset password error:', error);
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Verify email with OTP
+   * TODO: Implement backend endpoint for email verification
+   */
+  async verifyEmail(payload: { email: string; otp: string }): Promise<{ user: User }> {
+    try {
+      // Mock implementation - replace with actual API call when backend is ready
+      const response: any = {
+        success: true,
+        data: {
+          user: {
+            id: 'mock-user-id',
+            name: 'Mock User',
+            email: payload.email,
+            emailVerified: true,
+            createdAt: new Date().toISOString(),
+          },
+        },
+      };
+
+      if (!response.success) {
+        throw new Error('Email verification failed');
+      }
+
+      return { user: response.data.user };
+    } catch (error: any) {
+      console.error('[AuthService] Verify email error:', error);
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Resend OTP for email verification
+   * TODO: Implement backend endpoint for resending OTP
+   */
+  async resendOTP(email: string): Promise<{ message: string }> {
+    try {
+      // Mock implementation - replace with actual API call when backend is ready
+      console.log('[AuthService] Resending OTP to:', email);
+      
+      return {
+        message: 'OTP resent successfully',
+      };
+    } catch (error: any) {
+      console.error('[AuthService] Resend OTP error:', error);
       throw this.handleError(error);
     }
   }
@@ -303,13 +378,27 @@ class AuthService {
 
   /**
    * Handle and format API errors
+   * Preserves error code for frontend handling
    */
-  private handleError(error: any): Error {
-    // Handle API error response
+  private handleError(error: any): Error & { code?: string } {
+    // Handle API error response (from Axios error.response.data)
     if (error.response?.data?.error) {
       const apiError = error.response.data.error;
       console.error('[AuthService] API Error:', apiError);
-      return new Error(apiError.message || 'An error occurred');
+      const err: any = new Error(apiError.message || 'An error occurred');
+      err.code = apiError.code; // Preserve error code
+      console.log('[AuthService] Extracted error code from response:', err.code);
+      return err;
+    }
+
+    // Handle case where error.response.data is the ApiResponse structure directly
+    if (error.response?.data?.success === false && error.response?.data?.error) {
+      const apiError = error.response.data.error;
+      console.error('[AuthService] API Error (from ApiResponse):', apiError);
+      const err: any = new Error(apiError.message || 'An error occurred');
+      err.code = apiError.code; // Preserve error code
+      console.log('[AuthService] Extracted error code from ApiResponse:', err.code);
+      return err;
     }
 
     // Handle validation errors
@@ -323,9 +412,13 @@ class AuthService {
       return new Error('Cannot connect to server. Please check your connection.');
     }
 
-    // Generic error
+    // Generic error - preserve code if it exists
     if (error.message) {
-      return error;
+      const err: any = error instanceof Error ? error : new Error(error.message);
+      if (error.code) {
+        err.code = error.code;
+      }
+      return err;
     }
 
     return new Error('An unexpected error occurred');

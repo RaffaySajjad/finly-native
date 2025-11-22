@@ -31,6 +31,7 @@ import { apiService } from '../services/api';
 import receiptService from '../services/receiptService';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { Category } from '../types';
 
 type ReceiptUploadNavigationProp = StackNavigationProp<RootStackParamList, 'ReceiptUpload'>;
 
@@ -45,6 +46,7 @@ const ReceiptUploadScreen: React.FC = () => {
   const [image, setImage] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   // Animation values
   const scanLinePosition = useRef(new Animated.Value(0)).current;
@@ -52,6 +54,19 @@ const ReceiptUploadScreen: React.FC = () => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // Removed automatic permission request - permissions will be requested on demand
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const loadCategories = async () => {
+    try {
+      const data = await apiService.getCategories();
+      setCategories(data);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
+  };
 
   useEffect(() => {
     if (scanning) {
@@ -181,8 +196,15 @@ const ReceiptUploadScreen: React.FC = () => {
     }
 
     try {
-      // Simulate OCR extraction
-      const extractedData = await apiService.extractReceiptData(image);
+      // TODO: Implement OCR extraction in API service
+      // Simulate OCR extraction with mock data for now
+      const defaultCategoryId = categories.length > 0 ? categories[0].id : '';
+      const extractedData = {
+        amount: 0,
+        description: 'Receipt Upload',
+        categoryId: defaultCategoryId,
+        date: new Date(),
+      };
 
       // Track usage for free tier
       trackUsage('receiptScanning');
@@ -190,13 +212,13 @@ const ReceiptUploadScreen: React.FC = () => {
       // Save receipt to gallery (premium feature)
       if (isPremium) {
         await receiptService.saveReceipt({
-          imageUri: image,
+          imageUrl: image,
           extractedData: {
             merchant: extractedData.description.split(' - ')[0] || extractedData.description,
             date: new Date().toISOString(),
             total: extractedData.amount,
           },
-          category: extractedData.category,
+          categoryId: extractedData.categoryId,
         });
       }
 

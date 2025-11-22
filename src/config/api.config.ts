@@ -14,32 +14,27 @@ import Constants from 'expo-constants';
  */
 const getDevBaseUrl = (): string => {
   const BACKEND_PORT = 3000;
-  
-  // Check if running in Expo Go (has hostUri or debuggerHost)
-  const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
-  if (debuggerHost) {
-    const ip = debuggerHost.split(':')[0];
-    return `http://${ip}:${BACKEND_PORT}`;
-  }
-  
-  // For bare workflow (no Expo Go):
-  // Android emulator: 10.0.2.2 maps to host machine's localhost
-  // iOS simulator: localhost works directly
-  // Physical device: You'll need to set your machine's IP manually below
-  
+  const LOCAL_IP = '192.168.1.102';
+
+  return `http://${LOCAL_IP}:${BACKEND_PORT}`;
+
   if (Platform.OS === 'android') {
-    // Android emulator special IP that maps to host's localhost
-    return `http://10.0.2.2:${BACKEND_PORT}`;
-  } else if (Platform.OS === 'ios') {
-    // iOS simulator can use localhost directly
-    return `http://localhost:${BACKEND_PORT}`;
+    // Android emulator uses 10.0.2.2 to access host machine's localhost
+    // For physical Android devices, use your computer's local IP address
+    // You can find it by running: ipconfig (Windows) or ifconfig (Mac/Linux)
+    // Common options:
+    // - '10.0.2.2' for Android emulator (default)
+    // - '192.168.x.x' for physical Android device (replace with your local IP)
+    return `http://${LOCAL_IP}:${BACKEND_PORT}`;
+  } else {
+    // iOS simulator can use localhost
+    // For physical iOS device, use your computer's local IP address
+    // You can find it by running: ifconfig | grep "inet " | grep -v 127.0.0.1
+    // Common options:
+    // - 'localhost' for iOS simulator (default)
+    // - '192.168.x.x' for physical iOS device (replace with your local IP)
+    return `http://${LOCAL_IP}:${BACKEND_PORT}`;
   }
-  
-  // For physical devices, uncomment and set your local IP:
-  // return `http://192.168.1.XXX:${BACKEND_PORT}`;
-  
-  // Fallback
-  return `http://localhost:${BACKEND_PORT}`;
 };
 
 /**
@@ -51,22 +46,22 @@ export const API_CONFIG = {
   // Base URL for the Finly API
   // For development: Automatically uses Expo's detected IP (works for emulators & physical devices)
   // For production: Uses production API URL
-  BASE_URL: __DEV__ 
+  BASE_URL: __DEV__
     ? getDevBaseUrl() // Auto-detected from Expo
     : 'https://api.finly.app',
-  
+
   // API version
   API_VERSION: 'v1',
-  
+
   // Request timeout in milliseconds (30 seconds)
   TIMEOUT: 30000,
-  
+
   // Retry configuration
   MAX_RETRIES: 3,
   RETRY_DELAY: 1000, // milliseconds
-  
+
   // Token refresh configuration
-  TOKEN_REFRESH_THRESHOLD: 5 * 60 * 1000, // Refresh token 5 minutes before expiry
+  TOKEN_REFRESH_THRESHOLD: 5 * 60 * 1000 // Refresh token 5 minutes before expiry
 } as const;
 
 /**
@@ -80,44 +75,88 @@ export const API_ENDPOINTS = {
     LOGIN: '/auth/login',
     LOGOUT: '/auth/logout',
     VERIFY_EMAIL: '/auth/verify-email',
-    RESEND_OTP: '/auth/resend-otp',
+    RESEND_VERIFICATION: '/auth/resend-verification',
     FORGOT_PASSWORD: '/auth/forgot-password',
     RESET_PASSWORD: '/auth/reset-password',
     REFRESH_TOKEN: '/auth/refresh-token',
     ME: '/auth/me',
+    DELETE_ACCOUNT: '/auth/account',
+    UPDATE_BALANCE: '/auth/balance'
   },
-  
-  // Expenses (to be implemented in backend)
+
+  // Expenses
   EXPENSES: {
     LIST: '/expenses',
-    CREATE: '/expenses',
-    UPDATE: (id: string) => `/expenses/${id}`,
-    DELETE: (id: string) => `/expenses/${id}`,
+    MONTHLY: '/expenses/monthly',
+    STATS_MONTHLY: '/expenses/stats/monthly',
+    DETAIL: '/expenses/:id',
+    BATCH: '/expenses/batch'
   },
-  
-  // Categories (to be implemented in backend)
+
+  // Categories
   CATEGORIES: {
     LIST: '/categories',
-    CREATE: '/categories',
-    UPDATE: (id: string) => `/categories/${id}`,
-    DELETE: (id: string) => `/categories/${id}`,
+    SETUP_DEFAULTS: '/categories/setup-defaults',
+    SETUP_STATUS: '/categories/setup-status',
+    DETAIL: '/categories/:id',
+    IMPORT: '/categories/import',
+    IMPORT_BATCH: '/categories/import/batch'
   },
-  
-  // Analytics (to be implemented in backend)
+
+  // Income
+  INCOME: {
+    SOURCES: '/income/sources',
+    TRANSACTIONS: '/income/transactions',
+    STATS_MONTHLY: '/income/stats/monthly'
+  },
+
+  // Analytics
   ANALYTICS: {
     STATS: '/analytics/stats',
     INSIGHTS: '/analytics/insights',
-    TRENDS: '/analytics/trends',
+    DAILY_SPENDING: '/analytics/daily-spending',
+    TREND: '/analytics/trend',
+    BUDGET_STATUS: '/analytics/budget-status',
+    TRANSACTIONS: '/analytics/transactions',
+    FORECAST: '/analytics/forecast'
   },
-  
+
   // Subscriptions
   SUBSCRIPTIONS: {
     STATUS: '/subscriptions/status',
     VERIFY_PURCHASE: '/subscriptions/verify-purchase',
     TRIAL: '/subscriptions/trial',
     CANCEL: '/subscriptions/cancel',
-    RESTORE: '/subscriptions/restore',
+    RESTORE: '/subscriptions/restore'
   },
+
+  // Currency
+  CURRENCY: {
+    CONVERT: '/currency/convert',
+    EXCHANGE_RATE: '/currency/exchange-rate'
+  },
+
+  // Tags
+  TAGS: {
+    LIST: '/tags',
+    CREATE_BATCH: '/tags/batch'
+  },
+
+  // Import
+  IMPORT: {
+    CSV: '/import/csv',
+    CSV_STATUS: '/import/csv/:jobId'
+  },
+
+  // AI
+  AI: {
+    QUERY: '/ai/query',
+    INSIGHTS: '/ai/insights',
+    BALANCE_INSIGHTS: '/ai/balance-insights',
+    HISTORY: '/ai/history',
+    LIMITS: '/ai/limits',
+    THREADS: '/ai/threads'
+  }
 } as const;
 
 /**

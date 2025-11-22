@@ -38,6 +38,7 @@ const CategoriesScreen: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [setupCompleted, setSetupCompleted] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -55,11 +56,16 @@ const CategoriesScreen: React.FC = () => {
    */
   const loadCategories = async (): Promise<void> => {
     try {
-      const data = await apiService.getCategories();
+      const [data, completed] = await Promise.all([
+        apiService.getCategories(),
+        apiService.hasCategorySetupCompleted(),
+      ]);
       setCategories(data || []);
+      setSetupCompleted(completed);
     } catch (error) {
       console.error('Error loading categories:', error);
       setCategories([]);
+      setSetupCompleted(false);
     } finally {
       setRefreshing(false);
       setLoading(false);
@@ -74,10 +80,12 @@ const CategoriesScreen: React.FC = () => {
     loadCategories();
   };
 
-  const totalSpent = categories.reduce((sum, cat) => sum + cat.totalSpent, 0);
+  const totalSpent = categories.reduce((sum, cat) => sum + (cat.totalSpent || 0), 0);
 
-  // Show onboarding if no categories exist and not loading
-  if (categories.length === 0 && !refreshing && !loading) {
+  console.log("CATEGORIES:", categories, "Setup completed:", setupCompleted)
+
+  // Show onboarding if setup not completed and not loading
+  if (!setupCompleted && !refreshing && !loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
         <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
@@ -144,7 +152,7 @@ const CategoriesScreen: React.FC = () => {
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Categories</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Total Spent: {formatCurrency(totalSpent)}
+          This Month: {formatCurrency(totalSpent)}
         </Text>
       </View>
 

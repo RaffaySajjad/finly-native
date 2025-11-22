@@ -28,6 +28,8 @@ export interface PurchaseResult {
   error?: string;
   productId?: string;
   platform?: 'ios' | 'android';
+  purchaseToken?: string;
+  originalPurchase?: any;
 }
 
 /**
@@ -49,6 +51,10 @@ export interface ProductInfo {
 class IAPService {
   private initialized = false;
   private mockScenario: MockScenario = null;
+  private mockEnabled = IAP_CONFIG.ENABLE_MOCKS;
+  private purchaseUpdatedListener: any = null;
+  private purchaseErrorListener: any = null;
+  private onPurchaseUpdate: ((purchase: PurchaseResult) => Promise<void>) | null = null;
 
   /**
    * Initialize IAP connection
@@ -60,26 +66,91 @@ class IAPService {
       return;
     }
 
-    if (IAP_CONFIG.ENABLE_MOCKS) {
+    if (this.mockEnabled) {
       console.log('[IAP Mock] Initialized in mock mode');
       this.initialized = true;
       return;
     }
 
-    try {
-      await RNIap.initConnection();
-      
-      // Clear any unfinished transactions on Android
-      if (Platform.OS === 'android') {
-        await RNIap.flushFailedPurchasesCachedAsPendingAndroid();
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        await RNIap.initConnection();
+        
+        // Clear any unfinished transactions on Android (if method exists)
+        if (Platform.OS === 'android') {
+          try {
+            // Method may not exist in all versions of react-native-iap
+            if (typeof (RNIap as any).flushFailedPurchasesCachedAsPendingAndroid === 'function') {
+              await (RNIap as any).flushFailedPurchasesCachedAsPendingAndroid();
+            }
+          } catch (error) {
+            console.log('[IAP] Could not flush failed purchases:', error);
+          }
+        }
+
+        // Setup listeners
+        this.setupListeners();
+        
+        this.initialized = true;
+        console.log('[IAP] Initialized successfully');
+        return;
+      } catch (error: any) {
+        console.error(`[IAP] Initialization failed (attempts left: ${retries - 1}):`, error);
+        retries--;
+        if (retries === 0) {
+          throw new Error(`Failed to initialize in-app purchases: ${error.message}`);
+        }
+        // Wait 1 second before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      
-      this.initialized = true;
-      console.log('[IAP] Initialized successfully');
-    } catch (error) {
-      console.error('[IAP] Initialization failed:', error);
-      throw new Error('Failed to initialize in-app purchases');
     }
+  }
+
+  /**
+   * Setup IAP listeners
+   */
+  private setupListeners(): void {
+    if (this.purchaseUpdatedListener) {
+      this.purchaseUpdatedListener.remove();
+    }
+    if (this.purchaseErrorListener) {
+      this.purchaseErrorListener.remove();
+    }
+
+    this.purchaseUpdatedListener = RNIap.purchaseUpdatedListener(async (purchase: any) => {
+      console.log('[IAP] Purchase updated listener triggered:', purchase.transactionId);
+      
+      const purchaseResult: PurchaseResult = {
+        success: true,
+        transactionId: purchase.transactionId,
+        receipt: purchase.transactionReceipt,
+        productId: purchase.productId,
+        platform: Platform.OS as 'ios' | 'android',
+        purchaseToken: purchase.purchaseToken,
+        originalPurchase: purchase,
+      };
+
+      if (this.onPurchaseUpdate) {
+        try {
+          await this.onPurchaseUpdate(purchaseResult);
+        } catch (error) {
+          console.error('[IAP] Error in purchase update handler:', error);
+        }
+      }
+    });
+
+    this.purchaseErrorListener = RNIap.purchaseErrorListener((error: RNIap.PurchaseError) => {
+      console.error('[IAP] Purchase error listener triggered:', error);
+    });
+  }
+
+  /**
+   * Set callback for purchase updates
+   * @param callback - Function to handle purchase updates
+   */
+  setPurchaseListener(callback: (purchase: PurchaseResult) => Promise<void>): void {
+    this.onPurchaseUpdate = callback;
   }
 
   /**
@@ -96,6 +167,17 @@ class IAPService {
   }
 
   /**
+   * Set mock mode dynamically
+   * @param enabled - Whether to enable mock mode
+   */
+  setMockMode(enabled: boolean): void {
+    this.mockEnabled = enabled;
+    // Re-initialize if switching modes
+    this.initialized = false;
+    console.log(`[IAP] Mock mode set to: ${enabled}`);
+  }
+
+  /**
    * Get available subscription products
    * @returns Array of product information
    */
@@ -104,7 +186,7 @@ class IAPService {
       await this.initialize();
     }
 
-    if (IAP_CONFIG.ENABLE_MOCKS) {
+    if (this.mockEnabled) {
       return this.getMockProducts();
     }
 
@@ -120,8 +202,8 @@ class IAPService {
     }) || [];
 
     try {
-      const products = await RNIap.getSubscriptions({ skus: productIds });
-      return products.map(p => ({
+      const products = await (RNIap as any).getSubscriptions({ skus: productIds });
+      return products.map((p: any) => ({
         productId: p.productId,
         title: p.title || 'Finly Premium',
         description: p.description || 'Unlock all premium features',
@@ -149,27 +231,20 @@ class IAPService {
       await this.initialize();
     }
 
-    if (IAP_CONFIG.ENABLE_MOCKS) {
+    if (this.mockEnabled) {
       return this.mockPurchase(productId);
     }
 
     try {
-      const purchase = await RNIap.requestSubscription({
+      const purchase = await (RNIap as any).requestSubscription({
         sku: productId,
         ...(Platform.OS === 'android' && offerToken && { 
           subscriptionOffers: [{ sku: productId, offerToken }] 
         }),
       });
 
-      // Acknowledge purchase on Android
-      if (Platform.OS === 'android' && purchase.purchaseToken) {
-        await RNIap.acknowledgePurchaseAndroid(purchase.purchaseToken);
-      }
-
-      // Finish transaction on iOS
-      if (Platform.OS === 'ios') {
-        await RNIap.finishTransaction({ purchase, isConsumable: false });
-      }
+      // NOTE: We do NOT acknowledge/finish here anymore.
+      // We wait for backend validation first.
 
       return {
         success: true,
@@ -177,6 +252,8 @@ class IAPService {
         receipt: purchase.transactionReceipt,
         productId: purchase.productId,
         platform: Platform.OS as 'ios' | 'android',
+        purchaseToken: purchase.purchaseToken,
+        originalPurchase: purchase,
       };
     } catch (error: any) {
       console.error('[IAP] Purchase failed:', error);
@@ -205,6 +282,30 @@ class IAPService {
   }
 
   /**
+   * Finish transaction after successful backend validation
+   * @param purchaseResult - Result from purchaseSubscription
+   */
+  async finishTransaction(purchaseResult: PurchaseResult): Promise<void> {
+    if (this.mockEnabled) return;
+
+    try {
+      if (Platform.OS === 'android' && purchaseResult.purchaseToken) {
+        await RNIap.acknowledgePurchaseAndroid(purchaseResult.purchaseToken);
+        console.log('[IAP] Purchase acknowledged on Android');
+      } else if (Platform.OS === 'ios' && purchaseResult.originalPurchase) {
+        await RNIap.finishTransaction({ 
+          purchase: purchaseResult.originalPurchase, 
+          isConsumable: false 
+        });
+        console.log('[IAP] Transaction finished on iOS');
+      }
+    } catch (error) {
+      console.error('[IAP] Failed to finish transaction:', error);
+      // Don't throw, as the user already has the subscription
+    }
+  }
+
+  /**
    * Restore purchases
    * Used when user reinstalls app or switches devices
    * @returns Array of purchase results
@@ -214,7 +315,7 @@ class IAPService {
       await this.initialize();
     }
 
-    if (IAP_CONFIG.ENABLE_MOCKS) {
+    if (this.mockEnabled) {
       return this.mockRestore();
     }
 
@@ -223,8 +324,8 @@ class IAPService {
       
       return purchases.map(p => ({
         success: true,
-        transactionId: p.transactionId,
-        receipt: p.transactionReceipt,
+        transactionId: p.transactionId || undefined,
+        receipt: (p as any).transactionReceipt || p.transactionId,
         productId: p.productId,
         platform: Platform.OS as 'ios' | 'android',
       }));
@@ -239,8 +340,17 @@ class IAPService {
    * Should be called when app is closing
    */
   async disconnect(): Promise<void> {
-    if (!IAP_CONFIG.ENABLE_MOCKS && this.initialized) {
+    if (!this.mockEnabled && this.initialized) {
       try {
+        if (this.purchaseUpdatedListener) {
+          this.purchaseUpdatedListener.remove();
+          this.purchaseUpdatedListener = null;
+        }
+        if (this.purchaseErrorListener) {
+          this.purchaseErrorListener.remove();
+          this.purchaseErrorListener = null;
+        }
+        
         await RNIap.endConnection();
         this.initialized = false;
         console.log('[IAP] Disconnected successfully');
@@ -292,7 +402,6 @@ class IAPService {
 
     switch (scenario) {
       case 'SUCCESS':
-      case 'success':
         return {
           success: true,
           transactionId: `mock_txn_${timestamp}`,
@@ -302,7 +411,6 @@ class IAPService {
         };
 
       case 'SUCCESS_WITH_TRIAL':
-      case 'success_with_trial':
         return {
           success: true,
           transactionId: `mock_trial_${timestamp}`,
@@ -312,7 +420,6 @@ class IAPService {
         };
 
       case 'SUCCESS_YEARLY':
-      case 'success_yearly':
         return {
           success: true,
           transactionId: `mock_yearly_${timestamp}`,
@@ -322,50 +429,42 @@ class IAPService {
         };
 
       case 'PAYMENT_FAILED':
-      case 'payment_failed':
         return {
           success: false,
           error: 'PAYMENT_FAILED',
         };
 
       case 'PAYMENT_DECLINED':
-      case 'payment_declined':
         return {
           success: false,
           error: 'PAYMENT_DECLINED',
         };
 
       case 'USER_CANCELLED':
-      case 'user_cancelled':
         return {
           success: false,
           error: 'USER_CANCELLED',
         };
 
       case 'ALREADY_OWNED':
-      case 'already_owned':
         return {
           success: false,
           error: 'ALREADY_OWNED',
         };
 
       case 'PENDING_PAYMENT':
-      case 'pending_payment':
         return {
           success: false,
           error: 'PAYMENT_PENDING',
         };
 
       case 'NETWORK_ERROR':
-      case 'network_error':
         throw new Error('Network error: Could not connect to store');
 
       case 'STORE_UNAVAILABLE':
-      case 'store_unavailable':
         throw new Error('Store unavailable: Please try again later');
 
       case 'INVALID_RECEIPT':
-      case 'invalid_receipt':
         return {
           success: true,
           transactionId: `mock_invalid_${timestamp}`,
@@ -375,7 +474,6 @@ class IAPService {
         };
 
       case 'BACKEND_VALIDATION_FAILED':
-      case 'backend_validation_failed':
         return {
           success: true,
           transactionId: `mock_backend_fail_${timestamp}`,
@@ -385,7 +483,6 @@ class IAPService {
         };
 
       case 'BACKEND_TIMEOUT':
-      case 'backend_timeout':
         return {
           success: true,
           transactionId: `mock_timeout_${timestamp}`,

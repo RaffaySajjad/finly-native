@@ -40,6 +40,9 @@ const ForgotPasswordScreen: React.FC = () => {
 
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [generalError, setGeneralError] = useState('');
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -62,15 +65,19 @@ const ForgotPasswordScreen: React.FC = () => {
   }, []);
 
   const handleResetPassword = async () => {
-    if (!email) {
-      Alert.alert('Missing Email', 'Please enter your email address');
+    // Clear previous errors
+    setEmailError('');
+    setGeneralError('');
+
+    if (!email.trim()) {
+      setEmailError('Please enter your email address');
       return;
     }
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Invalid Email', 'Please enter a valid email address');
+    if (!emailRegex.test(email.trim())) {
+      setEmailError('Please enter a valid email address');
       return;
     }
 
@@ -80,20 +87,21 @@ const ForgotPasswordScreen: React.FC = () => {
       await authService.forgotPassword(email);
       
       setLoading(false);
+      setEmailSent(true);
 
       // Navigate to reset password screen immediately
       navigation.navigate('ResetPassword', { email });
-      
-      // Show success message after navigation
-      setTimeout(() => {
-        Alert.alert(
-          'OTP Sent! 📧',
-          'We\'ve sent a verification code to your email. Please check your inbox and enter the 6-digit code.'
-        );
-      }, 500);
     } catch (error: any) {
       setLoading(false);
-      Alert.alert('Error', error.message || 'Failed to send reset code. Please try again.');
+      setEmailSent(false);
+      const errorMessage = error?.message || 'Failed to send reset code. Please try again.';
+      
+      // Show error inline
+      if (errorMessage.toLowerCase().includes('email') || errorMessage.toLowerCase().includes('not found')) {
+        setEmailError(errorMessage);
+      } else {
+        setGeneralError(errorMessage);
+      }
     }
   };
 
@@ -148,14 +156,24 @@ const ForgotPasswordScreen: React.FC = () => {
               {/* Email Input */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: theme.textSecondary }]}>Email Address</Text>
-                <View style={[styles.inputContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                  <Icon name="email-outline" size={20} color={theme.textSecondary} />
+                <View style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: theme.background,
+                    borderColor: emailError ? theme.expense : theme.border,
+                  }
+                ]}>
+                  <Icon name="email-outline" size={20} color={emailError ? theme.expense : theme.textSecondary} />
                   <TextInput
                     style={[styles.input, { color: theme.text }]}
                     placeholder="your@email.com"
                     placeholderTextColor={theme.textTertiary}
                     value={email}
-                    onChangeText={setEmail}
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      if (emailError) setEmailError('');
+                      if (generalError) setGeneralError('');
+                    }}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -165,13 +183,25 @@ const ForgotPasswordScreen: React.FC = () => {
                     <Icon name="check-circle" size={20} color={theme.income} />
                   )}
                 </View>
+                {emailError && (
+                  <Text style={[styles.errorText, { color: theme.expense }]}>{emailError}</Text>
+                )}
               </View>
+
+              {/* General Error Message */}
+              {generalError && (
+                <View style={[styles.generalErrorContainer, { backgroundColor: theme.expense + '10', borderColor: theme.expense + '30' }]}>
+                  <Icon name="alert-circle-outline" size={18} color={theme.expense} />
+                  <Text style={[styles.generalErrorText, { color: theme.expense }]}>{generalError}</Text>
+                </View>
+              )}
 
               {/* Reset Button */}
               <TouchableOpacity
                 style={[
                   styles.resetButton,
                   { backgroundColor: emailSent ? theme.income : theme.primary },
+                  (generalError || emailError) && { marginTop: spacing.md },
                   elevation.md,
                 ]}
                 onPress={handleResetPassword}
@@ -327,6 +357,25 @@ const styles = StyleSheet.create({
   loginLink: {
     ...typography.bodyMedium,
     fontWeight: '700',
+  },
+  errorText: {
+    ...typography.bodySmall,
+    marginTop: spacing.xs,
+    color: '#EF4444',
+  },
+  generalErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  generalErrorText: {
+    ...typography.bodySmall,
+    flex: 1,
+    fontWeight: '500',
   },
 });
 

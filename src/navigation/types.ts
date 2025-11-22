@@ -3,12 +3,11 @@
  * Purpose: Type-safe navigation parameters for React Navigation
  */
 
-import { Expense, CategoryType } from '../types';
+import { Expense, UnifiedTransaction } from '../types';
 
 export type AuthStackParamList = {
   Login: undefined;
   Signup: undefined;
-  VerifyEmail: { email: string };
   ForgotPassword: undefined;
   ResetPassword: { email: string };
 };
@@ -19,9 +18,10 @@ export type RootStackParamList = {
   IncomeSetup: undefined;
   MainTabs: undefined;
   AddExpense: { expense?: Partial<Expense> } | undefined;
+  AddIncome: undefined;
   ReceiptUpload: undefined;
-  TransactionDetails: { expense: Expense };
-  CategoryDetails: { categoryId: CategoryType };
+  TransactionDetails: { transaction: UnifiedTransaction };
+  CategoryDetails: { categoryId: string };
   Subscription: undefined;
   VoiceTransaction: undefined;
   BulkTransaction: undefined;
@@ -33,16 +33,19 @@ export type RootStackParamList = {
   CategoryOnboarding: undefined;
   IncomeManagement: undefined;
   CSVImport: { firstTime?: boolean } | undefined;
+  ExportTransactions: undefined;
   AIAssistant:
     | {
         context?: {
           transactionId?: string;
-          categoryId?: CategoryType;
+          categoryId?: string;
           screen?: string;
         };
         initialQuery?: string;
+        threadId?: string;
       }
     | undefined;
+
   Insights: undefined;
   Settings: undefined;
   Trends: undefined;

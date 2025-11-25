@@ -48,7 +48,7 @@ const FREQUENCY_OPTIONS: Array<{ value: IncomeFrequency; label: string; icon: st
 
 const IncomeManagementScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency, getCurrencySymbol } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, convertToUSD, convertFromUSD } = useCurrency();
   const navigation = useNavigation<IncomeManagementNavigationProp>();
   const [incomeSources, setIncomeSources] = useState<IncomeSource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +76,8 @@ const IncomeManagementScreen: React.FC = () => {
   useEffect(() => {
     if (editingSource) {
       setName(editingSource.name);
-      setAmount(editingSource.amount.toString());
+      // Convert stored USD amount to display currency for editing
+      setAmount(convertFromUSD(editingSource.amount).toFixed(2));
       setFrequency(editingSource.frequency);
       // If frequency is MANUAL, force autoAdd to false
       setAutoAdd(editingSource.frequency === 'MANUAL' ? false : editingSource.autoAdd);
@@ -170,9 +171,12 @@ const IncomeManagementScreen: React.FC = () => {
       // Ensure MANUAL frequency always has autoAdd = false
       const finalAutoAdd = frequency === 'MANUAL' ? false : autoAdd;
 
+      // Convert input amount (display currency) to USD before saving
+      const amountInUSD = convertToUSD(parseFloat(amount));
+
       const sourceData = {
         name: name.trim(),
-        amount: parseFloat(amount),
+        amount: amountInUSD,
         frequency,
         startDate: startDate.toISOString(),
         autoAdd: finalAutoAdd,
@@ -446,6 +450,11 @@ const IncomeManagementScreen: React.FC = () => {
         enablePanDownToClose
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+        onChange={(index) => {
+          if (index === -1) {
+            resetForm();
+          }
+        }}
       >
         <BottomSheetScrollView
           style={styles.bottomSheetContent}

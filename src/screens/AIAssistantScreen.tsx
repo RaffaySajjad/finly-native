@@ -35,6 +35,7 @@ import { useCurrency } from '../contexts/CurrencyContext';
 import * as Haptics from 'expo-haptics';
 import UpgradePrompt from '../components/UpgradePrompt';
 import MarkdownText from '../components/MarkdownText';
+import PremiumBadge from '../components/PremiumBadge';
 
 type AIAssistantNavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -65,6 +66,8 @@ const AIAssistantScreen: React.FC = () => {
   const routeParams = route.params;
   const streamingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const isAtBottom = useRef(true);
+
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -74,14 +77,26 @@ const AIAssistantScreen: React.FC = () => {
     if (messages.length > 0 || streamingText) {
       // Use setTimeout to ensure content is rendered before scrolling
       setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
+        scrollToBottom();
       }, 100);
     }
   }, [messages, streamingText]);
 
   // Scroll to bottom when content size changes (handles keyboard, new messages, etc.)
   const handleContentSizeChange = () => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
+    scrollToBottom();
+  };
+
+  const scrollToBottom = (animated = true) => {
+    if (isAtBottom.current) {
+      scrollViewRef.current?.scrollToEnd({ animated });
+    }
+  };
+
+  const handleScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const paddingToBottom = 20;
+    isAtBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
   };
 
   // Cleanup streaming timeout on unmount
@@ -159,6 +174,12 @@ const AIAssistantScreen: React.FC = () => {
     setLoading(true);
     setQuery('');
 
+    // Force scroll to bottom when sending new message
+    isAtBottom.current = true;
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+
     // Add user message
     const userMessage: Message = {
       id: `user_${Date.now()}`,
@@ -198,7 +219,7 @@ const AIAssistantScreen: React.FC = () => {
 
       // Ensure scroll to bottom after streaming completes
       setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
+        scrollToBottom();
       }, 100);
 
       // Update limits
@@ -252,7 +273,7 @@ const AIAssistantScreen: React.FC = () => {
           setStreamingMessageId(null);
           // Ensure scroll to bottom after streaming completes
           setTimeout(() => {
-            scrollViewRef.current?.scrollToEnd({ animated: true });
+            scrollToBottom();
           }, 50);
           resolve();
           return;
@@ -266,7 +287,7 @@ const AIAssistantScreen: React.FC = () => {
         // Scroll during streaming to keep up with new content (every 10 characters)
         if (currentIndex % 10 === 0) {
           setTimeout(() => {
-            scrollViewRef.current?.scrollToEnd({ animated: true });
+            scrollToBottom();
           }, 0);
         }
 
@@ -293,21 +314,26 @@ const AIAssistantScreen: React.FC = () => {
         keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
       >
         {/* Header */}
-        <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
+        <View style={styles.header}>
           <View style={styles.headerContent}>
-            <View style={styles.headerTitleRow}>
-              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                <Icon name="arrow-left" size={24} color={theme.text} />
-              </TouchableOpacity>
-              <Icon name="robot" size={24} color={theme.primary} />
-              <Text style={[styles.headerTitle, { color: theme.text }]}>AI Assistant</Text>
+            <Icon name="robot" size={32} color={theme.primary} />
+            <View style={styles.headerText}>
+              <Text style={[styles.title, { color: theme.text }]}>AI Assistant</Text>
+              {!isPremium && (
+                <Text style={[styles.usageText, { color: theme.textSecondary }]}>
+                  {queryLimits.limit - queryLimits.used} queries remaining today
+                </Text>
+              )}
             </View>
-            {!isPremium && (
-              <Text style={[styles.headerSubtitle, { color: theme.textSecondary, marginLeft: 40 }]}>
-                {queryLimits.limit - queryLimits.used} queries remaining today
-              </Text>
-            )}
           </View>
+          {!isPremium && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Subscription')}
+              style={styles.upgradeButton}
+            >
+              <PremiumBadge size="small" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Messages */}
@@ -320,6 +346,8 @@ const AIAssistantScreen: React.FC = () => {
           keyboardDismissMode="on-drag"
           onContentSizeChange={handleContentSizeChange}
           onLayout={handleContentSizeChange}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
         >
           {messages.map((message) => (
             <View
@@ -477,32 +505,35 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   backButton: {
     padding: spacing.xs,
-    marginRight: spacing.sm,
+    marginRight: spacing.xs,
   },
   headerContent: {
-    flex: 1,
-  },
-  headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    marginBottom: spacing.xs,
+    gap: spacing.md,
+    flex: 1,
   },
-  headerTitle: {
+  headerText: {
+    flex: 1,
+  },
+  title: {
     ...typography.titleLarge,
-    fontWeight: '700',
+    fontWeight: '600',
+    marginBottom: 2,
   },
-  headerSubtitle: {
+  usageText: {
     ...typography.bodySmall,
+  },
+  upgradeButton: {
+    padding: spacing.xs,
   },
   messagesContainer: {
     flex: 1,

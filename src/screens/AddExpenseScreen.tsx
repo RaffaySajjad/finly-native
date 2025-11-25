@@ -49,7 +49,7 @@ const AddExpenseScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<AddExpenseRouteProp>();
   const { theme } = useTheme();
-  const { getCurrencySymbol, convertToUSD, convertFromUSD } = useCurrency();
+  const { getCurrencySymbol, convertToUSD, convertFromUSD, currencyCode } = useCurrency();
 
   const editingExpense = route.params?.expense;
   // Only treat as editing if the expense has an ID (receipt scanning pre-fills data without ID)
@@ -170,16 +170,28 @@ const AddExpenseScreen: React.FC = () => {
     try {
       if (isEditing && editingExpense?.id) {
         // Update existing expense
+        const originalAmount = parseFloat(amount);
         // Convert amount from display currency to USD before sending
-        const amountInUSD = convertToUSD(parseFloat(amount));
-        await apiService.updateExpense(editingExpense.id, {
+        const amountInUSD = convertToUSD(originalAmount);
+
+        const payload: any = {
           amount: amountInUSD,
           categoryId: category,
           description: description.trim(),
           date,
-          paymentMethod: paymentMethod || undefined,
-          tags: selectedTags.length > 0 ? selectedTags : undefined,
-        });
+          originalAmount,
+          originalCurrency: currencyCode,
+        };
+
+        // Only include optional fields if they have values
+        if (paymentMethod) {
+          payload.paymentMethod = paymentMethod;
+        }
+        if (selectedTags.length > 0) {
+          payload.tags = selectedTags;
+        }
+
+        await apiService.updateExpense(editingExpense.id, payload);
 
         showSuccess(
           'Success',
@@ -188,16 +200,28 @@ const AddExpenseScreen: React.FC = () => {
         );
       } else {
       // Create new expense
+        const originalAmount = parseFloat(amount);
         // Convert amount from display currency to USD before sending
-        const amountInUSD = convertToUSD(parseFloat(amount));
-        await apiService.addExpense({
+        const amountInUSD = convertToUSD(originalAmount);
+
+        const payload: any = {
           amount: amountInUSD,
           categoryId: category,
           description: description.trim(),
           date,
-          paymentMethod: paymentMethod || undefined,
-          tags: selectedTags.length > 0 ? selectedTags : undefined,
-        });
+          originalAmount,
+          originalCurrency: currencyCode,
+        };
+
+        // Only include optional fields if they have values
+        if (paymentMethod) {
+          payload.paymentMethod = paymentMethod;
+        }
+        if (selectedTags.length > 0) {
+          payload.tags = selectedTags;
+        }
+
+        await apiService.addExpense(payload);
 
         showSuccess(
           'Success',
@@ -304,8 +328,24 @@ const AddExpenseScreen: React.FC = () => {
               <View style={styles.emptyContainer}>
                 <Icon name="alert-circle" size={24} color={theme.textSecondary} />
                 <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                  No categories available. Please set up categories first.
+                    No categories available.
                 </Text>
+                  <TouchableOpacity
+                    style={[styles.setupButton, { backgroundColor: theme.primary }]}
+                    onPress={async () => {
+                      try {
+                        setLoadingCategories(true);
+                        await apiService.setupDefaultCategories();
+                        await loadCategories();
+                      } catch (error) {
+                        showError('Error', 'Failed to setup categories');
+                      } finally {
+                        setLoadingCategories(false);
+                      }
+                    }}
+                  >
+                    <Text style={styles.setupButtonText}>Setup Default Categories</Text>
+                  </TouchableOpacity>
               </View>
             ) : (
               <>
@@ -552,6 +592,15 @@ const AddExpenseScreen: React.FC = () => {
         selectedCategoryId={category}
         onSelect={(categoryId) => setCategory(categoryId)}
         onClose={() => setShowCategoryPicker(false)}
+        onNavigateToCategories={() => {
+          setShowCategoryPicker(false);
+          navigation.goBack();
+          // Wait for modal to close before navigating
+          setTimeout(() => {
+            // @ts-ignore - navigating to nested screen
+            navigation.navigate('MainTabs', { screen: 'Categories' });
+          }, 300);
+        }}
       />
 
       {/* Tags Picker Modal */}
@@ -797,6 +846,17 @@ const styles = StyleSheet.create({
   },
   addTagButton: {
     padding: spacing.xs,
+  },
+  setupButton: {
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  setupButtonText: {
+    ...typography.labelMedium,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   pickerButton: {
     flexDirection: 'row',

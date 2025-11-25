@@ -15,7 +15,19 @@
  */
 
 import { Platform } from 'react-native';
-import * as RNIap from 'react-native-iap';
+import {
+  initConnection,
+  endConnection,
+  purchaseUpdatedListener,
+  purchaseErrorListener,
+  fetchProducts,
+  requestPurchase,
+  finishTransaction,
+  getAvailablePurchases,
+  acknowledgePurchaseAndroid,
+  PurchaseError,
+  Purchase
+} from 'react-native-iap';
 import { IAP_CONFIG, MockScenario, getProductId } from '../config/iap.config';
 
 /**
@@ -51,7 +63,7 @@ export interface ProductInfo {
 class IAPService {
   private initialized = false;
   private mockScenario: MockScenario = null;
-  private mockEnabled = IAP_CONFIG.ENABLE_MOCKS;
+  private mockEnabled: boolean = IAP_CONFIG.ENABLE_MOCKS;
   private purchaseUpdatedListener: any = null;
   private purchaseErrorListener: any = null;
   private onPurchaseUpdate: ((purchase: PurchaseResult) => Promise<void>) | null = null;
@@ -75,18 +87,12 @@ class IAPService {
     let retries = 3;
     while (retries > 0) {
       try {
-        await RNIap.initConnection();
+        await initConnection();
         
-        // Clear any unfinished transactions on Android (if method exists)
+        // Clear any unfinished transactions on Android
         if (Platform.OS === 'android') {
-          try {
-            // Method may not exist in all versions of react-native-iap
-            if (typeof (RNIap as any).flushFailedPurchasesCachedAsPendingAndroid === 'function') {
-              await (RNIap as any).flushFailedPurchasesCachedAsPendingAndroid();
-            }
-          } catch (error) {
-            console.log('[IAP] Could not flush failed purchases:', error);
-          }
+          // Note: flushFailedPurchasesCachedAsPendingAndroid was removed in v14
+          console.log('[IAP] Android initialization complete');
         }
 
         // Setup listeners
@@ -118,7 +124,7 @@ class IAPService {
       this.purchaseErrorListener.remove();
     }
 
-    this.purchaseUpdatedListener = RNIap.purchaseUpdatedListener(async (purchase: any) => {
+    this.purchaseUpdatedListener = purchaseUpdatedListener(async (purchase: any) => {
       console.log('[IAP] Purchase updated listener triggered:', purchase.transactionId);
       
       const purchaseResult: PurchaseResult = {
@@ -140,7 +146,7 @@ class IAPService {
       }
     });
 
-    this.purchaseErrorListener = RNIap.purchaseErrorListener((error: RNIap.PurchaseError) => {
+    this.purchaseErrorListener = purchaseErrorListener((error: PurchaseError) => {
       console.error('[IAP] Purchase error listener triggered:', error);
     });
   }
@@ -202,7 +208,13 @@ class IAPService {
     }) || [];
 
     try {
-      const products = await (RNIap as any).getSubscriptions({ skus: productIds });
+      const products = await fetchProducts({ skus: productIds, type: 'subs' });
+      
+      if (!products || products.length === 0) {
+        console.warn('[IAP] No products returned from store');
+        return [];
+      }
+      
       return products.map((p: any) => ({
         productId: p.productId,
         title: p.title || 'Finly Premium',
@@ -236,24 +248,53 @@ class IAPService {
     }
 
     try {
-      const purchase = await (RNIap as any).requestSubscription({
-        sku: productId,
-        ...(Platform.OS === 'android' && offerToken && { 
-          subscriptionOffers: [{ sku: productId, offerToken }] 
-        }),
+      // Ensure products are loaded/fetched first
+      await this.getProducts();
+
+      console.log(`[IAP] Requesting purchase for sku: ${productId} on ${Platform.OS}`);
+      
+      // v14 uses platform-specific parameters wrapped in a request object
+      const purchase = await requestPurchase({
+        request: Platform.OS === 'ios'
+          ? {
+              ios: {
+                sku: productId,
+                andDangerouslyFinishTransactionAutomatically: false,
+              },
+            }
+          : {
+              android: {
+                skus: [productId],
+                ...(offerToken && {
+                  subscriptionOffers: [{ sku: productId, offerToken }],
+                }),
+              },
+            },
+        type: 'subs',
       });
 
       // NOTE: We do NOT acknowledge/finish here anymore.
       // We wait for backend validation first.
 
+      if (!purchase) {
+        throw new Error('Purchase returned null');
+      }
+
+      // Handle array response (can happen in some cases)
+      const purchaseData = Array.isArray(purchase) ? purchase[0] : purchase;
+
+      if (!purchaseData) {
+        throw new Error('No purchase data returned');
+      }
+
       return {
         success: true,
-        transactionId: purchase.transactionId,
-        receipt: purchase.transactionReceipt,
-        productId: purchase.productId,
+        transactionId: purchaseData.transactionId || '',
+        receipt: (purchaseData as any).transactionReceipt || purchaseData.transactionId || '',
+        productId: purchaseData.productId,
         platform: Platform.OS as 'ios' | 'android',
-        purchaseToken: purchase.purchaseToken,
-        originalPurchase: purchase,
+        purchaseToken: (purchaseData as any).purchaseToken,
+        originalPurchase: purchaseData,
       };
     } catch (error: any) {
       console.error('[IAP] Purchase failed:', error);
@@ -290,10 +331,10 @@ class IAPService {
 
     try {
       if (Platform.OS === 'android' && purchaseResult.purchaseToken) {
-        await RNIap.acknowledgePurchaseAndroid(purchaseResult.purchaseToken);
+        await acknowledgePurchaseAndroid(purchaseResult.purchaseToken);
         console.log('[IAP] Purchase acknowledged on Android');
       } else if (Platform.OS === 'ios' && purchaseResult.originalPurchase) {
-        await RNIap.finishTransaction({ 
+        await finishTransaction({ 
           purchase: purchaseResult.originalPurchase, 
           isConsumable: false 
         });
@@ -320,7 +361,7 @@ class IAPService {
     }
 
     try {
-      const purchases = await RNIap.getAvailablePurchases();
+      const purchases = await getAvailablePurchases();
       
       return purchases.map(p => ({
         success: true,
@@ -351,7 +392,7 @@ class IAPService {
           this.purchaseErrorListener = null;
         }
         
-        await RNIap.endConnection();
+        await endConnection();
         this.initialized = false;
         console.log('[IAP] Disconnected successfully');
       } catch (error) {

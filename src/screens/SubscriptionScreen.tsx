@@ -68,22 +68,6 @@ const SubscriptionScreen: React.FC = () => {
     }
   };
 
-  const handleStartTrial = async () => {
-    setProcessing(true);
-    try {
-      await startTrial();
-      Alert.alert(
-        'Trial Started!',
-        'Enjoy 7 days of Premium features free! 🎉'
-      );
-      navigation.goBack();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to start trial. Please try again.');
-    } finally {
-      setProcessing(false);
-    }
-  };
-
   const handleCancel = async () => {
     const isTrialUser = isTrial && !isFree;
     const title = isTrialUser ? 'End Trial' : 'Cancel Subscription';
@@ -254,16 +238,16 @@ const SubscriptionScreen: React.FC = () => {
 
             <View style={styles.priceContainer}>
               <Text style={[styles.price, { color: theme.text }]}>
-                {selectedPlan === 'monthly' ? '$4.99' : '$35.99'}
+                {selectedPlan === 'monthly' ? '$4.99' : '$2.99'}
               </Text>
               <Text style={[styles.pricePeriod, { color: theme.textSecondary }]}>
-                /{selectedPlan === 'monthly' ? 'month' : 'year'}
+                /{selectedPlan === 'monthly' ? 'month' : 'month'}
               </Text>
             </View>
 
             {selectedPlan === 'yearly' && (
               <Text style={[styles.savingsText, { color: theme.success }]}>
-                Save 40% ($23.89/year)
+                Save 40% ($35.99/year)
               </Text>
             )}
           </View>
@@ -292,45 +276,20 @@ const SubscriptionScreen: React.FC = () => {
           {/* Free or Canceled User: Show Subscribe options */}
           {(isFree || isCanceled) && (
             <>
-              {isFree && (
-                <TouchableOpacity
-                  style={[styles.trialButton, { backgroundColor: theme.primary }, elevation.sm]}
-                  onPress={handleStartTrial}
-                  disabled={processing}
-                >
-                  {processing ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Text style={styles.trialButtonText}>Start 7-Day Free Trial</Text>
-                      <Text style={styles.trialButtonSubtext}>
-                        Then {selectedPlan === 'monthly' ? '$4.99/month' : '$35.99/year'} • Cancel anytime
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-
               <TouchableOpacity
-                style={[
-                  styles.upgradeButton,
-                  {
-                    backgroundColor: isCanceled ? theme.primary : theme.card,
-                    borderColor: isCanceled ? theme.primary : theme.border
-                  },
-                ]}
+                style={[styles.trialButton, { backgroundColor: theme.primary }, elevation.sm]}
                 onPress={handleUpgrade}
                 disabled={processing}
               >
                 {processing ? (
-                  <ActivityIndicator color={isCanceled ? '#FFFFFF' : theme.primary} />
+                  <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                    <Text style={[
-                      styles.upgradeButtonText,
-                      { color: isCanceled ? '#FFFFFF' : theme.primary }
-                    ]}>
-                    Subscribe Now
-                  </Text>
+                  <>
+                      <Text style={styles.trialButtonText}>Start 7-Day Free Trial</Text>
+                      <Text style={styles.trialButtonSubtext}>
+                      {selectedPlan === 'monthly' ? '$4.99/month' : '$35.99/year'} after trial • Cancel anytime
+                    </Text>
+                  </>
                 )}
               </TouchableOpacity>
             </>
@@ -382,6 +341,22 @@ const SubscriptionScreen: React.FC = () => {
             >
               <Text style={[styles.cancelButtonText, { color: theme.expense }]}>
                 Cancel Subscription
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Debug: Downgrade Option (Only in Dev) */}
+          {__DEV__ && (isPremium || isTrial) && (
+            <TouchableOpacity
+              style={{ marginTop: 20, alignItems: 'center' }}
+              onPress={async () => {
+                await cancel();
+                Alert.alert('Debug', 'Downgraded to Free Tier');
+                navigation.goBack();
+              }}
+            >
+              <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
+                [Debug] Force Downgrade to Free
               </Text>
             </TouchableOpacity>
           )}
@@ -542,7 +517,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderRadius: borderRadius.lg,
     padding: 4,
-    marginBottom: spacing.lg,
+    marginVertical: spacing.md,
     width: '100%',
     maxWidth: 300,
   },

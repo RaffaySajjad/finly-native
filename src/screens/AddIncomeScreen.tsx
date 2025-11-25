@@ -23,6 +23,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
+import { getIncomeSources } from '../services/incomeService';
 import { IncomeSource } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -31,7 +32,7 @@ import { CurrencyInput, DatePickerInput } from '../components';
 const AddIncomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { theme } = useTheme();
-  const { getCurrencySymbol, convertToUSD } = useCurrency();
+  const { getCurrencySymbol, convertToUSD, currencyCode } = useCurrency();
 
   const [amount, setAmount] = useState('');
   const [incomeSourceId, setIncomeSourceId] = useState<string | undefined>(undefined);
@@ -48,7 +49,8 @@ const AddIncomeScreen: React.FC = () => {
   const loadIncomeSources = async () => {
     try {
       setLoadingSources(true);
-      const sources = await apiService.getIncomeSources();
+      // Use local incomeService to get sources defined in IncomeManagementScreen
+      const sources = await getIncomeSources();
       setIncomeSources(sources);
     } catch (error) {
       console.error('Error loading income sources:', error);
@@ -71,14 +73,24 @@ const AddIncomeScreen: React.FC = () => {
     setSaving(true);
 
     try {
+      const originalAmount = parseFloat(amount);
       // Convert amount from display currency to USD before sending
-      const amountInUSD = convertToUSD(parseFloat(amount));
-      await apiService.createIncomeTransaction({
+      const amountInUSD = convertToUSD(originalAmount);
+
+      const payload: any = {
         amount: amountInUSD,
         date: date.toISOString(),
         description: description.trim(),
-        incomeSourceId: incomeSourceId || undefined,
-      });
+        originalAmount,
+        originalCurrency: currencyCode,
+      };
+
+      // Only include incomeSourceId if it has a value
+      if (incomeSourceId) {
+        payload.incomeSourceId = incomeSourceId;
+      }
+
+      await apiService.createIncomeTransaction(payload);
 
       Alert.alert(
         'Success',

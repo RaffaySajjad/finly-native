@@ -424,7 +424,7 @@ const ProfileScreen: React.FC = () => {
         {/* Support Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>SUPPORT</Text>
-          <SettingItem
+          {/* <SettingItem
             icon="file-import"
             title="Import Transactions"
             subtitle="Import transactions from CSV files"
@@ -435,11 +435,11 @@ const ProfileScreen: React.FC = () => {
             title="Export Transactions"
             subtitle="Export transactions to CSV file"
             onPress={() => navigation.navigate('ExportTransactions')}
-          />
+          /> */}
           <SettingItem
             icon="shield-check"
             title="Privacy & Data"
-            subtitle="Export or delete your data"
+            subtitle="Manage data imports, exports, and deletion"
             onPress={() => navigation.navigate('PrivacySettings')}
           />
           <SettingItem
@@ -529,7 +529,7 @@ const ProfileScreen: React.FC = () => {
 
           <InputGroup
             label="Email"
-            placeholder="your@email.com"
+            placeholder="you@email.com"
             value={editEmail}
             onChangeText={setEditEmail}
             keyboardType="email-address"
@@ -709,7 +709,8 @@ const ProfileScreen: React.FC = () => {
             <TouchableOpacity
               style={[styles.aboutLink, { borderColor: theme.border }]}
               onPress={() => {
-                Alert.alert('Privacy Policy', 'Our privacy policy is available at finly.app/privacy');
+                aboutSheetRef.current?.close();
+                navigation.navigate('PrivacyPolicy');
               }}
             >
               <Icon name="shield-check-outline" size={20} color={theme.textSecondary} />

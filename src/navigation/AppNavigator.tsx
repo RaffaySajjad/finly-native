@@ -45,6 +45,7 @@ import IncomeManagementScreen from '../screens/IncomeManagementScreen';
 import CSVImportScreen from '../screens/CSVImportScreen';
 import ExportTransactionsScreen from '../screens/ExportTransactionsScreen';
 import AIAssistantScreen from '../screens/AIAssistantScreen';
+import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 
 import IncomeSetupScreen, { hasCompletedIncomeSetup } from '../screens/IncomeSetupScreen';
 import OnboardingScreen, { hasCompletedOnboarding } from '../screens/OnboardingScreen';
@@ -218,9 +219,9 @@ const AppNavigator: React.FC = () => {
   }, []);
 
   // Check auth status on mount
+  // Check auth status on mount
   useEffect(() => {
     dispatch(checkAuthStatus());
-    dispatch(checkSubscriptionStatus());
     checkOnboarding();
   }, [dispatch, checkOnboarding]);
 
@@ -229,13 +230,14 @@ const AppNavigator: React.FC = () => {
   // For normal logout/login, AsyncStorage keeps the flags so onboarding won't show
   useEffect(() => {
     if (isAuthenticated) {
+      dispatch(checkSubscriptionStatus());
       // Re-check from AsyncStorage when user logs in
       // If account was deleted, AsyncStorage was cleared and onboarding will show
       // If user just logged out/in, flags remain and onboarding won't show
       checkOnboarding();
       checkIncomeSetup();
     }
-  }, [isAuthenticated, checkOnboarding, checkIncomeSetup]);
+  }, [isAuthenticated, dispatch, checkOnboarding, checkIncomeSetup]);
 
   // Check income setup after onboarding completes
   useEffect(() => {
@@ -455,6 +457,15 @@ const AppNavigator: React.FC = () => {
                       }}
                     />
                     <Stack.Screen
+                    name="PrivacyPolicy"
+                    component={PrivacyPolicyScreen}
+                    options={{
+                      title: 'Privacy Policy',
+                      presentation: 'modal',
+                      headerShown: false,
+                    }}
+                  />
+                  <Stack.Screen
                       name="ReceiptGallery"
                       component={ReceiptGalleryScreen}
                       options={{

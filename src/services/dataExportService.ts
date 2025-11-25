@@ -70,6 +70,13 @@ export async function exportExpensesAsCSV(): Promise<string> {
  */
 export async function deleteAllData(): Promise<void> {
   try {
+    // Import apiService dynamically to avoid circular dependency
+    const { apiService } = await import('./api');
+    
+    // Call backend API to delete all data
+    await apiService.deleteAllData();
+    
+    // Also clear local AsyncStorage
     await AsyncStorage.multiRemove([
       STORAGE_KEYS.EXPENSES,
       STORAGE_KEYS.CATEGORIES,

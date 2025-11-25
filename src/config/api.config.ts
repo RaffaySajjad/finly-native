@@ -14,7 +14,7 @@ import Constants from 'expo-constants';
  */
 const getDevBaseUrl = (): string => {
   const BACKEND_PORT = 3000;
-  const LOCAL_IP = '192.168.1.102';
+  const LOCAL_IP = '192.168.1.103';
 
   return `http://${LOCAL_IP}:${BACKEND_PORT}`;
 
@@ -81,6 +81,7 @@ export const API_ENDPOINTS = {
     REFRESH_TOKEN: '/auth/refresh-token',
     ME: '/auth/me',
     DELETE_ACCOUNT: '/auth/account',
+    DELETE_ALL_DATA: '/auth/delete-all-data',
     UPDATE_BALANCE: '/auth/balance'
   },
 

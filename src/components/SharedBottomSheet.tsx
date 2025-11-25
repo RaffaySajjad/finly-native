@@ -47,7 +47,7 @@ type SharedBottomSheetNavigationProp = StackNavigationProp<RootStackParamList>;
 
 const SharedBottomSheet: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency, getCurrencySymbol, convertToUSD } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, convertToUSD, currencyCode } = useCurrency();
   const { isPremium, getRemainingUsage, requiresUpgrade } = useSubscription();
   const [toggleWidth, setToggleWidth] = useState(0);
   const navigation = useNavigation<SharedBottomSheetNavigationProp>();
@@ -214,16 +214,28 @@ const SharedBottomSheet: React.FC = () => {
     setIsAddingExpense(true);
 
     try {
+      const originalAmount = parseFloat(newExpenseAmount);
       // Convert amount from display currency to USD before sending
-      const amountInUSD = convertToUSD(parseFloat(newExpenseAmount));
-      await apiService.addExpense({
+      const amountInUSD = convertToUSD(originalAmount);
+
+      const payload: any = {
         amount: amountInUSD,
         categoryId: newExpenseCategoryId,
         description: newExpenseDescription.trim(),
         date: newExpenseDate,
-        paymentMethod: newExpensePaymentMethod || undefined,
-        tags: newExpenseTags.length > 0 ? newExpenseTags : undefined,
-      });
+        originalAmount,
+        originalCurrency: currencyCode,
+      };
+
+      // Only include optional fields if they have values
+      if (newExpensePaymentMethod) {
+        payload.paymentMethod = newExpensePaymentMethod;
+      }
+      if (newExpenseTags.length > 0) {
+        payload.tags = newExpenseTags;
+      }
+
+      await apiService.addExpense(payload);
 
       handleCloseBottomSheet();
       showSuccess('Success', 'Expense added successfully! 🎉');
@@ -258,14 +270,26 @@ const SharedBottomSheet: React.FC = () => {
     setIsAddingIncome(true);
 
     try {
+      const originalAmount = parseFloat(newIncomeAmount);
       // Convert amount from display currency to USD before sending
-      const amountInUSD = convertToUSD(parseFloat(newIncomeAmount));
-      await apiService.createIncomeTransaction({
+      const amountInUSD = convertToUSD(originalAmount);
+
+      const payload: any = {
         amount: amountInUSD,
         date: newIncomeDate.toISOString(),
         description: newIncomeDescription.trim(),
-        incomeSourceId: newIncomeSourceId || undefined,
-      });
+        originalAmount,
+        originalCurrency: currencyCode,
+      };
+
+      // Only include incomeSourceId if it has a value
+      if (newIncomeSourceId) {
+        payload.incomeSourceId = newIncomeSourceId;
+      }
+
+      console.log('[DEBUG FE] Sending income transaction:', payload);
+
+      await apiService.createIncomeTransaction(payload);
 
       handleCloseBottomSheet();
       showSuccess('Success', 'Income recorded successfully! 💰');

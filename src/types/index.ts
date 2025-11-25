@@ -40,6 +40,8 @@ export interface Expense {
   tags?: Tag[]; // Array of tag objects (from API)
   createdAt: string;
   updatedAt: string;
+  originalAmount?: number;
+  originalCurrency?: string;
 }
 
 export type IncomeFrequency =
@@ -73,6 +75,8 @@ export interface IncomeTransaction {
   description: string;
   autoAdded: boolean;
   createdAt: string;
+  originalAmount?: number;
+  originalCurrency?: string;
 }
 
 export interface UnifiedTransaction {
@@ -94,6 +98,8 @@ export interface UnifiedTransaction {
     name: string;
   };
   autoAdded?: boolean;
+  originalAmount?: number;
+  originalCurrency?: string;
 }
 
 export interface Category {

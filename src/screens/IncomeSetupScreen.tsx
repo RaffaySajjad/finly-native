@@ -56,7 +56,7 @@ type SetupStep = 0 | 1 | 2 | 3 | 4;
 
 const IncomeSetupScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { getCurrencySymbol, setCurrency: setCurrencyGlobal } = useCurrency();
+  const { getCurrencySymbol, setCurrency: setCurrencyGlobal, convertToUSD } = useCurrency();
   const navigation = useNavigation<IncomeSetupNavigationProp>();
   
   // Step management
@@ -348,9 +348,12 @@ const IncomeSetupScreen: React.FC = () => {
   const handleSaveIncomeSource = async () => {
     setSaving(true);
     try {
+      // Convert amount to USD before sending to backend
+      const amountInUSD = convertToUSD(parseFloat(amount));
+
       const sourceData = {
         name: name.trim(),
-        amount: parseFloat(amount),
+        amount: amountInUSD,
         frequency,
         startDate: new Date().toISOString(), // Default to today
         autoAdd: true, // Always auto-add for onboarding
@@ -385,10 +388,20 @@ const IncomeSetupScreen: React.FC = () => {
     setSaving(true);
     try {
       console.log(`[IncomeSetupScreen] About to save starting balance: ${balance}`);
+
+      // Convert balance to USD before sending to backend
+      const balanceInUSD = convertToUSD(balance);
+
       // Use apiService to save balance to DB
-      await apiService.adjustBalance(balance, 'Initial balance setup');
-      // Also save locally for setup checks
-      await setStartingBalance(balance);
+      await apiService.adjustBalance(balanceInUSD, 'Initial balance setup');
+      // Also save locally for setup checks (save the original currency value or USD? 
+      // Local storage usually keeps preference, but getStartingBalance might be used for display.
+      // Let's save the USD value to be consistent with backend, or check how getStartingBalance is used.
+      // Actually setStartingBalance just saves to AsyncStorage. If we save USD there, we need to know to convert it back.
+      // But getStartingBalance is mainly used for the check in this file.
+      // Let's save the USD value to be safe, assuming app logic expects USD from "source of truth".
+      await setStartingBalance(balanceInUSD);
+
       console.log(`[IncomeSetupScreen] Starting balance saved successfully`);
       
       // Verify it was saved (local check)

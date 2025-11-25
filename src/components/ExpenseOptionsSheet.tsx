@@ -39,7 +39,7 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
   onClose,
 }) => {
   const { theme } = useTheme();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, formatTransactionAmount } = useCurrency();
   const bottomSheetRef = useRef<BottomSheet>(null);
 
   // Auto-expand when expense is set
@@ -116,7 +116,7 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
             {expense.description}
           </Text>
           <Text style={[styles.expenseAmount, { color: theme.text }]}>
-            {formatCurrency(expense.amount)}
+            {formatTransactionAmount(expense.amount, expense.originalAmount, expense.originalCurrency)}
           </Text>
         </View>
 

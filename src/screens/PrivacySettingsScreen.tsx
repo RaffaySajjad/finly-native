@@ -22,6 +22,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
+import { useAppDispatch } from '../store';
+import { logout } from '../store/slices/authSlice';
 import dataExportService from '../services/dataExportService';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
@@ -30,6 +32,7 @@ type NavigationProp = StackNavigationProp<RootStackParamList>;
 const PrivacySettingsScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
+  const dispatch = useAppDispatch();
   const [isExporting, setIsExporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -98,8 +101,8 @@ const PrivacySettingsScreen: React.FC = () => {
                   {
                     text: 'OK',
                     onPress: () => {
-                      // Navigate to login - this will be handled by auth state
-                      navigation.navigate('Auth' as any);
+                      // Dispatch logout action - AppNavigator will handle navigation to Auth stack
+                      dispatch(logout());
                     },
                   },
                 ]
@@ -183,14 +186,14 @@ const PrivacySettingsScreen: React.FC = () => {
             Your Data is Private
           </Text>
           <Text style={[styles.privacyBadgeText, { color: theme.textSecondary }]}>
-            All your data is stored locally on your device. We never share your financial information with third parties.
+            Your data is securely stored and private. We never share your financial information with third parties.
           </Text>
         </View>
 
         {/* Export Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>EXPORT DATA</Text>
-          <SettingItem
+          {/* <SettingItem
             icon="file-export"
             title="Export as JSON"
             subtitle="Download all your data in JSON format"
@@ -203,6 +206,19 @@ const PrivacySettingsScreen: React.FC = () => {
             subtitle="Download expenses in CSV format"
             onPress={handleExportCSV}
             loading={isExporting}
+          /> */}
+
+          <SettingItem
+            icon="file-export"
+            title="Export Transactions"
+            subtitle="Export transactions to CSV file"
+            onPress={() => navigation.navigate('ExportTransactions')}
+          />
+          <SettingItem
+            icon="file-import"
+            title="Import Transactions"
+            subtitle="Import transactions from CSV files"
+            onPress={() => navigation.navigate('CSVImport')}
           />
         </View>
 
@@ -226,14 +242,9 @@ const PrivacySettingsScreen: React.FC = () => {
             icon="file-document-outline"
             title="Privacy Policy"
             subtitle="Read our privacy policy"
-            onPress={() => {
-              Alert.alert(
-                'Privacy Policy',
-                'Your data is stored locally on your device. We do not collect, share, or sell your financial information. All processing happens on-device for maximum privacy.'
-              );
-            }}
+            onPress={() => navigation.navigate('PrivacyPolicy')}
           />
-          <SettingItem
+          {/* <SettingItem
             icon="information-outline"
             title="About Data Storage"
             subtitle="Learn how your data is stored"
@@ -243,7 +254,7 @@ const PrivacySettingsScreen: React.FC = () => {
                 'All your expenses, categories, and insights are stored locally on your device using encrypted storage. No data is sent to external servers unless you explicitly choose to export it.'
               );
             }}
-          />
+          /> */}
         </View>
 
         <View style={{ height: spacing.xl }} />

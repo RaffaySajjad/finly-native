@@ -26,6 +26,7 @@ export type RootStackParamList = {
   VoiceTransaction: undefined;
   BulkTransaction: undefined;
   PrivacySettings: undefined;
+  PrivacyPolicy: undefined;
   ReceiptGallery: undefined;
   Analytics: undefined;
   BalanceHistory: undefined;

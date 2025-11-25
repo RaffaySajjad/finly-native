@@ -24,8 +24,6 @@ export const useSubscription = () => {
     (state) => state.subscription
   );
 
-  console.log("SUBSCRIPTION:", subscription)
-
   // Memoize computed values to prevent unnecessary re-renders
   const isPremium = useMemo(() => 
     subscription.tier === 'PREMIUM' && subscription.isActive, 

@@ -266,7 +266,7 @@ const SignupScreen: React.FC = () => {
                   <Icon name="email-outline" size={20} color={emailError ? theme.expense : theme.textSecondary} />
                   <TextInput
                     style={[styles.input, { color: theme.text }]}
-                    placeholder="your@email.com"
+                    placeholder="you@email.com"
                     placeholderTextColor={theme.textTertiary}
                     value={email}
                     onChangeText={(text) => {

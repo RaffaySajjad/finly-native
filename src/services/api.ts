@@ -194,6 +194,8 @@ export const apiService = {
     paymentMethod?: string;
     notes?: string;
     tags?: string[]; // Array of tag IDs
+    originalAmount?: number;
+    originalCurrency?: string;
   }): Promise<Expense> {
     try {
       const response = await api.post<Expense>(API_ENDPOINTS.EXPENSES.LIST, {
@@ -223,6 +225,8 @@ export const apiService = {
       paymentMethod?: string;
       notes?: string;
       tags?: string[]; // Array of tag IDs
+      originalAmount?: number;
+      originalCurrency?: string;
     }
   ): Promise<Expense> {
     try {
@@ -615,6 +619,8 @@ export const apiService = {
     date: string | Date; // Accept both ISO string or Date object
     description: string;
     incomeSourceId?: string;
+    originalAmount?: number;
+    originalCurrency?: string;
   }): Promise<any> {
     try {
       // Convert date to ISO string if it's a Date object
@@ -791,6 +797,21 @@ export const apiService = {
         confidence: 'low',
         factors: [],
       };
+    }
+  },
+
+  /**
+   * Delete all user data but keep the account
+   */
+  async deleteAllData(): Promise<void> {
+    try {
+      const response = await api.delete(API_ENDPOINTS.AUTH.DELETE_ALL_DATA);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to delete all data');
+      }
+    } catch (error) {
+      console.error('[API] Delete all data error:', error);
+      throw error;
     }
   },
 };

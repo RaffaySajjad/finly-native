@@ -30,7 +30,7 @@ interface ExpenseCardProps {
  */
 const ExpenseCardComponent: React.FC<ExpenseCardProps> = ({ expense, transaction, onPress, onLongPress }) => {
   const { theme } = useTheme();
-  const { formatCurrency } = useCurrency();
+  const { formatTransactionAmount } = useCurrency();
 
   // Use transaction if provided, otherwise fall back to expense
   const tx = transaction || (expense ? {
@@ -212,7 +212,7 @@ const ExpenseCardComponent: React.FC<ExpenseCardProps> = ({ expense, transaction
             { color: isIncome ? theme.income : theme.expense },
           ]}
         >
-          {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
+          {isIncome ? '+' : '-'}{formatTransactionAmount(tx.amount, tx.originalAmount, tx.originalCurrency)}
         </Text>
       </View>
     </TouchableOpacity>

@@ -27,7 +27,7 @@ const isDevelopment = __DEV__;
 export const IAP_CONFIG = {
   // Enable mocks for local development/testing
   // Set to false to test real IAP in development
-  ENABLE_MOCKS: isDevelopment,
+  ENABLE_MOCKS: false,
   
   // Product IDs (from App Store Connect & Google Play Console)
   PRODUCTS: {

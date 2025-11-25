@@ -284,11 +284,31 @@ const DashboardScreen: React.FC = () => {
         {/* Header with Trends and Settings buttons */}
         <View style={[styles.header, { backgroundColor: theme.background }]}>
           <View style={styles.headerLeft}>
-            <IconButton
-              icon="crown"
-              onPress={() => navigation.navigate('Subscription')}
-              color={theme.warning}
-            />
+            {isPremium ? (
+              <TouchableOpacity
+                style={[
+                  styles.premiumBadge,
+                  {
+                    backgroundColor: theme.warning + '15',
+                    borderColor: theme.warning + '30',
+                  }
+                ]}
+                onPress={() => navigation.navigate('Subscription')}
+              >
+                <Icon name="star-circle" size={16} color={theme.warning} style={{ marginRight: 6 }} />
+                <Text style={[
+                  { color: theme.warning }
+                ]}>
+                  PREMIUM
+                </Text>
+              </TouchableOpacity>
+            ) : (
+                <IconButton
+                  icon="crown"
+                  onPress={() => navigation.navigate('Subscription')}
+                  color={theme.warning}
+                />
+            )}
           </View>
           <View style={styles.headerRight}>
             <IconButton
@@ -950,6 +970,15 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginTop: spacing.md,
     marginBottom: spacing.sm,
+  },
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
   },
   premiumBannerContent: {
     flexDirection: 'row',

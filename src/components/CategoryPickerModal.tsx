@@ -19,12 +19,15 @@ import { useTheme } from '../contexts/ThemeContext';
 import { Category } from '../types';
 import { typography, spacing, borderRadius } from '../theme';
 
+import { useNavigation } from '@react-navigation/native';
+
 interface CategoryPickerModalProps {
   visible: boolean;
   categories: Category[];
   selectedCategoryId?: string;
   onSelect: (categoryId: string) => void;
   onClose: () => void;
+  onNavigateToCategories?: () => void;
 }
 
 /**
@@ -36,8 +39,10 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
   selectedCategoryId,
   onSelect,
   onClose,
+  onNavigateToCategories,
 }) => {
   const { theme } = useTheme();
+  const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
 
   // Filter and group categories
@@ -315,6 +320,23 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
                       ? `No categories found for "${searchQuery}"`
                       : 'No categories available'}
                   </Text>
+                <TouchableOpacity
+                  style={[styles.goToCategoriesButton, { backgroundColor: theme.primary + '15' }]}
+                  onPress={() => {
+                    onClose();
+                    if (onNavigateToCategories) {
+                      onNavigateToCategories();
+                    } else {
+                      // @ts-ignore - navigating to nested screen
+                      navigation.navigate('MainTabs', { screen: 'Categories' });
+                    }
+                  }}
+                >
+                  <Text style={[styles.goToCategoriesText, { color: theme.primary }]}>
+                    Go to Categories
+                  </Text>
+                  <Icon name="arrow-right" size={16} color={theme.primary} />
+                </TouchableOpacity>
                 </View>
               )}
           </ScrollView>
@@ -431,6 +453,19 @@ const styles = StyleSheet.create({
     ...typography.bodyMedium,
     marginTop: spacing.md,
     textAlign: 'center',
+  },
+  goToCategoriesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.lg,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.full,
+    gap: spacing.xs,
+  },
+  goToCategoriesText: {
+    ...typography.labelMedium,
+    fontWeight: '600',
   },
 });
 

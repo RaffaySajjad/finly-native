@@ -47,6 +47,10 @@ interface CurrencyContextType {
    * @returns Amount in display currency
    */
   convertFromUSD: (amount: number) => number;
+  /**
+   * Format a transaction amount, using original currency if available and matching
+   */
+  formatTransactionAmount: (amount: number, originalAmount?: number, originalCurrency?: string) => string;
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
@@ -296,6 +300,37 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
     return amount * rate;
   };
 
+  /**
+   * Format a transaction amount, using original currency if available and matching
+   */
+  const formatTransactionAmount = (amount: number, originalAmount?: number, originalCurrency?: string): string => {
+    // If we have original amount/currency and it matches the user's current currency
+    if (originalAmount !== undefined && originalCurrency === currencyCode) {
+      // Use the original amount directly without conversion
+
+      // Check if number is large enough to use k/M/B notation
+      const absAmount = Math.abs(originalAmount);
+      const useShortNotation = absAmount >= 100000; // Use k/M/B for numbers >= 10k
+
+      if (useShortNotation) {
+        const formatted = formatLargeNumber(originalAmount, showDecimals);
+        return `${currency.symbol}${formatted}`;
+      }
+
+      // For smaller numbers, use locale-aware formatting with commas
+      const locale = getLocaleOptions(currencyCode);
+      const formatted = new Intl.NumberFormat(locale, {
+        minimumFractionDigits: showDecimals ? 2 : 0,
+        maximumFractionDigits: showDecimals ? 2 : 0,
+      }).format(originalAmount);
+
+      return `${currency.symbol}${formatted}`;
+    }
+
+    // Fallback to standard conversion
+    return formatCurrency(amount);
+  };
+
   return (
     <CurrencyContext.Provider
       value={{
@@ -309,6 +344,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
         exchangeRate,
         convertToUSD,
         convertFromUSD,
+        formatTransactionAmount,
       }}
     >
       {children}

@@ -37,7 +37,7 @@ type TransactionDetailsNavigationProp = StackNavigationProp<RootStackParamList, 
  */
 const TransactionDetailsScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, formatTransactionAmount } = useCurrency();
   const navigation = useNavigation<TransactionDetailsNavigationProp>();
   const route = useRoute<TransactionDetailsRouteProp>();
   const { showError, showInfo, AlertComponent } = useAlert();
@@ -224,7 +224,7 @@ const TransactionDetailsScreen: React.FC = () => {
               { color: isExpense ? theme.expense : theme.income },
             ]}
           >
-            {isExpense ? '-' : '+'}{formatCurrency(transaction.amount)}
+            {isExpense ? '-' : '+'}{formatTransactionAmount(transaction.amount, transaction.originalAmount, transaction.originalCurrency)}
           </Text>
 
           {/* Description */}

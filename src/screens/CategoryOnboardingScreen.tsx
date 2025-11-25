@@ -22,7 +22,7 @@ import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-
+import { CurrencyInput } from '../components';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
@@ -80,7 +80,7 @@ const AVAILABLE_COLORS = [
 
 const CategoryOnboardingScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency, getCurrencySymbol } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, convertToUSD } = useCurrency();
   const navigation = useNavigation<CategoryOnboardingNavigationProp>();
   const subscription = useSelector((state: RootState) => state.subscription);
   const isPremium = subscription.subscription.tier === 'PREMIUM';
@@ -188,6 +188,9 @@ const CategoryOnboardingScreen: React.FC = () => {
 
       // Update system categories with budgets and create custom categories
       const promises = categories.map(async (cat) => {
+        // Convert budget from display currency to USD before saving
+        const budgetInUSD = cat.suggestedBudget > 0 ? convertToUSD(cat.suggestedBudget) : undefined;
+
         // Check if it's a custom category
         if (cat.description === 'Custom category') {
           // Create new custom category
@@ -195,16 +198,16 @@ const CategoryOnboardingScreen: React.FC = () => {
             name: cat.name,
             icon: cat.icon,
             color: cat.color,
-            budgetLimit: cat.suggestedBudget > 0 ? cat.suggestedBudget : undefined,
+            budgetLimit: budgetInUSD,
           });
         } else {
           // Update existing system category with budget
           const matchingCategory = apiCategories.find(
             (c) => c.name.toLowerCase().includes(cat.name.toLowerCase())
           );
-          if (matchingCategory && cat.suggestedBudget > 0) {
+          if (matchingCategory && budgetInUSD) {
             return apiService.updateCategory(matchingCategory.id, {
-              budgetLimit: cat.suggestedBudget,
+              budgetLimit: budgetInUSD,
             });
           }
         }
@@ -281,14 +284,15 @@ const CategoryOnboardingScreen: React.FC = () => {
             <Text style={[styles.currencySymbol, { color: theme.textSecondary }]}>
               {getCurrencySymbol()}
             </Text>
-            <TextInput
-              style={[styles.input, { color: theme.text }]}
+            <CurrencyInput
               value={monthlyIncome}
               onChangeText={setMonthlyIncome}
-              keyboardType="decimal-pad"
               placeholder="3000"
               placeholderTextColor={theme.textTertiary}
               autoFocus
+              showSymbol={false}
+              inputStyle={[styles.input, { color: theme.text }]}
+              containerStyle={{ flex: 1 }}
             />
           </View>
 
@@ -366,11 +370,11 @@ const CategoryOnboardingScreen: React.FC = () => {
           <View style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Monthly Income</Text>
-              <Text style={[styles.summaryValue, { color: theme.text }]}>{formatCurrency(income)}</Text>
+              <Text style={[styles.summaryValue, { color: theme.text }]}>{formatCurrency(convertToUSD(income))}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Total Budgets</Text>
-              <Text style={[styles.summaryValue, { color: theme.text }]}>{formatCurrency(totalBudget)}</Text>
+              <Text style={[styles.summaryValue, { color: theme.text }]}>{formatCurrency(convertToUSD(totalBudget))}</Text>
             </View>
             <View style={[styles.summaryDivider, { backgroundColor: theme.border }]} />
             <View style={styles.summaryRow}>
@@ -381,7 +385,7 @@ const CategoryOnboardingScreen: React.FC = () => {
                 color: remaining >= 0 ? '#10B981' : '#EF4444',
                 fontWeight: '600'
               }]}>
-                {formatCurrency(remaining)}
+                {formatCurrency(convertToUSD(remaining))}
               </Text>
             </View>
           </View>
@@ -409,11 +413,12 @@ const CategoryOnboardingScreen: React.FC = () => {
                     <Text style={[styles.budgetCurrency, { color: theme.textSecondary }]}>
                       {getCurrencySymbol()}
                     </Text>
-                    <TextInput
-                      style={[styles.budgetInput, { color: theme.text }]}
+                    <CurrencyInput
                       value={category.suggestedBudget.toString()}
                       onChangeText={(value) => handleBudgetChange(index, value)}
-                      keyboardType="decimal-pad"
+                      showSymbol={false}
+                      inputStyle={[styles.budgetInput, { color: theme.text }]}
+                      containerStyle={{ flex: 1 }}
                     />
                   </View>
                   {isPremium && category.description === 'Custom category' && (

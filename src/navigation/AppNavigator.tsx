@@ -122,6 +122,14 @@ const MainTabs: React.FC = () => {
           }}
         />
         <NativeTab.Screen
+          name="Trends"
+          component={TrendsScreen}
+          options={{
+            title: 'Trends',
+            tabBarIcon: () => ({ sfSymbol: 'chart.line.uptrend.xyaxis' }),
+          }}
+        />
+        <NativeTab.Screen
           name="Insights"
           component={InsightsScreen}
           options={{

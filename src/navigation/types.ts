@@ -55,6 +55,7 @@ export type RootStackParamList = {
 export type MainTabsParamList = {
   Dashboard: undefined;
   Categories: undefined;
+  Trends: undefined;
   AIAssistant: undefined;
   Settings: undefined;
   Insights: undefined;

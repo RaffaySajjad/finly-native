@@ -311,11 +311,11 @@ const DashboardScreen: React.FC = () => {
             )}
           </View>
           <View style={styles.headerRight}>
-            <IconButton
+            {Platform.OS === 'android' && <IconButton
               icon="chart-line"
               onPress={() => navigation.navigate('Trends')}
               color={theme.primary}
-            />
+            />}
             <IconButton
               icon="cog"
               onPress={() => navigation.navigate('Settings')}

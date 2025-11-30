@@ -12,6 +12,9 @@
 
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Switch, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { iapService } from '../services/iap.service';
 import { IAP_CONFIG } from '../config/iap.config';
 import { useSubscription } from '../hooks/useSubscription';
@@ -19,6 +22,7 @@ import { useTheme } from '../contexts/ThemeContext';
 
 const DevMenuScreen = () => {
   const { theme } = useTheme();
+  const navigation = useNavigation();
   const { subscribe, subscription, usageLimits } = useSubscription();
 
   const scenarios = [
@@ -115,16 +119,42 @@ const DevMenuScreen = () => {
 
   if (!__DEV__) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <Text style={[styles.title, { color: theme.text }]}>
-          Dev Menu Only Available in Development
-        </Text>
-      </View>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+        <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <Icon name="close" size={24} color={theme.text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Dev Menu</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={[styles.title, { color: theme.text }]}>
+            Dev Menu Only Available in Development
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+      <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Icon name="close" size={24} color={theme.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>IAP Testing Lab</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView style={styles.content}>
       <Text style={[styles.title, { color: theme.text }]}>
         🧪 IAP Testing Lab
       </Text>
@@ -245,13 +275,35 @@ const DevMenuScreen = () => {
       </Text>
       
       <View style={styles.bottomSpacer} />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { 
-    flex: 1, 
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  content: {
+    flex: 1,
     padding: 20,
   },
   title: { 

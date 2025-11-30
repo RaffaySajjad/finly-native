@@ -46,7 +46,7 @@ export type RootStackParamList = {
         threadId?: string;
       }
     | undefined;
-
+  DevMenu: undefined;
   Insights: undefined;
   Settings: undefined;
   Trends: undefined;
@@ -60,4 +60,3 @@ export type MainTabsParamList = {
   Settings: undefined;
   Insights: undefined;
 };
-

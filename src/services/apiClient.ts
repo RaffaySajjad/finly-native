@@ -8,6 +8,7 @@
 import axios, { AxiosInstance, AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, buildApiUrl, STORAGE_KEYS } from '../config/api.config';
+import logger from '../utils/logger';
 
 /**
  * Standard API Response format
@@ -75,15 +76,17 @@ const createApiClient = (): AxiosInstance => {
         config.headers.Authorization = `Bearer ${token}`;
       }
       
-      // Log request details
+      // Log request details (debug level)
       const fullUrl = `${config.baseURL}${config.url}`;
-      console.log('[API] Request:', config.method?.toUpperCase(), fullUrl);
-      console.log('[API] Request data:', config.data);
+      logger.debug(`[API] Request: ${config.method?.toUpperCase()} ${fullUrl}`, {
+        data: config.data,
+        headers: config.headers,
+      });
       
       return config;
     },
     (error) => {
-      console.error('[API] Request error:', error);
+      logger.error('[API] Request error', error);
       return Promise.reject(error);
     }
   );
@@ -93,12 +96,17 @@ const createApiClient = (): AxiosInstance => {
    */
   client.interceptors.response.use(
     (response) => {
-      console.log('[API] Response:', response.status, response.config.url);
+      logger.debug(`[API] Response: ${response.status} ${response.config.url}`, {
+        data: response.data,
+      });
       return response;
     },
     async (error: AxiosError) => {
-      console.error('[API] Response error:', error.response?.status, error.config?.url);
-      console.error('[API] Error data:', error.response?.data);
+      logger.error('[API] Response error', error, {
+        status: error.response?.status,
+        url: error.config?.url,
+        data: error.response?.data,
+      });
       
       const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 

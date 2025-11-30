@@ -8,6 +8,7 @@
 import { api, tokenManager, ApiResponse } from './apiClient';
 import { API_ENDPOINTS, STORAGE_KEYS } from '../config/api.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import logger from '../utils/logger';
 
 /**
  * User interface
@@ -384,26 +385,26 @@ class AuthService {
     // Handle API error response (from Axios error.response.data)
     if (error.response?.data?.error) {
       const apiError = error.response.data.error;
-      console.error('[AuthService] API Error:', apiError);
+      logger.error('[AuthService] API Error', apiError);
       const err: any = new Error(apiError.message || 'An error occurred');
       err.code = apiError.code; // Preserve error code
-      console.log('[AuthService] Extracted error code from response:', err.code);
+      logger.debug('[AuthService] Extracted error code from response', { code: err.code });
       return err;
     }
 
     // Handle case where error.response.data is the ApiResponse structure directly
     if (error.response?.data?.success === false && error.response?.data?.error) {
       const apiError = error.response.data.error;
-      console.error('[AuthService] API Error (from ApiResponse):', apiError);
+      logger.error('[AuthService] API Error (from ApiResponse)', apiError);
       const err: any = new Error(apiError.message || 'An error occurred');
       err.code = apiError.code; // Preserve error code
-      console.log('[AuthService] Extracted error code from ApiResponse:', err.code);
+      logger.debug('[AuthService] Extracted error code from ApiResponse', { code: err.code });
       return err;
     }
 
     // Handle validation errors
     if (error.response?.data?.message) {
-      console.error('[AuthService] Validation Error:', error.response.data.message);
+      logger.error('[AuthService] Validation Error', new Error(error.response.data.message));
       return new Error(error.response.data.message);
     }
 

@@ -76,7 +76,7 @@ export const useSubscription = () => {
         return usageLimits.insights.used < usageLimits.insights.limit;
       case 'voiceEntry':
       case 'bulkEntry':
-        return false; // Premium only
+        return true;
       case 'unlimitedCategories':
         return usageLimits.categories.used < usageLimits.categories.limit;
       default:

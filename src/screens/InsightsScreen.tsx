@@ -13,6 +13,7 @@ import {
   RefreshControl,
   StatusBar,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -81,6 +82,12 @@ const InsightsScreen: React.FC = () => {
       
       {/* Header */}
       <View style={styles.header}>
+        {Platform.OS === 'android' && <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Icon name="arrow-left" size={24} color={theme.text} />
+        </TouchableOpacity>}
         <View style={styles.headerContent}>
           <Icon name="brain" size={32} color={theme.primary} />
           <View style={styles.headerText}>
@@ -161,6 +168,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     flex: 1,
+  },
+  backButton: {
+    padding: spacing.xs,
   },
   headerText: {
     flex: 1,

@@ -456,22 +456,30 @@ const ProfileScreen: React.FC = () => {
         </View>
 
         {/* Developer Settings Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>DEVELOPER SETTINGS</Text>
-          <SettingItem
-            icon="test-tube"
-            title="Mock IAP Mode"
-            subtitle={enableMockIAP ? 'Enabled - Purchases will be simulated' : 'Disabled - Real IAP'}
-            rightComponent={
-              <Switch
-                value={enableMockIAP}
-                onValueChange={handleToggleMockIAP}
-                trackColor={{ false: theme.border, true: theme.warning + '60' }}
-                thumbColor={enableMockIAP ? theme.warning : theme.surface}
-              />
-            }
-          />
-        </View>
+        {__DEV__ && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>DEVELOPER SETTINGS</Text>
+            <SettingItem
+              icon="test-tube"
+              title="Mock IAP Mode"
+              subtitle={enableMockIAP ? 'Enabled - Purchases will be simulated' : 'Disabled - Real IAP'}
+              rightComponent={
+                <Switch
+                  value={enableMockIAP}
+                  onValueChange={handleToggleMockIAP}
+                  trackColor={{ false: theme.border, true: theme.warning + '60' }}
+                  thumbColor={enableMockIAP ? theme.warning : theme.surface}
+                />
+              }
+            />
+            <SettingItem
+              icon="flask"
+              title="IAP Testing Lab"
+              subtitle="Test all in-app purchase scenarios"
+              onPress={() => navigation.navigate('DevMenu')}
+            />
+          </View>
+        )}
 
         {/* Account Section */}
         <View style={styles.section}>

@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
@@ -31,13 +31,19 @@ import { CurrencyInput, DatePickerInput } from '../components';
 
 const AddIncomeScreen: React.FC = () => {
   const navigation = useNavigation();
+  const route = useRoute();
   const { theme } = useTheme();
   const { getCurrencySymbol, convertToUSD, currencyCode } = useCurrency();
 
-  const [amount, setAmount] = useState('');
-  const [incomeSourceId, setIncomeSourceId] = useState<string | undefined>(undefined);
-  const [description, setDescription] = useState('');
-  const [date, setDate] = useState(new Date());
+  // Check if we're editing an existing income transaction
+  const params = route.params as { income?: any } | undefined;
+  const editingIncome = params?.income;
+  const isEditing = !!editingIncome;
+
+  const [amount, setAmount] = useState(editingIncome ? editingIncome.amount.toString() : '');
+  const [incomeSourceId, setIncomeSourceId] = useState<string | undefined>(editingIncome?.incomeSource?.id);
+  const [description, setDescription] = useState(editingIncome?.description || '');
+  const [date, setDate] = useState(editingIncome ? new Date(editingIncome.date) : new Date());
   const [incomeSources, setIncomeSources] = useState<IncomeSource[]>([]);
   const [loadingSources, setLoadingSources] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -90,13 +96,21 @@ const AddIncomeScreen: React.FC = () => {
         payload.incomeSourceId = incomeSourceId;
       }
 
-      await apiService.createIncomeTransaction(payload);
-
-      Alert.alert(
-        'Success',
-        'Income recorded successfully!',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      if (isEditing) {
+        await apiService.updateIncomeTransaction(editingIncome.id, payload);
+        Alert.alert(
+          'Success',
+          'Income updated successfully!',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      } else {
+        await apiService.createIncomeTransaction(payload);
+        Alert.alert(
+          'Success',
+          'Income recorded successfully!',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      }
     } catch (error) {
       Alert.alert('Error', 'Failed to save income. Please try again.');
       console.error('Error saving income:', error);
@@ -121,7 +135,7 @@ const AddIncomeScreen: React.FC = () => {
           >
             <Icon name="close" size={24} color={theme.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Add Income</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>{isEditing ? 'Edit Income' : 'Add Income'}</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -261,7 +275,7 @@ const AddIncomeScreen: React.FC = () => {
             ) : (
               <>
                 <Icon name="check-circle" size={24} color="#FFFFFF" />
-                <Text style={styles.saveButtonText}>Record Income</Text>
+                  <Text style={styles.saveButtonText}>{isEditing ? 'Update Income' : 'Record Income'}</Text>
               </>
             )}
           </TouchableOpacity>

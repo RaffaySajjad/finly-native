@@ -139,9 +139,18 @@ const TransactionDetailsScreen: React.FC = () => {
       };
     navigation.navigate('AddExpense', { expense });
     } else {
-      // For income, navigate to AddIncome screen (if it supports editing)
-      // For now, show info that income editing is not yet implemented
-      showError('Not Available', 'Income transaction editing is not yet implemented.');
+      // Navigate to AddIncomeScreen with income transaction data
+      const income = {
+        id: transaction.id,
+        amount: transaction.amount,
+        description: transaction.description,
+        date: transaction.date,
+        incomeSource: transaction.incomeSource,
+        createdAt: transaction.createdAt,
+        originalAmount: transaction.originalAmount,
+        originalCurrency: transaction.originalCurrency,
+      };
+      navigation.navigate('AddIncome', { income });
     }
   };
 

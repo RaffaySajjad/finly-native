@@ -66,11 +66,11 @@ type DashboardNavigationProp = StackNavigationProp<RootStackParamList, 'MainTabs
  */
 const DashboardScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency, getCurrencySymbol } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, currencyCode, convertFromUSD, convertToUSD } = useCurrency();
   const navigation = useNavigation<DashboardNavigationProp>();
   const insets = useSafeAreaInsets();
   const { isPremium, getRemainingUsage } = useSubscription();
-  const { openBottomSheet } = useBottomSheet();
+  const { openBottomSheet, setOnTransactionAdded } = useBottomSheet();
   const optionsSheetRef = useRef<BottomSheet>(null);
   const balanceAdjustSheetRef = useRef<BottomSheet>(null);
   
@@ -132,6 +132,19 @@ const DashboardScreen: React.FC = () => {
       loadData();
     }, [])
   );
+
+  // Register callback to refresh when transaction is added
+  useEffect(() => {
+    setOnTransactionAdded(() => {
+      console.log('[DashboardScreen] Transaction added, refreshing data...');
+      loadData();
+    });
+
+    // Cleanup on unmount
+    return () => {
+      setOnTransactionAdded(null);
+    };
+  }, [setOnTransactionAdded]);
 
   useEffect(() => {
     // Start gradient animation
@@ -247,8 +260,50 @@ const DashboardScreen: React.FC = () => {
 
     setIsAdjustingBalance(true);
     try {
-      const newBalanceValue = parseFloat(newBalance);
-      await apiService.adjustBalance(newBalanceValue, 'Manual balance adjustment');
+      // Convert the entered balance from display currency to USD
+      const newBalanceInDisplayCurrency = parseFloat(newBalance);
+      const newBalanceInUSD = convertToUSD(newBalanceInDisplayCurrency);
+      const currentBalanceInUSD = stats?.balance || 0;
+      const difference = newBalanceInUSD - currentBalanceInUSD;
+
+      // If difference is negligible, just close
+      if (Math.abs(difference) < 0.01) {
+        balanceAdjustSheetRef.current?.close();
+        return;
+      }
+
+      if (difference > 0) {
+        // Income: Create income transaction
+        await apiService.createIncomeTransaction({
+          amount: difference,
+          description: 'Balance Adjustment',
+          date: new Date(),
+          originalAmount: convertFromUSD(difference),
+          originalCurrency: currencyCode,
+        });
+      } else {
+        // Expense: Create expense transaction
+        // Find a suitable category (Other, Misc, or first available)
+        const adjustmentCategory = categories.find(c =>
+          c.name.toLowerCase().includes('other') ||
+          c.name.toLowerCase().includes('misc') ||
+          c.name.toLowerCase().includes('general')
+        ) || categories[0];
+
+        if (!adjustmentCategory) {
+          throw new Error('No categories available to create adjustment expense');
+        }
+
+        await apiService.addExpense({
+          amount: Math.abs(difference),
+          categoryId: adjustmentCategory.id,
+          description: 'Balance Adjustment',
+          date: new Date(),
+          originalAmount: convertFromUSD(Math.abs(difference)),
+          originalCurrency: currencyCode,
+        });
+      }
+
       await loadData(); // Refresh all data
       balanceAdjustSheetRef.current?.close();
       setNewBalance('');
@@ -263,7 +318,9 @@ const DashboardScreen: React.FC = () => {
 
   const handleOpenBalanceAdjust = () => {
     if (stats) {
-      setNewBalance(stats.balance.toString());
+      // Convert balance from USD to display currency for editing
+      const displayBalance = convertFromUSD(stats.balance);
+      setNewBalance(displayBalance.toString());
       balanceAdjustSheetRef.current?.expand();
     }
   };
@@ -312,8 +369,8 @@ const DashboardScreen: React.FC = () => {
           </View>
           <View style={styles.headerRight}>
             {Platform.OS === 'android' && <IconButton
-              icon="chart-line"
-              onPress={() => navigation.navigate('Trends')}
+              icon="lightbulb-on"
+              onPress={() => navigation.navigate('Insights')}
               color={theme.primary}
             />}
             <IconButton

@@ -10,6 +10,8 @@ interface BottomSheetContextType {
   setHandler: (handler: (() => void) | null) => void;
   openBottomSheet: () => void;
   setBottomSheetRef: (ref: BottomSheet | null) => void;
+  onTransactionAdded: () => void;
+  setOnTransactionAdded: (callback: (() => void) | null) => void;
 }
 
 const BottomSheetContext = createContext<BottomSheetContextType | undefined>(undefined);
@@ -17,6 +19,7 @@ const BottomSheetContext = createContext<BottomSheetContextType | undefined>(und
 export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const handlerRef = useRef<(() => void) | null>(null);
   const bottomSheetRefRef = useRef<BottomSheet | null>(null);
+  const onTransactionAddedRef = useRef<(() => void) | null>(null);
 
   const setHandler = useCallback((newHandler: (() => void) | null) => {
     handlerRef.current = newHandler;
@@ -24,6 +27,16 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const setBottomSheetRef = useCallback((ref: BottomSheet | null) => {
     bottomSheetRefRef.current = ref;
+  }, []);
+
+  const setOnTransactionAdded = useCallback((callback: (() => void) | null) => {
+    onTransactionAddedRef.current = callback;
+  }, []);
+
+  const onTransactionAdded = useCallback(() => {
+    if (onTransactionAddedRef.current) {
+      onTransactionAddedRef.current();
+    }
   }, []);
 
   const openBottomSheet = useCallback(() => {
@@ -42,7 +55,7 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
   }, []);
 
   return (
-    <BottomSheetContext.Provider value={{ setHandler, openBottomSheet, setBottomSheetRef }}>
+    <BottomSheetContext.Provider value={{ setHandler, openBottomSheet, setBottomSheetRef, onTransactionAdded, setOnTransactionAdded }}>
       {children}
     </BottomSheetContext.Provider>
   );

@@ -26,6 +26,12 @@ import { useAppDispatch } from '../store';
 import { logout } from '../store/slices/authSlice';
 import dataExportService from '../services/dataExportService';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import {
+  isBiometricAvailable,
+  authenticateForAccountDeletion,
+  getBiometricName,
+} from '../services/biometricService';
+import * as Haptics from 'expo-haptics';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -78,7 +84,8 @@ const PrivacySettingsScreen: React.FC = () => {
     }
   };
 
-  const handleDeleteAllData = () => {
+  const handleDeleteAllData = async () => {
+  // Show confirmation alert first
     Alert.alert(
       'Delete All Data',
       'Are you sure you want to delete all your data? This action cannot be undone. You will be logged out.',
@@ -91,27 +98,55 @@ const PrivacySettingsScreen: React.FC = () => {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            setIsDeleting(true);
             try {
-              await dataExportService.deleteAllData();
-              Alert.alert(
-                'Data Deleted',
-                'All your data has been deleted. You will be logged out.',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      // Dispatch logout action - AppNavigator will handle navigation to Auth stack
-                      dispatch(logout());
+              // Check if biometric authentication is available
+              const biometricAvailable = await isBiometricAvailable();
+
+              if (biometricAvailable) {
+                // Trigger biometric authentication as final step
+                if (Platform.OS === 'ios') {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }
+
+                const biometricName = await getBiometricName();
+                const authenticated = await authenticateForAccountDeletion();
+
+                if (!authenticated) {
+                  // Biometric authentication failed or was cancelled
+                  Alert.alert(
+                    'Authentication Failed',
+                    `${biometricName} authentication is required to delete all data.`
+                  );
+                  return;
+                }
+              }
+
+            // Proceed with deletion after successful authentication
+              setIsDeleting(true);
+              try {
+                await dataExportService.deleteAllData();
+                Alert.alert(
+                  'Data Deleted',
+                  'All your data has been deleted. You will be logged out.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        // Dispatch logout action - AppNavigator will handle navigation to Auth stack
+                        dispatch(logout());
+                      },
                     },
-                  },
-                ]
-              );
+                  ]
+                );
+              } catch (error) {
+                Alert.alert('Error', 'Failed to delete data. Please try again.');
+                console.error(error);
+              } finally {
+                setIsDeleting(false);
+              }
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete data. Please try again.');
-              console.error(error);
-            } finally {
-              setIsDeleting(false);
+              console.error('Biometric check error:', error);
+              Alert.alert('Error', 'Authentication check failed. Please try again.');
             }
           },
         },

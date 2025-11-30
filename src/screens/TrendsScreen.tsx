@@ -217,12 +217,12 @@ const TrendsScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity
+        {/* <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
           <Icon name="arrow-left" size={24} color={theme.text} />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
         <Text style={[styles.headerTitle, { color: theme.text }]}>Spending Trends</Text>
         <TouchableOpacity
           onPress={handleRefresh}
@@ -491,6 +491,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
     textAlign: 'center',
+    left: spacing.md,
   },
   refreshButton: {
     width: 40,

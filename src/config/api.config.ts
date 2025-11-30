@@ -2,6 +2,7 @@
  * API Configuration
  * Purpose: Centralized API configuration for Finly mobile app
  * Manages base URL, timeouts, and API versioning
+ * Supports environment variables via Expo Constants
  */
 
 import { Platform } from 'react-native';
@@ -9,46 +10,54 @@ import Constants from 'expo-constants';
 
 /**
  * Gets the development base URL based on the execution environment
- * Handles emulators, simulators, and physical devices automatically
+ * Priority: Environment variable > Expo config > Auto-detection
  * @returns {string} Development API base URL
  */
 const getDevBaseUrl = (): string => {
-  const BACKEND_PORT = 3000;
-  const LOCAL_IP = '192.168.1.103';
+  const BACKEND_PORT = Constants.expoConfig?.extra?.apiPort || 3000;
 
-  return `http://${LOCAL_IP}:${BACKEND_PORT}`;
+  // Check for environment variable first (highest priority)
+  const envApiUrl = Constants.expoConfig?.extra?.apiUrl;
+  if (envApiUrl) {
+    return envApiUrl;
+  }
 
+  // Check for local IP in Expo config
+  const localIp = Constants.expoConfig?.extra?.localIp;
+  if (localIp) {
+    return `http://${localIp}:${BACKEND_PORT}`;
+  }
+
+  // Auto-detect based on platform
   if (Platform.OS === 'android') {
     // Android emulator uses 10.0.2.2 to access host machine's localhost
     // For physical Android devices, use your computer's local IP address
-    // You can find it by running: ipconfig (Windows) or ifconfig (Mac/Linux)
-    // Common options:
-    // - '10.0.2.2' for Android emulator (default)
-    // - '192.168.x.x' for physical Android device (replace with your local IP)
-    return `http://${LOCAL_IP}:${BACKEND_PORT}`;
+    const androidHost = Constants.expoConfig?.extra?.androidHost || '10.0.2.2';
+    return `http://${androidHost}:${BACKEND_PORT}`;
   } else {
     // iOS simulator can use localhost
     // For physical iOS device, use your computer's local IP address
-    // You can find it by running: ifconfig | grep "inet " | grep -v 127.0.0.1
-    // Common options:
-    // - 'localhost' for iOS simulator (default)
-    // - '192.168.x.x' for physical iOS device (replace with your local IP)
-    return `http://${LOCAL_IP}:${BACKEND_PORT}`;
+    const iosHost = Constants.expoConfig?.extra?.iosHost || 'localhost';
+    return `http://${iosHost}:${BACKEND_PORT}`;
   }
 };
 
 /**
  * API Environment Configuration
- * The development URL is automatically detected from Expo's dev server
- * No manual configuration needed!
+ * Configuration priority:
+ * 1. Environment variable (EXPO_PUBLIC_API_URL)
+ * 2. Expo config extra.apiUrl
+ * 3. Auto-detection based on platform
  */
 export const API_CONFIG = {
   // Base URL for the Finly API
-  // For development: Automatically uses Expo's detected IP (works for emulators & physical devices)
-  // For production: Uses production API URL
+  // For development: Uses environment variable, Expo config, or auto-detection
+  // For production: Uses production API URL from environment variable or default
   BASE_URL: __DEV__
-    ? getDevBaseUrl() // Auto-detected from Expo
-    : 'https://api.finly.app',
+    ? getDevBaseUrl()
+    : Constants.expoConfig?.extra?.apiUrl ||
+      process.env.EXPO_PUBLIC_API_URL ||
+      'https://api.finly.app',
 
   // API version
   API_VERSION: 'v1',

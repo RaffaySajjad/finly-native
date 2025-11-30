@@ -52,8 +52,8 @@ const SharedBottomSheet: React.FC = () => {
   const [toggleWidth, setToggleWidth] = useState(0);
   const navigation = useNavigation<SharedBottomSheetNavigationProp>();
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const { setBottomSheetRef } = useBottomSheet();
-  
+  const { setBottomSheetRef, onTransactionAdded } = useBottomSheet();
+
   // Determine if using translucent background (affects text colors)
   const usesTranslucentBackground = shouldUseLiquidGlass();
 
@@ -64,7 +64,7 @@ const SharedBottomSheet: React.FC = () => {
   // Transaction type state (Expense or Income)
   const [transactionType, setTransactionType] = useState<'expense' | 'income'>('expense');
   const pillPosition = useRef(new Animated.Value(0)).current;
-  
+
   // Bottom sheet state for adding expenses
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
   const [newExpenseCategoryId, setNewExpenseCategoryId] = useState<string>('');
@@ -239,9 +239,12 @@ const SharedBottomSheet: React.FC = () => {
 
       handleCloseBottomSheet();
       showSuccess('Success', 'Expense added successfully! 🎉');
-      
+
       // Reload categories and tags in case they changed
       await loadCategoriesAndTags();
+
+      // Trigger dashboard refresh
+      onTransactionAdded();
     } catch (error) {
       showError('Error', 'Failed to add expense');
       console.error(error);
@@ -296,6 +299,9 @@ const SharedBottomSheet: React.FC = () => {
 
       // Reload data in case it changed
       await loadCategoriesAndTags();
+
+      // Trigger dashboard refresh
+      onTransactionAdded();
     } catch (error) {
       showError('Error', 'Failed to add income');
       console.error(error);
@@ -461,21 +467,9 @@ const SharedBottomSheet: React.FC = () => {
                 >
                   <Icon name="microphone" size={22} color="#FFFFFF" />
                   <Text style={styles.aiButtonText}>
-                    🎤 Voice Entry
+                    Speak
                   </Text>
                 </TouchableOpacity>
-                {!isPremium && (
-                  <View style={styles.premiumBadgeOverlay}>
-                    <View style={[
-                      styles.premiumIconBadge,
-                      {
-                        backgroundColor: theme.warning,
-                      }
-                    ]}>
-                      <Icon name="crown" size={12} color="#1A1A1A" />
-                    </View>
-                  </View>
-                )}
               </View>
 
               <View style={styles.scanButtonContainer}>
@@ -488,7 +482,7 @@ const SharedBottomSheet: React.FC = () => {
                 >
                   <Icon name="camera-outline" size={22} color="#FFFFFF" />
                   <Text style={styles.scanButtonText}>
-                    Scan Receipt
+                    Scan
                   </Text>
                   {!isPremium && (() => {
                     const remaining = getRemainingUsage('receiptScanning');
@@ -633,58 +627,26 @@ const SharedBottomSheet: React.FC = () => {
           {/* Expense-only Options */}
           {transactionType === 'expense' && (
             <>
-              {/* Bulk Add Option */}
-              <TouchableOpacity
-                style={[styles.bulkButton, { backgroundColor: theme.card, borderColor: theme.border }]}
-                onPress={() => {
-                  bottomSheetRef.current?.close();
-                  setTimeout(() => {
-                    if (requiresUpgrade('bulkEntry')) {
-                      setShowUpgradePrompt(true);
-                      return;
-                    }
-                    navigation.navigate('BulkTransaction');
-                  }, 300);
-                }}
-              >
-                <Icon name="file-multiple" size={20} color={theme.primary} />
-                <Text style={[styles.bulkButtonText, { color: theme.text }]}>
-                  📋 Bulk Add
-                </Text>
-                {!isPremium && (
-                  <View style={styles.bulkBadge}>
-                    <View style={[
-                      styles.premiumIconBadge,
-                      {
-                        backgroundColor: theme.warning,
-                      }
-                    ]}>
-                      <Icon name="crown" size={12} color="#1A1A1A" />
-                    </View>
-                  </View>
-                )}
-              </TouchableOpacity>
-
               <View style={styles.divider}>
-            <View style={[
-              styles.dividerLine, 
-              { backgroundColor: usesTranslucentBackground ? 'rgba(255, 255, 255, 0.3)' : theme.border }
-            ]} />
-            <Text style={[
-              styles.dividerText,
-              { color: usesTranslucentBackground ? '#FFFFFF' : theme.textSecondary }
-            ]}>
-              OR ADD MANUALLY
-            </Text>
-            <View style={[
-              styles.dividerLine, 
-              { backgroundColor: usesTranslucentBackground ? 'rgba(255, 255, 255, 0.3)' : theme.border }
-            ]} />
-          </View>
+                <View style={[
+                  styles.dividerLine,
+                  { backgroundColor: usesTranslucentBackground ? 'rgba(255, 255, 255, 0.3)' : theme.border }
+                ]} />
+                <Text style={[
+                  styles.dividerText,
+                  { color: usesTranslucentBackground ? '#FFFFFF' : theme.textSecondary }
+                ]}>
+                  OR ADD MANUALLY
+                </Text>
+                <View style={[
+                  styles.dividerLine,
+                  { backgroundColor: usesTranslucentBackground ? 'rgba(255, 255, 255, 0.3)' : theme.border }
+                ]} />
+              </View>
 
-          {/* Amount Input */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Amount</Text>
+              {/* Amount Input */}
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Amount</Text>
                 <View style={[
                   styles.amountInput,
                   {
@@ -692,25 +654,25 @@ const SharedBottomSheet: React.FC = () => {
                     borderColor: expenseAmountError ? theme.expense : theme.border,
                   }
                 ]}>
-              <CurrencyInput
-                value={newExpenseAmount}
+                  <CurrencyInput
+                    value={newExpenseAmount}
                     onChangeText={(text) => {
                       setNewExpenseAmount(text);
                       if (expenseAmountError) setExpenseAmountError('');
                     }}
-                placeholder="0.00"
-                placeholderTextColor={theme.textTertiary}
-                showSymbol={true}
-                allowDecimals={true}
-                inputStyle={styles.currencyInputField}
-              />
-            </View>
+                    placeholder="0.00"
+                    placeholderTextColor={theme.textTertiary}
+                    showSymbol={true}
+                    allowDecimals={true}
+                    inputStyle={styles.currencyInputField}
+                  />
+                </View>
                 {expenseAmountError && (
                   <Text style={[styles.errorText, { color: theme.expense }]}>{expenseAmountError}</Text>
                 )}
-          </View>
+              </View>
 
-          {/* Category Selection */}
+              {/* Category Selection */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Category</Text>
                 <TouchableOpacity
@@ -751,104 +713,104 @@ const SharedBottomSheet: React.FC = () => {
                 {expenseCategoryError && (
                   <Text style={[styles.errorText, { color: theme.expense }]}>{expenseCategoryError}</Text>
                 )}
-          </View>
+              </View>
 
-          {/* Description Input */}
-          <View style={styles.inputGroup}>
+              {/* Description Input */}
+              <View style={styles.inputGroup}>
                 <InputGroup
                   label="Description"
                   placeholder="What did you spend on?"
-              value={newExpenseDescription}
+                  value={newExpenseDescription}
                   onChangeText={(text) => {
                     setNewExpenseDescription(text);
                     if (expenseDescriptionError) setExpenseDescriptionError('');
                   }}
                   error={expenseDescriptionError}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
                   containerStyle={styles.descriptionInputContainer}
-            />
-          </View>
+                />
+              </View>
 
-          {/* Date Picker */}
-          <View style={styles.inputGroup}>
-            <DatePickerInput
-              date={newExpenseDate}
-              onDateChange={setNewExpenseDate}
-              label="Date"
-            />
-          </View>
+              {/* Date Picker */}
+              <View style={styles.inputGroup}>
+                <DatePickerInput
+                  date={newExpenseDate}
+                  onDateChange={setNewExpenseDate}
+                  label="Date"
+                />
+              </View>
 
-          {/* Payment Method Selection */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Payment Method (Optional)</Text>
-            <TouchableOpacity
-              style={[
-                styles.pickerButton,
-                { backgroundColor: theme.background, borderColor: theme.border },
-              ]}
-              onPress={() => setShowPaymentMethodPicker(true)}
-            >
-              <View style={styles.pickerButtonContent}>
-                {newExpensePaymentMethod ? (
-                  <>
-                    <Icon
-                      name={PAYMENT_METHODS.find(pm => pm.id === newExpensePaymentMethod)?.icon as any}
-                      size={18}
-                      color={theme.primary}
-                    />
-                    <Text style={[styles.pickerButtonText, { color: theme.text }]}>
-                      {PAYMENT_METHODS.find(pm => pm.id === newExpensePaymentMethod)?.name}
+              {/* Payment Method Selection */}
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Payment Method (Optional)</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.pickerButton,
+                    { backgroundColor: theme.background, borderColor: theme.border },
+                  ]}
+                  onPress={() => setShowPaymentMethodPicker(true)}
+                >
+                  <View style={styles.pickerButtonContent}>
+                    {newExpensePaymentMethod ? (
+                      <>
+                        <Icon
+                          name={PAYMENT_METHODS.find(pm => pm.id === newExpensePaymentMethod)?.icon as any}
+                          size={18}
+                          color={theme.primary}
+                        />
+                        <Text style={[styles.pickerButtonText, { color: theme.text }]}>
+                          {PAYMENT_METHODS.find(pm => pm.id === newExpensePaymentMethod)?.name}
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="credit-card-outline" size={18} color={theme.textSecondary} />
+                        <Text style={[styles.pickerButtonText, { color: theme.textSecondary }]}>
+                          Select payment method
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                  <Icon name="chevron-down" size={20} color={theme.textTertiary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Tags */}
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Tags (Optional)</Text>
+                <TouchableOpacity
+                  style={[styles.pickerButton, { backgroundColor: theme.background, borderColor: theme.border }]}
+                  onPress={() => setShowTagsPicker(true)}
+                >
+                  <View style={styles.pickerButtonContent}>
+                    <Icon name="tag-multiple-outline" size={20} color={theme.textSecondary} />
+                    <Text style={[styles.pickerButtonText, { color: newExpenseTags.length > 0 ? theme.text : theme.textTertiary }]}>
+                      {newExpenseTags.length > 0
+                        ? newExpenseTags.map(tagId => availableTags.find(t => t.id === tagId)?.name || tagId).join(', ')
+                        : 'Add Tags'}
                     </Text>
-                  </>
-                ) : (
-                  <>
-                    <Icon name="credit-card-outline" size={18} color={theme.textSecondary} />
-                    <Text style={[styles.pickerButtonText, { color: theme.textSecondary }]}>
-                      Select payment method
-                    </Text>
-                  </>
+                  </View>
+                  <Icon name="chevron-down" size={20} color={theme.textTertiary} />
+                </TouchableOpacity>
+                {newExpenseTags.length > 0 && (
+                  <View style={styles.selectedTagsContainer}>
+                    {newExpenseTags.map(tagId => {
+                      const tag = availableTags.find(t => t.id === tagId);
+                      if (!tag) return null;
+                      return (
+                        <View key={tag.id} style={[styles.tagChip, { backgroundColor: tag.color + '20', borderColor: tag.color }]}>
+                          <Text style={[styles.tagChipText, { color: tag.color }]}>{tag.name}</Text>
+                          <TouchableOpacity onPress={() => handleRemoveTag(tag.id)}>
+                            <Icon name="close-circle" size={16} color={tag.color} />
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </View>
                 )}
               </View>
-              <Icon name="chevron-down" size={20} color={theme.textTertiary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Tags */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Tags (Optional)</Text>
-            <TouchableOpacity
-              style={[styles.pickerButton, { backgroundColor: theme.background, borderColor: theme.border }]}
-              onPress={() => setShowTagsPicker(true)}
-            >
-              <View style={styles.pickerButtonContent}>
-                <Icon name="tag-multiple-outline" size={20} color={theme.textSecondary} />
-                <Text style={[styles.pickerButtonText, { color: newExpenseTags.length > 0 ? theme.text : theme.textTertiary }]}>
-                  {newExpenseTags.length > 0
-                    ? newExpenseTags.map(tagId => availableTags.find(t => t.id === tagId)?.name || tagId).join(', ')
-                    : 'Add Tags'}
-                </Text>
-              </View>
-              <Icon name="chevron-down" size={20} color={theme.textTertiary} />
-            </TouchableOpacity>
-            {newExpenseTags.length > 0 && (
-              <View style={styles.selectedTagsContainer}>
-                {newExpenseTags.map(tagId => {
-                  const tag = availableTags.find(t => t.id === tagId);
-                  if (!tag) return null;
-                  return (
-                    <View key={tag.id} style={[styles.tagChip, { backgroundColor: tag.color + '20', borderColor: tag.color }]}>
-                      <Text style={[styles.tagChipText, { color: tag.color }]}>{tag.name}</Text>
-                      <TouchableOpacity onPress={() => handleRemoveTag(tag.id)}>
-                        <Icon name="close-circle" size={16} color={tag.color} />
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-          </View>
 
             </>
           )}

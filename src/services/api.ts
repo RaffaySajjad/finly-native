@@ -641,6 +641,38 @@ export const apiService = {
   },
 
   /**
+   * Update an income transaction
+   */
+  async updateIncomeTransaction(
+    transactionId: string,
+    data: {
+      amount?: number;
+      date?: string | Date;
+      description?: string;
+      incomeSourceId?: string;
+      originalAmount?: number;
+      originalCurrency?: string;
+    }
+  ): Promise<any> {
+    try {
+      // Convert date to ISO string if it's a Date object
+      const dateValue = data.date instanceof Date ? data.date.toISOString() : data.date;
+
+      const response = await api.put<any>(API_ENDPOINTS.INCOME.TRANSACTIONS + `/${transactionId}`, {
+        ...data,
+        ...(dateValue && { date: dateValue }),
+      });
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to update income transaction');
+      }
+      return response.data!;
+    } catch (error) {
+      console.error('[API] Update income transaction error:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Delete an income transaction
    */
   async deleteIncomeTransaction(transactionId: string): Promise<void> {

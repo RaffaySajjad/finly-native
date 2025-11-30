@@ -76,12 +76,22 @@ export async function deleteAllData(): Promise<void> {
     // Call backend API to delete all data
     await apiService.deleteAllData();
     
-    // Also clear local AsyncStorage
-    await AsyncStorage.multiRemove([
-      STORAGE_KEYS.EXPENSES,
-      STORAGE_KEYS.CATEGORIES,
-      STORAGE_KEYS.STATS,
-    ]);
+    // Get all AsyncStorage keys
+    const allKeys = await AsyncStorage.getAllKeys();
+    
+    // Filter keys that start with @finly_ but exclude auth tokens (they'll be cleared on logout)
+    const keysToRemove = allKeys.filter(key => 
+      key.startsWith('@finly_') && 
+      !key.includes('access_token') && 
+      !key.includes('refresh_token') &&
+      !key.includes('token_expiry')
+    );
+    
+    // Clear all filtered keys
+    if (keysToRemove.length > 0) {
+      await AsyncStorage.multiRemove(keysToRemove);
+      console.log(`[DataExport] Cleared ${keysToRemove.length} AsyncStorage keys`);
+    }
   } catch (error) {
     console.error('Error deleting data:', error);
     throw new Error('Failed to delete data');

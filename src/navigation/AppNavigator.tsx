@@ -46,6 +46,7 @@ import CSVImportScreen from '../screens/CSVImportScreen';
 import ExportTransactionsScreen from '../screens/ExportTransactionsScreen';
 import AIAssistantScreen from '../screens/AIAssistantScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
+import DevMenuScreen from '../screens/DevMenuScreen';
 
 import IncomeSetupScreen, { hasCompletedIncomeSetup } from '../screens/IncomeSetupScreen';
 import OnboardingScreen, { hasCompletedOnboarding } from '../screens/OnboardingScreen';
@@ -180,12 +181,12 @@ const MainTabs: React.FC = () => {
         }}
       />
       <JSTab.Screen
-        name="Insights"
-        component={InsightsScreen}
+        name="Trends"
+        component={TrendsScreen}
         options={{
-          title: 'Insights',
+          title: 'Trends',
           tabBarIcon: ({ color, size }) => (
-            <Icon name="lightbulb-on" size={size} color={color} />
+            <Icon name="chart-timeline-variant" size={size} color={color} />
           ),
         }}
       />
@@ -581,6 +582,15 @@ const AppNavigator: React.FC = () => {
                         headerShown: false,
                       }}
                     />
+                  <Stack.Screen
+                    name="DevMenu"
+                    component={DevMenuScreen}
+                    options={{
+                      title: 'Dev Menu',
+                      presentation: 'modal',
+                      headerShown: false,
+                    }}
+                  />
           </>
         )}
       </Stack.Navigator>

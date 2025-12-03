@@ -42,6 +42,7 @@ interface PullToRefreshScrollViewProps extends Omit<ScrollViewProps, 'refreshCon
  * @example
  * ```tsx
  * <PullToRefreshScrollView
+ *   ref={scrollViewRef}
  *   onRefresh={async () => {
  *     await loadData();
  *   }}
@@ -50,14 +51,14 @@ interface PullToRefreshScrollViewProps extends Omit<ScrollViewProps, 'refreshCon
  * </PullToRefreshScrollView>
  * ```
  */
-export const PullToRefreshScrollView: React.FC<PullToRefreshScrollViewProps> = ({
+export const PullToRefreshScrollView = React.forwardRef<ScrollView, PullToRefreshScrollViewProps>(({
   onRefresh,
   refreshTintColor,
   refreshEnabled = true,
   refreshing: externalRefreshing,
   children,
   ...scrollViewProps
-}) => {
+}, ref) => {
   const { refreshing: internalRefreshing, refreshControlProps } = usePullToRefresh({
     onRefresh,
     tintColor: refreshTintColor,
@@ -69,6 +70,7 @@ export const PullToRefreshScrollView: React.FC<PullToRefreshScrollViewProps> = (
 
   return (
     <ScrollView
+      ref={ref}
       {...scrollViewProps}
       refreshControl={
         refreshEnabled ? (
@@ -82,5 +84,7 @@ export const PullToRefreshScrollView: React.FC<PullToRefreshScrollViewProps> = (
       {children}
     </ScrollView>
   );
-};
+});
+
+PullToRefreshScrollView.displayName = 'PullToRefreshScrollView';
 

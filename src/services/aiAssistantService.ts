@@ -115,7 +115,38 @@ export const processAIQuery = async (
     return { response: result.response, query: aiQuery };
   } catch (error: any) {
     console.error('Error processing AI query:', error);
-    throw error;
+    
+    // Handle rate limit errors from backend (429 status code)
+    if (error.response?.status === 429 || error.response?.data?.error?.code === 'RATE_LIMIT_EXCEEDED') {
+      const errorMessage = error.response?.data?.error?.message || 
+                          'You\'ve reached your daily query limit. Upgrade to Premium for unlimited queries.';
+      const rateLimitError = new Error(errorMessage);
+      (rateLimitError as any).isRateLimit = true;
+      (rateLimitError as any).statusCode = 429;
+      throw rateLimitError;
+    }
+    
+    // Handle API response errors (when response.success is false)
+    if (error.response?.data?.error) {
+      const apiError = error.response.data.error;
+      if (apiError.code === 'RATE_LIMIT_EXCEEDED' || apiError.statusCode === 429) {
+        const rateLimitError = new Error(
+          apiError.message || 'You\'ve reached your daily query limit. Upgrade to Premium for unlimited queries.'
+        );
+        (rateLimitError as any).isRateLimit = true;
+        (rateLimitError as any).statusCode = 429;
+        throw rateLimitError;
+      }
+      throw new Error(apiError.message || 'Failed to process AI query');
+    }
+    
+    // Re-throw original error if it's already a proper Error instance
+    if (error instanceof Error) {
+      throw error;
+    }
+    
+    // Fallback for unknown error types
+    throw new Error(error.message || 'Failed to process AI query. Please try again.');
   }
 };
 

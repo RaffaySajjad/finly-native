@@ -4,33 +4,32 @@
  * Features: Line charts, bar charts, trend analysis, AI insights, spending forecast
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Dimensions,
-  ActivityIndicator,
-  TouchableOpacity,
-  Animated,
-  FlatList,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
-import { LineChart, BarChart } from 'react-native-chart-kit';
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useRef, useState } from 'react';
+import { ScrollView } from 'react-native';
+import {
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { BarChart, LineChart } from 'react-native-chart-kit';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useTheme } from '../contexts/ThemeContext';
-import { useCurrency } from '../contexts/CurrencyContext';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { PullToRefreshScrollView } from '../components';
+import { useCurrency } from '../contexts/CurrencyContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
 import { RootStackParamList } from '../navigation/types';
 import { apiService } from '../services/api';
-import { typography, spacing, borderRadius, elevation } from '../theme';
-import { PullToRefreshScrollView } from '../components';
-import { Insight } from '../types';
+import { borderRadius, elevation, spacing, typography } from '../theme';
 
 const { width } = Dimensions.get('window');
 
@@ -56,23 +55,29 @@ interface ForecastData {
  */
 const TrendsScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, convertFromUSD, convertToUSD } = useCurrency();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const [loading, setLoading] = useState(true);
   const [trendsData, setTrendsData] = useState<TrendsData | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [timeRange, setTimeRange] = useState<'week' | 'month'>('week');
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedDataPoint, setSelectedDataPoint] = useState<{ date: string; amount: number; index: number } | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useFocusEffect(
     React.useCallback(() => {
       loadData();
     }, [])
   );
+
+  // Scroll to top when tab is pressed while already on this screen
+  useScrollToTopOnTabPress(scrollViewRef);
 
   useEffect(() => {
     if (!loading) {
@@ -100,7 +105,7 @@ const TrendsScreen: React.FC = () => {
         setLoading(true);
       }
       const [trends, forecastData] = await Promise.all([
-        apiService.getSpendingTrends(),
+        apiService.getSpendingTrends(forceRefresh), // Skip cache on force refresh
         apiService.getSpendingForecast(forceRefresh),
       ]);
 
@@ -117,25 +122,6 @@ const TrendsScreen: React.FC = () => {
   const handleRefresh = () => {
     loadData(true);
   };
-
-  const renderInsightItem = ({ item }: { item: Insight }) => (
-    <View
-      style={[
-        styles.insightCard,
-        { backgroundColor: theme.card, borderColor: theme.border },
-      ]}
-    >
-      <View style={[styles.insightIconContainer, { backgroundColor: item.color + '20' }]}>
-        <Icon name={item.icon as any} size={24} color={item.color} />
-      </View>
-      <View style={styles.insightContent}>
-        <Text style={[styles.insightTitle, { color: theme.text }]}>{item.title}</Text>
-        <Text style={[styles.insightDescription, { color: theme.textSecondary }]} numberOfLines={2}>
-          {item.description}
-        </Text>
-      </View>
-    </View>
-  );
 
   if (loading) {
     return (
@@ -163,31 +149,90 @@ const TrendsScreen: React.FC = () => {
     );
   }
 
-  // Prepare line chart data
-  const last7Days = trendsData.dailySpending.slice(-7);
+  // Prepare line chart data based on timeRange selection
+  // Convert amounts from USD (base currency) to display currency for chart
+  const now = new Date();
+  const getFilteredDailySpending = () => {
+    if (timeRange === 'week') {
+      // Last 7 days
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return trendsData.dailySpending.filter(d => {
+        const date = new Date(d.date);
+        return date >= sevenDaysAgo;
+      });
+    } else {
+      // Last 30 days
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      return trendsData.dailySpending.filter(d => {
+        const date = new Date(d.date);
+        return date >= thirtyDaysAgo;
+      });
+    }
+  };
+
+  const filteredDailySpending = getFilteredDailySpending();
   const lineChartData = {
-    labels: last7Days.map(d => {
+    labels: filteredDailySpending.map(d => {
       const date = new Date(d.date);
-      return date.getDate().toString();
+      // Format as "MM/DD" for better clarity
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      return `${month}/${day}`;
     }),
     datasets: [
       {
-        data: last7Days.map(d => d.amount),
+        // Convert amounts from USD to display currency so chart scales correctly
+        data: filteredDailySpending.map(d => convertFromUSD(d.amount)),
         color: (opacity = 1) => theme.primary,
         strokeWidth: 3,
       },
     ],
   };
 
+  // Handle chart data point selection for tooltip
+  const handleChartPress = (event: any) => {
+    if (!filteredDailySpending.length) return;
+
+    // Calculate which data point was tapped based on touch position
+    // This is approximate - react-native-chart-kit doesn't provide exact data point click
+    const chartWidth = width - 64;
+    const touchX = event.nativeEvent.locationX;
+    const dataPointIndex = Math.round((touchX / chartWidth) * (filteredDailySpending.length - 1));
+    const clampedIndex = Math.max(0, Math.min(filteredDailySpending.length - 1, dataPointIndex));
+
+    const selectedPoint = filteredDailySpending[clampedIndex];
+    setSelectedDataPoint({
+      date: selectedPoint.date,
+      amount: selectedPoint.amount,
+      index: clampedIndex,
+    });
+
+    // Position tooltip near the tap location
+    setTooltipPosition({
+      x: touchX,
+      y: event.nativeEvent.locationY - 60, // Offset above touch point
+    });
+  };
+
+  // Close tooltip when tapping outside
+  const handleCloseTooltip = () => {
+    setSelectedDataPoint(null);
+    setTooltipPosition(null);
+  };
+
   // Prepare bar chart data
+  // Convert amounts from USD (base currency) to display currency for chart
   const barChartData = {
     labels: trendsData.categoryTotals.slice(0, 5).map(c => c.category.substring(0, 3)),
     datasets: [
       {
-        data: trendsData.categoryTotals.slice(0, 5).map(c => c.amount),
+        // Convert amounts from USD to display currency so chart scales correctly
+        data: trendsData.categoryTotals.slice(0, 5).map(c => convertFromUSD(c.amount)),
       },
     ],
   };
+
+  const currencySymbol = getCurrencySymbol();
 
   const chartConfig = {
     backgroundColor: theme.card,
@@ -209,6 +254,34 @@ const TrendsScreen: React.FC = () => {
       stroke: theme.border,
       strokeWidth: 1,
     },
+    formatYLabel: (value: string) => {
+      // Format y-axis labels with abbreviations starting at 1000 to save space
+      // Chart data is already converted to display currency
+      // Remove any existing currency symbol or formatting from the value string
+      const cleanValue = value.replace(/[^\d.-]/g, '');
+      const numValue = parseFloat(cleanValue);
+      if (isNaN(numValue)) return value;
+
+      const absValue = Math.abs(numValue);
+      const sign = numValue < 0 ? '-' : '';
+
+      // Use abbreviations starting at 1000 for y-axis labels (more compact than formatCurrency's 100k threshold)
+      if (absValue >= 1000000000) {
+        const billions = absValue / 1000000000;
+        return `${sign}${currencySymbol}${billions.toFixed(1)}B`;
+      }
+      if (absValue >= 1000000) {
+        const millions = absValue / 1000000;
+        return `${sign}${currencySymbol}${millions.toFixed(1)}M`;
+      }
+      if (absValue >= 1000) {
+        const thousands = absValue / 1000;
+        return `${sign}${currencySymbol}${thousands.toFixed(1)}k`;
+      }
+
+      // For values < 1000, show full number without decimals for compactness
+      return `${sign}${currencySymbol}${Math.round(numValue)}`;
+    },
   };
 
   const { weeklyComparison, topCategory } = trendsData;
@@ -221,29 +294,16 @@ const TrendsScreen: React.FC = () => {
           <View style={styles.headerLeft}>
             <Text style={[styles.title, { color: theme.text }]}>Trends</Text>
           </View>
-          <TouchableOpacity
-            onPress={handleRefresh}
-            style={styles.refreshButton}
-            disabled={refreshing || (forecast?.rateLimit?.remaining === 0)}
-          >
-            <Icon
-              name="refresh"
-              size={24}
-              color={
-                refreshing || (forecast?.rateLimit?.remaining === 0)
-                  ? theme.textTertiary
-                  : theme.primary
-              }
-            />
-          </TouchableOpacity>
         </View>
       </View>
 
       <PullToRefreshScrollView
+        ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        onRefresh={() => loadData(false)}
+        onRefresh={() => loadData(true)} // Skip cache on pull-to-refresh
         refreshing={refreshing}
+        onScrollBeginDrag={handleCloseTooltip}
       >
         {/* Spending Forecast Card */}
         {forecast && (
@@ -399,21 +459,65 @@ const TrendsScreen: React.FC = () => {
             </View>
           </View>
 
-          <LineChart
-            data={lineChartData}
-            width={width - 64}
-            height={220}
-            chartConfig={chartConfig}
-            bezier
-            style={styles.chart}
-            withInnerLines
-            withOuterLines
-            withVerticalLabels
-            withHorizontalLabels
-            withDots
-            withShadow={false}
-            fromZero
-          />
+          {/* Axis Labels */}
+          <View style={styles.axisLabelsContainer}>
+            <Text style={[styles.axisLabel, { color: theme.textSecondary }]}>Date</Text>
+            <Text style={[styles.axisLabel, { color: theme.textSecondary }]}>Amount ({currencySymbol})</Text>
+          </View>
+
+          <View style={styles.chartContainer}>
+            <TouchableOpacity activeOpacity={1} onPress={handleChartPress}>
+              <LineChart
+                data={lineChartData}
+                width={width - 64}
+                height={220}
+                chartConfig={chartConfig}
+                bezier
+                style={styles.chart}
+                withInnerLines
+                withOuterLines
+                withVerticalLabels
+                withHorizontalLabels
+                withDots
+                withShadow={false}
+                fromZero
+                yAxisSuffix=""
+              />
+            </TouchableOpacity>
+
+            {/* Interactive Tooltip */}
+            {selectedDataPoint && tooltipPosition && (
+              <View
+                style={[
+                  styles.tooltip,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: theme.border,
+                    left: Math.max(10, Math.min(tooltipPosition.x - 60, width - 140)),
+                    top: Math.max(10, Math.min(tooltipPosition.y, 150)),
+                  },
+                  elevation.md,
+                ]}
+              >
+                <TouchableOpacity
+                  style={styles.tooltipCloseButton}
+                  onPress={handleCloseTooltip}
+                >
+                  <Icon name="close" size={16} color={theme.textSecondary} />
+                </TouchableOpacity>
+                <Text style={[styles.tooltipDate, { color: theme.textSecondary }]}>
+                  {new Date(selectedDataPoint.date).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </Text>
+                <Text style={[styles.tooltipAmount, { color: theme.text }]}>
+                  {formatCurrency(selectedDataPoint.amount)}
+                </Text>
+              </View>
+            )}
+          </View>
         </Animated.View>
 
         {/* Category Bar Chart */}
@@ -430,7 +534,7 @@ const TrendsScreen: React.FC = () => {
             data={barChartData}
             width={width - 64}
             height={220}
-            yAxisLabel="$"
+            yAxisLabel={currencySymbol}
             yAxisSuffix=""
             chartConfig={{
               ...chartConfig,
@@ -443,7 +547,7 @@ const TrendsScreen: React.FC = () => {
           />
         </Animated.View>
 
-        <View style={{ height: 100 }} />
+        <View style={{ height: Platform.OS === 'ios' ? spacing.xxxl : spacing.xxl }} />
       </PullToRefreshScrollView>
     </SafeAreaView>
   );
@@ -698,8 +802,45 @@ const styles = StyleSheet.create({
     ...typography.labelSmall,
     fontWeight: '600',
   },
+  chartContainer: {
+    position: 'relative',
+    width: '100%',
+  },
   chart: {
     borderRadius: borderRadius.md,
+  },
+  axisLabelsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  axisLabel: {
+    ...typography.caption,
+    fontSize: 11,
+  },
+  tooltip: {
+    position: 'absolute',
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    minWidth: 120,
+    zIndex: 1000,
+  },
+  tooltipCloseButton: {
+    position: 'absolute',
+    top: spacing.xs,
+    right: spacing.xs,
+    padding: 2,
+  },
+  tooltipDate: {
+    ...typography.caption,
+    marginBottom: spacing.xs,
+    marginRight: spacing.md,
+  },
+  tooltipAmount: {
+    ...typography.titleSmall,
+    fontWeight: '600',
   },
 });
 

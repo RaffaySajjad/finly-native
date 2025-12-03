@@ -169,18 +169,33 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
       if (cached) {
         const cache: ExchangeRateCache = JSON.parse(cached);
         const now = Date.now();
+        const cacheAge = now - cache.timestamp;
 
         // Use cached rate if still valid
-        if (cache.currency === toCurrency && (now - cache.timestamp) < EXCHANGE_RATE_CACHE_TTL) {
-          setExchangeRate(cache.rate);
-          exchangeRateRef.current = cache.rate;
-          setIsLoadingRate(false);
-          return;
+        if (cache.currency === toCurrency && cacheAge < EXCHANGE_RATE_CACHE_TTL) {
+          // If cached rate is 1 for non-USD currency, it's likely stale/invalid - force refresh
+          if (cache.rate === 1 && toCurrency.toUpperCase() !== 'USD') {
+            console.log(`[CurrencyContext] ⚠️ Cached rate is 1 for ${toCurrency}, forcing refresh...`);
+            // Fall through to fetch fresh rate
+          } else {
+            console.log(`[CurrencyContext] ✅ Using cached exchange rate for ${toCurrency}: ${cache.rate} (age: ${Math.round(cacheAge / 1000 / 60)} minutes)`);
+            setExchangeRate(cache.rate);
+            exchangeRateRef.current = cache.rate;
+            setIsLoadingRate(false);
+            return;
+          }
+        } else {
+          console.log(`[CurrencyContext] Cache expired for ${toCurrency} (age: ${Math.round(cacheAge / 1000 / 60)} minutes), fetching fresh rate...`);
         }
       }
 
       // Fetch fresh rate from API
+      console.log(`[CurrencyContext] Fetching exchange rate for ${toCurrency}...`);
       const rate = await apiService.getExchangeRate(toCurrency);
+      console.log(`[CurrencyContext] Exchange rate received: ${rate} for ${toCurrency}`);
+      if (rate === 1 && toCurrency.toUpperCase() !== 'USD') {
+        console.warn(`[CurrencyContext] WARNING: Exchange rate is 1 for non-USD currency ${toCurrency}. This may indicate an API error.`);
+      }
       setExchangeRate(rate);
       exchangeRateRef.current = rate;
 

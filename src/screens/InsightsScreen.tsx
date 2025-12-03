@@ -1,21 +1,23 @@
 /**
  * InsightsScreen component
  * Purpose: Displays AI-generated financial insights and recommendations
- * Provides actionable tips to help users save money and improve spending habits
+ * Features: Grouped by date, pagination with infinite scroll, notification-style UI
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   RefreshControl,
   StatusBar,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../hooks/useSubscription';
@@ -26,45 +28,218 @@ import { typography, spacing } from '../theme';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
+import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
+
+const INSIGHTS_FIRST_LOAD_KEY = '@finly_insights_first_load_done';
+
+interface GroupedInsights {
+  date: string;
+  dateLabel: string;
+  insights: Insight[];
+}
 
 /**
- * InsightsScreen - Shows AI-powered financial insights
+ * Format date for display
+ */
+const formatDateLabel = (dateString: string): string => {
+  const date = new Date(dateString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  // Reset time for comparison
+  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+
+  if (dateOnly.getTime() === todayOnly.getTime()) {
+    return 'Today';
+  } else if (dateOnly.getTime() === yesterdayOnly.getTime()) {
+    return 'Yesterday';
+  } else {
+    // Check if it's within the last 7 days
+    const daysDiff = Math.floor((todayOnly.getTime() - dateOnly.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysDiff <= 7) {
+      return date.toLocaleDateString('en-US', { weekday: 'long' });
+    } else {
+      // Check if it's in the past year
+      const oneYearAgo = new Date(today);
+      oneYearAgo.setFullYear(today.getFullYear() - 1);
+
+      if (date.getFullYear() < today.getFullYear()) {
+        // Past year - include year: "26 November, 2024"
+        return date.toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+      } else {
+        // Current year but more than 7 days ago - no year: "26 November"
+        return date.toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'long'
+        });
+      }
+    }
+  }
+};
+
+/**
+ * Group insights by date
+ */
+const groupInsightsByDate = (insights: Insight[]): GroupedInsights[] => {
+  // First, ensure insights are sorted by date (newest first)
+  const sortedInsights = [...insights].sort((a, b) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  const grouped: Record<string, Insight[]> = {};
+
+  sortedInsights.forEach((insight) => {
+    const date = new Date(insight.createdAt);
+    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+
+    if (!grouped[dateKey]) {
+      grouped[dateKey] = [];
+    }
+    grouped[dateKey].push(insight);
+  });
+
+  // Convert to array and sort by date (newest first)
+  return Object.entries(grouped)
+    .map(([date, insights]) => ({
+      date,
+      dateLabel: formatDateLabel(insights[0].createdAt),
+      insights: insights.sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      ),
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+};
+
+/**
+ * InsightsScreen - Shows AI-powered financial insights grouped by date
  */
 const InsightsScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { isPremium, getRemainingUsage, requiresUpgrade, trackUsage } = useSubscription();
   const [insights, setInsights] = useState<Insight[]>([]);
+  const [groupedInsights, setGroupedInsights] = useState<GroupedInsights[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
+  const [isFirstLoad, setIsFirstLoad] = useState<boolean | null>(null);
+  const flatListRef = useRef<FlatList<GroupedInsights>>(null);
 
   useEffect(() => {
-    loadInsights();
+    checkFirstLoad();
   }, []);
 
+  // Scroll to top when tab is pressed while already on this screen
+  useScrollToTopOnTabPress(undefined, flatListRef);
+
   /**
-   * Loads insights from API
+   * Check if this is the first time loading insights
    */
-  const loadInsights = async (): Promise<void> => {
+  const checkFirstLoad = async (): Promise<void> => {
+    try {
+      const firstLoadDone = await AsyncStorage.getItem(INSIGHTS_FIRST_LOAD_KEY);
+      const isFirst = firstLoadDone !== 'true';
+      setIsFirstLoad(isFirst);
+
+      // Load insights - will auto-generate on first load
+      await loadInsights(true, isFirst);
+
+      // Mark first load as done after successful load
+      if (isFirst) {
+        await AsyncStorage.setItem(INSIGHTS_FIRST_LOAD_KEY, 'true');
+      }
+    } catch (error) {
+      console.error('[InsightsScreen] Error checking first load:', error);
+      setIsFirstLoad(false);
+      // Fallback: try to load anyway
+      await loadInsights(true, false);
+    }
+  };
+
+  /**
+   * Loads insights from API with pagination
+   */
+  const loadInsights = async (initialLoad: boolean = false, forceRefreshParam?: boolean): Promise<void> => {
     // Check if user has access to insights
     if (requiresUpgrade('advancedInsights')) {
       setShowUpgradePrompt(true);
       setRefreshing(false);
+      setLoading(false);
       return;
     }
 
     try {
-      const data = await apiService.getInsights();
-      setInsights(data);
+      if (initialLoad) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+
+      // Determine if we should call API:
+      // - First load (isFirstLoad === true): always call API (forceRefresh=true)
+      // - Pull-to-refresh (forceRefreshParam === true): always call API (forceRefresh=true)
+      // - After first load (not refreshing): use cache only, don't call API (forceRefresh=false)
+      const isFirstTime = isFirstLoad === true;
+      const isRefreshing = forceRefreshParam === true;
+      const shouldCallAPI = isFirstTime || isRefreshing;
+
+      console.log('[InsightsScreen] Loading insights:', {
+        initialLoad,
+        refreshing,
+        forceRefresh: shouldCallAPI,
+        forceRefreshParam,
+        isFirstLoad,
+        isFirstTime,
+        isRefreshing,
+        shouldCallAPI
+      });
+
+      // Call API only on first load or pull-to-refresh
+      // Otherwise, rely on cache (which will be checked by apiClient)
+      const result = await apiService.getInsights({
+        limit: 20,
+        cursor: initialLoad ? undefined : nextCursor || undefined,
+        includeRead: true,
+        forceRefresh: shouldCallAPI, // true on first load or pull-to-refresh only
+      });
+
+      console.log('[InsightsScreen] Insights loaded:', {
+        count: result.insights.length,
+        total: result.pagination.total,
+        hasMore: result.pagination.hasMore
+      });
+
+      if (initialLoad) {
+        setInsights(result.insights);
+      } else {
+        setInsights((prev) => [...prev, ...result.insights]);
+      }
+
+      setHasMore(result.pagination.hasMore);
+      setNextCursor(result.pagination.nextCursor);
+      setTotal(result.pagination.total);
 
       // Track usage for free tier
-      if (!isPremium) {
+      if (!isPremium && initialLoad) {
         trackUsage('advancedInsights');
       }
     } catch (error) {
       console.error('Error loading insights:', error);
     } finally {
       setRefreshing(false);
+      setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -72,8 +247,91 @@ const InsightsScreen: React.FC = () => {
    * Handles pull-to-refresh
    */
   const onRefresh = (): void => {
+    console.log('[InsightsScreen] Pull to refresh triggered');
     setRefreshing(true);
-    loadInsights();
+    setNextCursor(null);
+    // Pass true for forceRefresh explicitly since refreshing state hasn't updated yet
+    loadInsights(true, true);
+  };
+
+  /**
+   * Load more insights (pagination)
+   */
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore && nextCursor) {
+      loadInsights(false);
+    }
+  }, [loadingMore, hasMore, nextCursor]);
+
+  // Update grouped insights when insights change
+  useEffect(() => {
+    const grouped = groupInsightsByDate(insights);
+    setGroupedInsights(grouped);
+  }, [insights]);
+
+  /**
+   * Render date header
+   */
+  const renderDateHeader = ({ item }: { item: GroupedInsights }) => (
+    <View style={[styles.dateHeader, { backgroundColor: theme.background }]}>
+      <Text style={[styles.dateHeaderText, { color: theme.textSecondary }]}>
+        {item.dateLabel}
+      </Text>
+      <View style={[styles.dateHeaderLine, { backgroundColor: theme.border }]} />
+    </View>
+  );
+
+  /**
+   * Render insight item
+   */
+  const renderInsight = ({ item }: { item: Insight }) => (
+    <View style={styles.insightWrapper}>
+      <InsightCard insight={item} />
+    </View>
+  );
+
+  /**
+   * Render list item (date header + insights)
+   */
+  const renderSection = ({ item }: { item: GroupedInsights }) => (
+    <View>
+      {renderDateHeader({ item })}
+      {item.insights.map((insight) => (
+        <View key={insight.id} style={styles.insightWrapper}>
+          <InsightCard insight={insight} />
+        </View>
+      ))}
+    </View>
+  );
+
+  /**
+   * Render footer (loading indicator for pagination)
+   */
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    return (
+      <View style={styles.footer}>
+        <ActivityIndicator size="small" color={theme.primary} />
+      </View>
+    );
+  };
+
+  /**
+   * Render empty state
+   */
+  const renderEmpty = () => {
+    if (loading) return null;
+    return (
+      <View style={styles.emptyState}>
+        <Icon name="lightbulb-on-outline" size={64} color={theme.textTertiary} />
+        <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
+          No insights available yet
+        </Text>
+        <Text style={[styles.emptyStateSubtext, { color: theme.textTertiary }]}>
+          Keep tracking your expenses to get personalized tips
+        </Text>
+      </View>
+    );
   };
 
   return (
@@ -83,11 +341,24 @@ const InsightsScreen: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
+          {Platform.OS === 'android' && (
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <Icon name="arrow-left" size={24} color={theme.text} />
+            </TouchableOpacity>
+          )}
           <View style={styles.headerLeft}>
             <Text style={[styles.title, { color: theme.text }]}>Insights</Text>
-            {!isPremium && (
+            {!isPremium && total > 0 && (
               <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
                 {getRemainingUsage('advancedInsights')} insights remaining this week
+              </Text>
+            )}
+            {total > 0 && (
+              <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+                {total} total insights
               </Text>
             )}
           </View>
@@ -102,33 +373,27 @@ const InsightsScreen: React.FC = () => {
         </View>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 60 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
-        }
-      >
-        <View style={styles.content}>
-          {insights.length > 0 ? (
-            insights.map((insight) => (
-              <InsightCard key={insight.id} insight={insight} />
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Icon name="lightbulb-on-outline" size={64} color={theme.textTertiary} />
-              <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
-                No insights available yet
-              </Text>
-              <Text style={[styles.emptyStateSubtext, { color: theme.textTertiary }]}>
-                Keep tracking your expenses to get personalized tips
-              </Text>
-            </View>
-          )}
+      {loading && insights.length === 0 ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
-
-        <View style={{ height: spacing.xl }} />
-      </ScrollView>
+      ) : (
+        <FlatList
+          ref={flatListRef}
+          data={groupedInsights}
+          renderItem={renderSection}
+          keyExtractor={(item) => item.date}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
+            }
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
+          ListEmptyComponent={renderEmpty}
+        />
+      )}
 
       {/* Upgrade Prompt */}
       <UpgradePrompt
@@ -158,6 +423,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.xs,
+  },
   headerLeft: {
     flex: 1,
   },
@@ -168,13 +440,31 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     ...typography.bodyMedium,
+    fontSize: 12
   },
   upgradeButton: {
     padding: spacing.xs,
     marginLeft: spacing.md,
   },
   content: {
-    paddingTop: spacing.md,
+    paddingBottom: spacing.xxxl + 20,
+  },
+  dateHeader: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.md,
+  },
+  dateHeaderText: {
+    ...typography.titleSmall,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
+  dateHeaderLine: {
+    height: 1,
+    width: '100%',
+  },
+  insightWrapper: {
+    marginBottom: spacing.sm,
   },
   emptyState: {
     alignItems: 'center',
@@ -192,7 +482,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     textAlign: 'center',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  footer: {
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
 });
 
 export default InsightsScreen;
-

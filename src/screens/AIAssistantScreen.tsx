@@ -23,6 +23,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
+import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
 import {
   processAIQuery,
   getQueryLimits,
@@ -36,6 +37,7 @@ import * as Haptics from 'expo-haptics';
 import UpgradePrompt from '../components/UpgradePrompt';
 import MarkdownText from '../components/MarkdownText';
 import PremiumBadge from '../components/PremiumBadge';
+import { Toast } from '../components/Toast';
 
 type AIAssistantNavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -61,6 +63,8 @@ const AIAssistantScreen: React.FC = () => {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState('');
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
   
   const scrollViewRef = useRef<ScrollView>(null);
   const routeParams = route.params;
@@ -71,6 +75,10 @@ const AIAssistantScreen: React.FC = () => {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // Scroll to top when tab is pressed while already on this screen
+  // Note: This will scroll to top, but auto-scroll to bottom will still work for new messages
+  useScrollToTopOnTabPress(scrollViewRef);
 
   // Auto-scroll to bottom when content changes
   useEffect(() => {
@@ -189,13 +197,15 @@ const AIAssistantScreen: React.FC = () => {
     };
     setMessages(prev => [...prev, userMessage]);
 
+    // Create placeholder assistant message ID (needed for error cleanup)
+    const assistantMessageId = `assistant_${Date.now()}`;
+
     try {
       if (Platform.OS === 'ios') {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
       // Create placeholder assistant message for streaming
-      const assistantMessageId = `assistant_${Date.now()}`;
       const assistantMessage: Message = {
         id: assistantMessageId,
         type: 'assistant',
@@ -230,18 +240,35 @@ const AIAssistantScreen: React.FC = () => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (error: any) {
-      if (error.message.includes('limit')) {
-        setShowUpgrade(true);
-        Alert.alert(
-          'Query Limit Reached',
-          error.message,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Upgrade', onPress: () => navigation.navigate('Subscription') },
-          ]
-        );
+      // Remove the placeholder assistant message on error
+      setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
+
+      // Check for rate limit errors (429 status code or isRateLimit flag)
+      const isRateLimitError =
+        error.isRateLimit ||
+        error.statusCode === 429 ||
+        error.message?.toLowerCase().includes('rate limit') ||
+        error.message?.toLowerCase().includes('limit exceeded') ||
+        error.message?.toLowerCase().includes('daily limit');
+
+      if (isRateLimitError) {
+        // Update limits to reflect the current state
+        const updatedLimits = await getQueryLimits(isPremium);
+        setQueryLimits(updatedLimits);
+
+        // Show user-friendly rate limit message as toast
+        const errorMessage =
+          'You\'ve reached your daily query limit. Upgrade to Premium for unlimited queries.';
+
+        setToastMessage(errorMessage);
+        setToastVisible(true);
       } else {
-        Alert.alert('Error', error.message || 'Failed to process query. Please try again.');
+      // Handle other errors
+        Alert.alert(
+          'Error',
+          error.message || 'Failed to process query. Please try again.',
+          [{ text: 'OK' }]
+        );
       }
     } finally {
       setLoading(false);
@@ -492,6 +519,21 @@ const AIAssistantScreen: React.FC = () => {
           feature="AI Assistant"
         />
       )}
+
+      {/* Toast Notification */}
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        type="warning"
+        duration={5000}
+        action={{
+          label: 'Upgrade',
+          onPress: () => {
+            navigation.navigate('Subscription');
+          },
+        }}
+        onDismiss={() => setToastVisible(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -612,14 +654,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.sm,
-  },
-  upgradeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.sm,
-    marginTop: spacing.sm,
-    gap: spacing.xs,
   },
   upgradeButtonText: {
     ...typography.labelMedium,

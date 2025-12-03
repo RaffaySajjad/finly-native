@@ -4,18 +4,18 @@
  * Features: Budget editing, progress visualization, transaction list
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
-  TextInput,
+  FlatList,
   Alert,
   Animated,
   ActivityIndicator,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -27,13 +27,98 @@ import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
-import { ExpenseCard, BottomSheetBackground, CurrencyInput, PullToRefreshScrollView } from '../components';
+import { ExpenseCard, BottomSheetBackground, CurrencyInput } from '../components';
 import { Expense, Category, UnifiedTransaction } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { RootStackParamList } from '../navigation/types';
 
 type CategoryDetailsRouteProp = RouteProp<RootStackParamList, 'CategoryDetails'>;
 type CategoryDetailsNavigationProp = StackNavigationProp<RootStackParamList, 'CategoryDetails'>;
+
+interface GroupedExpenses {
+  date: string;
+  dateLabel: string;
+  expenses: Expense[];
+}
+
+/**
+ * Format date for display (same as InsightsScreen)
+ */
+const formatDateLabel = (dateString: string): string => {
+  const date = new Date(dateString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  // Reset time for comparison
+  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+
+  if (dateOnly.getTime() === todayOnly.getTime()) {
+    return 'Today';
+  } else if (dateOnly.getTime() === yesterdayOnly.getTime()) {
+    return 'Yesterday';
+  } else {
+    // Check if it's within the last 7 days
+    const daysDiff = Math.floor((todayOnly.getTime() - dateOnly.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysDiff <= 7) {
+      return date.toLocaleDateString('en-US', { weekday: 'long' });
+    } else {
+      // Check if it's in the past year
+      const oneYearAgo = new Date(today);
+      oneYearAgo.setFullYear(today.getFullYear() - 1);
+
+      if (date.getFullYear() < today.getFullYear()) {
+        // Past year - include year: "26 November, 2024"
+        return date.toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+      } else {
+        // Current year but more than 7 days ago - no year: "26 November"
+        return date.toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'long'
+        });
+      }
+    }
+  }
+};
+
+/**
+ * Group expenses by date
+ */
+const groupExpensesByDate = (expenses: Expense[]): GroupedExpenses[] => {
+  // First, ensure expenses are sorted by date (newest first)
+  const sortedExpenses = [...expenses].sort((a, b) =>
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+
+  const grouped: Record<string, Expense[]> = {};
+
+  sortedExpenses.forEach((expense) => {
+    const date = new Date(expense.date);
+    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+
+    if (!grouped[dateKey]) {
+      grouped[dateKey] = [];
+    }
+    grouped[dateKey].push(expense);
+  });
+
+  // Convert to array and sort by date (newest first)
+  return Object.entries(grouped)
+    .map(([date, expenses]) => ({
+      date,
+      dateLabel: formatDateLabel(expenses[0].date),
+      expenses: expenses.sort((a, b) =>
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      ),
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+};
 
 /**
  * CategoryDetailsScreen - Detailed category view
@@ -48,7 +133,13 @@ const CategoryDetailsScreen: React.FC = () => {
 
   const [category, setCategory] = useState<Category | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [groupedExpenses, setGroupedExpenses] = useState<GroupedExpenses[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
   const [newBudget, setNewBudget] = useState('');
   const [savingBudget, setSavingBudget] = useState(false);
 
@@ -60,7 +151,8 @@ const CategoryDetailsScreen: React.FC = () => {
 
   useFocusEffect(
     React.useCallback(() => {
-      loadData();
+      console.log('[CategoryDetailsScreen] useFocusEffect - categoryId:', categoryId);
+      loadData(true);
     }, [categoryId])
   );
 
@@ -81,29 +173,110 @@ const CategoryDetailsScreen: React.FC = () => {
     }
   }, [category]);
 
-  const loadData = async () => {
+  /**
+   * Load category data and expenses with pagination
+   */
+  const loadData = async (initialLoad: boolean = false) => {
     try {
-      setLoading(true);
-      const [categoriesData, expensesData] = await Promise.all([
-        apiService.getCategories(),
-        apiService.getExpenses(),
-      ]);
+      if (initialLoad) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
 
+      // Load category info
+      const categoriesData = await apiService.getCategories();
       const cat = categoriesData.find(c => c.id === categoryId);
       if (cat) {
         setCategory(cat);
         setNewBudget(cat.budgetLimit?.toString() || '');
       }
 
-      // Filter expenses for this category
-      const categoryExpenses = expensesData.filter(e => e.categoryId === categoryId);
-      setExpenses(categoryExpenses);
+      // Load expenses with pagination
+      if (initialLoad) {
+        await loadExpenses(true, undefined);
+      } else {
+        // On refresh, reset and load from beginning
+        setNextCursor(null);
+        await loadExpenses(true, undefined);
+      }
     } catch (error) {
       console.error('Error loading category data:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  /**
+   * Load expenses with pagination
+   */
+  const loadExpenses = useCallback(async (initialLoad: boolean = false, cursor?: string | null) => {
+    try {
+      if (!initialLoad) {
+        setLoadingMore(true);
+      }
+
+      const cursorToUse = initialLoad ? undefined : (cursor || undefined);
+
+      console.log('[CategoryDetailsScreen] Loading expenses:', {
+        categoryId,
+        initialLoad,
+        cursor: cursorToUse,
+      });
+
+      const result = await apiService.getExpensesPaginated({
+        categoryId,
+        limit: 20,
+        cursor: cursorToUse,
+      });
+
+      console.log('[CategoryDetailsScreen] Received expenses:', {
+        count: result.expenses.length,
+        total: result.pagination.total,
+        hasMore: result.pagination.hasMore,
+        nextCursor: result.pagination.nextCursor,
+        firstExpenseDate: result.expenses[0]?.date,
+        lastExpenseDate: result.expenses[result.expenses.length - 1]?.date,
+      });
+
+      if (initialLoad) {
+        setExpenses(result.expenses);
+      } else {
+        setExpenses((prev) => [...prev, ...result.expenses]);
+      }
+
+      setHasMore(result.pagination.hasMore);
+      setNextCursor(result.pagination.nextCursor);
+      setTotal(result.pagination.total);
+    } catch (error) {
+      console.error('[CategoryDetailsScreen] Error loading expenses:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [categoryId]);
+
+  /**
+   * Load more expenses (pagination)
+   */
+  const loadMore = useCallback(() => {
+    console.log('[CategoryDetailsScreen] loadMore called:', {
+      loadingMore,
+      hasMore,
+      nextCursor,
+      canLoad: !loadingMore && hasMore && nextCursor,
+    });
+
+    if (!loadingMore && hasMore && nextCursor) {
+      loadExpenses(false, nextCursor);
+    }
+  }, [loadingMore, hasMore, nextCursor, loadExpenses]);
+
+  // Update grouped expenses when expenses change
+  useEffect(() => {
+    const grouped = groupExpensesByDate(expenses);
+    setGroupedExpenses(grouped);
+  }, [expenses]);
 
   const handleEditBudget = () => {
     if (Platform.OS === 'ios') {
@@ -127,8 +300,13 @@ const CategoryDetailsScreen: React.FC = () => {
       // In real implementation, this would call an API
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Reload data to reflect changes
-      await loadData();
+      // Reload category data to reflect changes
+      const categoriesData = await apiService.getCategories();
+      const cat = categoriesData.find(c => c.id === categoryId);
+      if (cat) {
+        setCategory(cat);
+        setNewBudget(cat.budgetLimit?.toString() || '');
+      }
 
       if (Platform.OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -194,99 +372,130 @@ const CategoryDetailsScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <PullToRefreshScrollView 
-        showsVerticalScrollIndicator={false}
-        onRefresh={loadData}
-      >
-        {/* Category Card */}
-        <Animated.View
-          style={[
-            styles.categoryCard,
-            { backgroundColor: theme.card, borderColor: theme.border },
-            elevation.md,
-            { opacity: fadeAnim },
-          ]}
-        >
-          <View style={[styles.categoryIcon, { backgroundColor: categoryColor + '20' }]}>
-            <Icon name={category.icon as any} size={48} color={categoryColor} />
-          </View>
-
-          <Text style={[styles.categoryName, { color: theme.text }]}>{category.name}</Text>
-
-          <Text style={[styles.totalSpent, { color: categoryColor }]}>
-            {formatCurrency(category.totalSpent || 0)}
-          </Text>
-          <Text style={[styles.totalLabel, { color: theme.textSecondary }]}>This Month</Text>
-
-          {/* Progress Ring/Bar */}
-          {category.budgetLimit && (
-            <View style={styles.budgetSection}>
-              <View style={styles.budgetInfo}>
-                <Text style={[styles.budgetLabel, { color: theme.textSecondary }]}>
-                  Monthly Budget
-                </Text>
-                <Text style={[styles.budgetValue, { color: theme.text }]}>
-                  {formatCurrency(category.budgetLimit)}
-                </Text>
-              </View>
-
-              {/* Progress Bar */}
-              <View style={[styles.progressBarContainer, { backgroundColor: theme.border }]}>
-                <Animated.View
-                  style={[
-                    styles.progressBar,
-                    {
-                      backgroundColor: budgetPercentage > 80 ? theme.expense : categoryColor,
-                      width: progressAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0%', '100%'],
-                      }),
-                    },
-                  ]}
-                />
-              </View>
-
-              <View style={styles.budgetStats}>
-                <Text style={[styles.budgetStat, { color: theme.textSecondary }]}>
-                  {budgetPercentage.toFixed(1)}% used
-                </Text>
-                <Text
-                  style={[
-                    styles.budgetStat,
-                    { color: remaining >= 0 ? theme.income : theme.expense },
-                  ]}
-                >
-                  {formatCurrency(Math.abs(remaining))} {remaining >= 0 ? 'remaining' : 'over'}
-                </Text>
-              </View>
+      {/* Transactions List */}
+      <FlatList
+        data={groupedExpenses}
+        renderItem={({ item }) => (
+          <View>
+            {/* Date Header */}
+            <View style={[styles.dateHeader, { backgroundColor: theme.background }]}>
+              <Text style={[styles.dateHeaderText, { color: theme.textSecondary }]}>
+                {item.dateLabel}
+              </Text>
+              <View style={[styles.dateHeaderLine, { backgroundColor: theme.border }]} />
             </View>
-          )}
-        </Animated.View>
 
-        {/* Transactions Section */}
-        <View style={styles.transactionsSection}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            Transactions ({expenses.length})
-          </Text>
-
-          {expenses.length > 0 ? (
-            expenses.map((expense) => (
+            {/* Expenses for this date */}
+            {item.expenses.map((expense) => (
               <ExpenseCard
                 key={expense.id}
                 expense={expense}
                 onPress={() => handleExpenseTap(expense)}
               />
-            ))
-          ) : (
+            ))}
+          </View>
+        )}
+        keyExtractor={(item) => item.date}
+        ListHeaderComponent={
+          <View>
+            {/* Category Card */}
+            <Animated.View
+              style={[
+                styles.categoryCard,
+                { backgroundColor: theme.card, borderColor: theme.border },
+                elevation.md,
+                { opacity: fadeAnim },
+              ]}
+            >
+              <View style={[styles.categoryIcon, { backgroundColor: categoryColor + '20' }]}>
+                <Icon name={category.icon as any} size={48} color={categoryColor} />
+              </View>
+
+              <Text style={[styles.categoryName, { color: theme.text }]}>{category.name}</Text>
+
+              <Text style={[styles.totalSpent, { color: categoryColor }]}>
+                {formatCurrency(category.totalSpent || 0)}
+              </Text>
+              <Text style={[styles.totalLabel, { color: theme.textSecondary }]}>This Month</Text>
+
+              {/* Progress Ring/Bar */}
+              {category.budgetLimit && (
+                <View style={styles.budgetSection}>
+                  <View style={styles.budgetInfo}>
+                    <Text style={[styles.budgetLabel, { color: theme.textSecondary }]}>
+                      Monthly Budget
+                    </Text>
+                    <Text style={[styles.budgetValue, { color: theme.text }]}>
+                      {formatCurrency(category.budgetLimit)}
+                    </Text>
+                  </View>
+
+                  {/* Progress Bar */}
+                  <View style={[styles.progressBarContainer, { backgroundColor: theme.border }]}>
+                    <Animated.View
+                      style={[
+                        styles.progressBar,
+                        {
+                          backgroundColor: budgetPercentage > 80 ? theme.expense : categoryColor,
+                          width: progressAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0%', '100%'],
+                          }),
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  <View style={styles.budgetStats}>
+                    <Text style={[styles.budgetStat, { color: theme.textSecondary }]}>
+                      {budgetPercentage.toFixed(1)}% used
+                    </Text>
+                    <Text
+                      style={[
+                        styles.budgetStat,
+                        { color: remaining >= 0 ? theme.income : theme.expense },
+                      ]}
+                    >
+                      {formatCurrency(Math.abs(remaining))} {remaining >= 0 ? 'remaining' : 'over'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </Animated.View>
+
+            {/* Transactions Section Header */}
+            <View style={styles.transactionsSection}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                Transactions {total > 0 && `(${total})`}
+              </Text>
+            </View>
+          </View>
+        }
+        ListEmptyComponent={
+          !loading ? (
             <View style={styles.emptyState}>
               <Icon name="receipt-text-outline" size={64} color={theme.textTertiary} />
               <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
                 No transactions in this category yet
               </Text>
             </View>
-          )}
-        </View>
-      </PullToRefreshScrollView>
+          ) : null
+        }
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.footer}>
+              <ActivityIndicator size="small" color={theme.primary} />
+            </View>
+          ) : null
+        }
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => loadData(false)} tintColor={theme.primary} />
+        }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+      />
 
       {/* Budget Edit Bottom Sheet */}
       <BottomSheet
@@ -434,13 +643,35 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     fontWeight: '600',
   },
+  listContent: {
+    paddingBottom: spacing.xxl,
+  },
   transactionsSection: {
-    marginBottom: spacing.xxl,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    marginBottom: spacing.md,
   },
   sectionTitle: {
     ...typography.titleLarge,
-    paddingHorizontal: spacing.md,
     marginBottom: spacing.md,
+  },
+  dateHeader: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.md,
+  },
+  dateHeaderText: {
+    ...typography.titleSmall,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
+  dateHeaderLine: {
+    height: 1,
+    width: '100%',
+  },
+  footer: {
+    paddingVertical: spacing.md,
+    alignItems: 'center',
   },
   emptyState: {
     alignItems: 'center',

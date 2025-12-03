@@ -406,7 +406,9 @@ async function invalidateRelatedCaches(url: string): Promise<void> {
     if (url.includes('/categories')) {
       await apiCacheService.invalidate('/categories');
     } else if (url.includes('/expenses')) {
+      // Expenses affect categories (totalSpent), analytics, and expenses cache
       await apiCacheService.invalidate('/expenses');
+      await apiCacheService.invalidate('/categories'); // Categories include totalSpent calculated from expenses
       await apiCacheService.invalidate('/analytics'); // Analytics depend on expenses
     } else if (url.includes('/income')) {
       await apiCacheService.invalidate('/income');

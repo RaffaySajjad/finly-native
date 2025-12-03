@@ -28,11 +28,134 @@ import { useTheme } from '../contexts/ThemeContext';
 import { ExpenseCard, ExpenseOptionsSheet, PullToRefreshFlatList } from '../components';
 import { apiService } from '../services/api';
 import tagsService from '../services/tagsService';
-import { Expense, PaymentMethod, Tag, UnifiedTransaction } from '../types';
+import { Expense, PaymentMethod, Tag, UnifiedTransaction, Category } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
 type TransactionsListNavigationProp = StackNavigationProp<RootStackParamList, 'TransactionsList'>;
+
+interface GroupedTransactions {
+  date: string;
+  dateLabel: string;
+  transactions: UnifiedTransaction[];
+}
+
+/**
+ * Format date for display (same as InsightsScreen and DashboardScreen)
+ */
+const formatDateLabel = (dateString: string): string => {
+  const date = new Date(dateString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  // Reset time for comparison
+  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+
+  if (dateOnly.getTime() === todayOnly.getTime()) {
+    return 'Today';
+  } else if (dateOnly.getTime() === yesterdayOnly.getTime()) {
+    return 'Yesterday';
+  } else {
+    // Check if it's within the last 7 days
+    const daysDiff = Math.floor((todayOnly.getTime() - dateOnly.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysDiff <= 7) {
+      return date.toLocaleDateString('en-US', { weekday: 'long' });
+    } else {
+      // Check if it's in the past year
+      const oneYearAgo = new Date(today);
+      oneYearAgo.setFullYear(today.getFullYear() - 1);
+
+      if (date.getFullYear() < today.getFullYear()) {
+        // Past year - include year: "26 November, 2024"
+        return date.toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+      } else {
+        // Current year but more than 7 days ago - no year: "26 November"
+        return date.toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'long'
+        });
+      }
+    }
+  }
+};
+
+/**
+ * Group transactions by date
+ * Preserves the sort order of transactions passed in (don't re-sort)
+ */
+const groupTransactionsByDate = (
+  transactions: UnifiedTransaction[],
+  sortBy: 'date' | 'amount',
+  sortOrder: 'asc' | 'desc'
+): GroupedTransactions[] => {
+  // Preserve the order of transactions (they're already sorted)
+  const grouped: Record<string, UnifiedTransaction[]> = {};
+
+  transactions.forEach((transaction) => {
+    const date = new Date(transaction.date);
+    // Use local date components to avoid timezone issues
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateKey = `${year}-${month}-${day}`; // YYYY-MM-DD in local timezone
+
+    if (!grouped[dateKey]) {
+      grouped[dateKey] = [];
+    }
+    grouped[dateKey].push(transaction);
+  });
+
+  // Sort transactions within each group based on user's sort preference
+  const sortTransactions = (txs: UnifiedTransaction[]) => {
+    if (sortBy === 'date') {
+      return [...txs].sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+      });
+    } else {
+      // Sort by amount
+      return [...txs].sort((a, b) => {
+        return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
+      });
+    }
+  };
+
+  // Convert to array and sort groups based on user's sort preference
+  const groupedArray = Object.entries(grouped)
+    .map(([date, txs]) => ({
+      date,
+      dateLabel: formatDateLabel(txs[0].date),
+      transactions: sortTransactions(txs),
+    }));
+
+  // Sort groups based on sort preference
+  groupedArray.sort((a, b) => {
+    if (sortBy === 'date') {
+      // Sort groups by date
+      return sortOrder === 'desc'
+        ? b.date.localeCompare(a.date)  // Newest groups first
+        : a.date.localeCompare(b.date); // Oldest groups first
+    } else {
+      // Sort groups by amount (use the first transaction's amount as representative)
+      // Since transactions within groups are already sorted, first transaction is the representative
+      const amountA = a.transactions[0]?.amount || 0;
+      const amountB = b.transactions[0]?.amount || 0;
+      return sortOrder === 'desc'
+        ? amountB - amountA  // Highest amount groups first
+        : amountA - amountB; // Lowest amount groups first
+    }
+  });
+
+  return groupedArray;
+};
 
 /**
  * TransactionsListScreen - Full transactions list
@@ -55,28 +178,21 @@ const TransactionsListScreen: React.FC = () => {
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [tags, setTags] = useState<Tag[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [groupedTransactions, setGroupedTransactions] = useState<GroupedTransactions[]>([]);
   const [selectedTransaction, setSelectedTransaction] = useState<UnifiedTransaction | null>(null);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
 
-  const categories: Array<{ id: string; name: string; icon: string }> = [
-    { id: 'food', name: 'Food', icon: 'food' },
-    { id: 'transport', name: 'Transport', icon: 'car' },
-    { id: 'shopping', name: 'Shopping', icon: 'shopping' },
-    { id: 'entertainment', name: 'Entertainment', icon: 'movie' },
-    { id: 'health', name: 'Health', icon: 'heart-pulse' },
-    { id: 'utilities', name: 'Utilities', icon: 'lightning-bolt' },
-    { id: 'other', name: 'Other', icon: 'dots-horizontal' },
-  ];
-
-  const PAYMENT_METHODS: Array<{ id: PaymentMethod; name: string; icon: string }> = [
-    { id: 'CREDIT_CARD', name: 'Credit Card', icon: 'credit-card' },
-    { id: 'DEBIT_CARD', name: 'Debit Card', icon: 'card' },
-    { id: 'CASH', name: 'Cash', icon: 'cash' },
-    { id: 'CHECK', name: 'Check', icon: 'receipt' },
-    { id: 'BANK_TRANSFER', name: 'Bank Transfer', icon: 'bank-transfer' },
-    { id: 'DIGITAL_WALLET', name: 'Digital Wallet', icon: 'wallet' },
-    { id: 'OTHER', name: 'Other', icon: 'dots-horizontal' },
-  ];
+  // Payment method display configuration
+  const PAYMENT_METHOD_DISPLAY: Record<PaymentMethod, { name: string; icon: string }> = {
+    CREDIT_CARD: { name: 'Credit Card', icon: 'credit-card' },
+    DEBIT_CARD: { name: 'Debit Card', icon: 'card' },
+    CASH: { name: 'Cash', icon: 'cash' },
+    CHECK: { name: 'Check', icon: 'receipt' },
+    BANK_TRANSFER: { name: 'Bank Transfer', icon: 'bank-transfer' },
+    DIGITAL_WALLET: { name: 'Digital Wallet', icon: 'wallet' },
+    OTHER: { name: 'Other', icon: 'dots-horizontal' },
+  };
 
   useFocusEffect(
     React.useCallback(() => {
@@ -85,13 +201,16 @@ const TransactionsListScreen: React.FC = () => {
   );
 
   useEffect(() => {
+    loadCategories();
     loadTags();
   }, []);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const transactionsData = await apiService.getUnifiedTransactions();
+      const result = await apiService.getUnifiedTransactions();
+      // Handle both array and object response formats
+      const transactionsData = Array.isArray(result) ? result : result.transactions;
       setTransactions(transactionsData);
       setFilteredTransactions(transactionsData);
     } catch (error) {
@@ -102,10 +221,19 @@ const TransactionsListScreen: React.FC = () => {
   };
 
   /**
-   * Handles pull-to-refresh - reloads transactions and tags
+   * Handles pull-to-refresh - reloads transactions, categories, and tags
    */
   const handleRefresh = async (): Promise<void> => {
-    await Promise.all([loadData(), loadTags()]);
+    await Promise.all([loadData(), loadCategories(), loadTags()]);
+  };
+
+  const loadCategories = async () => {
+    try {
+      const categoriesData = await apiService.getCategories();
+      setCategories(categoriesData);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
   };
 
   const loadTags = async () => {
@@ -117,7 +245,21 @@ const TransactionsListScreen: React.FC = () => {
     }
   };
 
-  // Filter and sort transactions
+  // Get unique payment methods from transactions
+  const availablePaymentMethods = useMemo(() => {
+    const methods = new Set<PaymentMethod>();
+    transactions.forEach((tx) => {
+      if (tx.type === 'expense' && tx.paymentMethod) {
+        methods.add(tx.paymentMethod);
+      }
+    });
+    return Array.from(methods).map((method) => ({
+      id: method,
+      ...PAYMENT_METHOD_DISPLAY[method],
+    }));
+  }, [transactions]);
+
+  // Filter and sort transactions, then group by date
   useEffect(() => {
     let filtered = [...transactions];
 
@@ -215,6 +357,10 @@ const TransactionsListScreen: React.FC = () => {
     });
 
     setFilteredTransactions(filtered);
+
+    // Group filtered transactions by date (preserving sort order)
+    const grouped = groupTransactionsByDate(filtered, sortBy, sortOrder);
+    setGroupedTransactions(grouped);
   }, [transactions, searchQuery, selectedCategories, selectedPaymentMethods, selectedTags, selectedTransactionType, selectedDateRange, customStartDate, customEndDate, sortBy, sortOrder]);
 
   const handleTransactionLongPress = useCallback((transaction: UnifiedTransaction) => {
@@ -280,10 +426,16 @@ const TransactionsListScreen: React.FC = () => {
 
   const hasActiveFilters = selectedCategories.length > 0 || selectedPaymentMethods.length > 0 || selectedTags.length > 0 || selectedTransactionType !== 'all' || selectedDateRange !== 'all' || searchQuery.trim();
 
-  // Memoize filtered transactions for better performance
-  const memoizedFilteredTransactions = useMemo(() => filteredTransactions, [filteredTransactions]);
-
   // Render functions for FlatList
+  const renderDateHeader = useCallback(({ item }: { item: GroupedTransactions }) => (
+    <View style={[styles.dateHeader, { backgroundColor: theme.background }]}>
+      <Text style={[styles.dateHeaderText, { color: theme.textSecondary }]}>
+        {item.dateLabel}
+      </Text>
+      <View style={[styles.dateHeaderLine, { backgroundColor: theme.border }]} />
+    </View>
+  ), [theme]);
+
   const renderTransactionItem = useCallback(({ item }: { item: UnifiedTransaction }) => (
     <ExpenseCard
       transaction={item}
@@ -292,7 +444,21 @@ const TransactionsListScreen: React.FC = () => {
     />
   ), [handleTransactionPress, handleTransactionLongPress]);
 
-  const keyExtractor = useCallback((item: UnifiedTransaction) => item.id, []);
+  const renderSection = useCallback(({ item }: { item: GroupedTransactions }) => (
+    <View>
+      {renderDateHeader({ item })}
+      {item.transactions.map((transaction) => (
+        <ExpenseCard
+          key={transaction.id}
+          transaction={transaction}
+          onPress={() => handleTransactionPress(transaction)}
+          onLongPress={() => handleTransactionLongPress(transaction)}
+        />
+      ))}
+    </View>
+  ), [renderDateHeader, handleTransactionPress, handleTransactionLongPress]);
+
+  const keyExtractor = useCallback((item: GroupedTransactions) => item.date, []);
 
   const renderEmptyState = useCallback(() => (
     <View style={styles.emptyState}>
@@ -403,8 +569,8 @@ const TransactionsListScreen: React.FC = () => {
                 style={[
                   styles.filterChip,
                   {
-                    backgroundColor: theme.categories[catId as keyof typeof theme.categories] + '20',
-                    borderColor: theme.categories[catId as keyof typeof theme.categories],
+                    backgroundColor: cat.color + '20',
+                    borderColor: cat.color,
                   },
                 ]}
                 onPress={() => setSelectedCategories(selectedCategories.filter(id => id !== catId))}
@@ -412,13 +578,13 @@ const TransactionsListScreen: React.FC = () => {
                 <Icon
                   name={cat.icon as any}
                   size={14}
-                  color={theme.categories[catId as keyof typeof theme.categories]}
+                  color={cat.color}
                 />
                 <Text
                   style={[
                     styles.filterChipText,
                     {
-                      color: theme.categories[catId as keyof typeof theme.categories],
+                      color: cat.color,
                     },
                   ]}
                 >
@@ -428,7 +594,7 @@ const TransactionsListScreen: React.FC = () => {
                   onPress={() => setSelectedCategories(selectedCategories.filter(id => id !== catId))}
                   style={styles.chipCloseButton}
                 >
-                  <Icon name="close" size={12} color={theme.categories[catId as keyof typeof theme.categories]} />
+                  <Icon name="close" size={12} color={cat.color} />
                 </TouchableOpacity>
               </TouchableOpacity>
             );
@@ -436,7 +602,7 @@ const TransactionsListScreen: React.FC = () => {
 
           {/* Payment Method Filters */}
           {selectedPaymentMethods.map((methodId) => {
-            const method = PAYMENT_METHODS.find(m => m.id === methodId);
+            const method = PAYMENT_METHOD_DISPLAY[methodId];
             if (!method) return null;
             return (
               <TouchableOpacity
@@ -602,14 +768,14 @@ const TransactionsListScreen: React.FC = () => {
         </View>
       ) : (
         <PullToRefreshFlatList
-          data={memoizedFilteredTransactions}
-          renderItem={renderTransactionItem}
+            data={groupedTransactions}
+            renderItem={renderSection}
           keyExtractor={keyExtractor}
           ListEmptyComponent={renderEmptyState}
           ListFooterComponent={renderListFooter}
           contentContainerStyle={[
             styles.scrollContent,
-            memoizedFilteredTransactions.length === 0 && styles.emptyContentContainer,
+            groupedTransactions.length === 0 && styles.emptyContentContainer,
           ]}
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
@@ -742,8 +908,8 @@ const TransactionsListScreen: React.FC = () => {
                             style={[
                               styles.categoryFilterButton,
                               {
-                                backgroundColor: isSelected ? theme.categories[cat.id as keyof typeof theme.categories] + '20' : theme.background,
-                                borderColor: isSelected ? theme.categories[cat.id as keyof typeof theme.categories] : theme.border,
+                                backgroundColor: isSelected ? cat.color + '20' : theme.background,
+                                borderColor: isSelected ? cat.color : theme.border,
                               },
                             ]}
                             onPress={() => {
@@ -757,13 +923,13 @@ const TransactionsListScreen: React.FC = () => {
                             <Icon
                               name={cat.icon as any}
                               size={18}
-                              color={isSelected ? theme.categories[cat.id as keyof typeof theme.categories] : theme.textSecondary}
+                              color={isSelected ? cat.color : theme.textSecondary}
                             />
                             <Text
                               style={[
                                 styles.categoryFilterButtonText,
                                 {
-                                  color: isSelected ? theme.categories[cat.id as keyof typeof theme.categories] : theme.textSecondary,
+                                  color: isSelected ? cat.color : theme.textSecondary,
                                 },
                               ]}
                             >
@@ -778,34 +944,40 @@ const TransactionsListScreen: React.FC = () => {
                   {/* Payment Method Filter */}
                   <View style={[styles.modalSection, { borderBottomColor: theme.border }]}>
                     <Text style={[styles.modalSectionTitle, { color: theme.text }]}>Payment Method</Text>
-                    {PAYMENT_METHODS.map((method) => {
-                      const isSelected = selectedPaymentMethods.includes(method.id);
-                      return (
-                        <TouchableOpacity
-                          key={method.id}
-                          style={[
-                            styles.modalOption,
-                            { borderBottomColor: theme.border },
-                            isSelected && { backgroundColor: theme.primary + '10' },
-                          ]}
-                          onPress={() => {
-                            if (isSelected) {
-                              setSelectedPaymentMethods(selectedPaymentMethods.filter(id => id !== method.id));
-                            } else {
-                              setSelectedPaymentMethods([...selectedPaymentMethods, method.id]);
-                            }
-                          }}
-                        >
-                          <Icon name={method.icon as any} size={20} color={isSelected ? theme.primary : theme.textSecondary} />
-                          <Text style={[styles.modalOptionText, { color: isSelected ? theme.primary : theme.text }]}>
-                            {method.name}
-                          </Text>
-                          {isSelected && (
-                            <Icon name="check" size={20} color={theme.primary} />
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
+                {availablePaymentMethods.length > 0 ? (
+                  availablePaymentMethods.map((method) => {
+                    const isSelected = selectedPaymentMethods.includes(method.id);
+                    return (
+                      <TouchableOpacity
+                        key={method.id}
+                        style={[
+                          styles.modalOption,
+                          { borderBottomColor: theme.border },
+                          isSelected && { backgroundColor: theme.primary + '10' },
+                        ]}
+                        onPress={() => {
+                          if (isSelected) {
+                            setSelectedPaymentMethods(selectedPaymentMethods.filter(id => id !== method.id));
+                          } else {
+                            setSelectedPaymentMethods([...selectedPaymentMethods, method.id]);
+                          }
+                        }}
+                      >
+                        <Icon name={method.icon as any} size={20} color={isSelected ? theme.primary : theme.textSecondary} />
+                        <Text style={[styles.modalOptionText, { color: isSelected ? theme.primary : theme.text }]}>
+                          {method.name}
+                        </Text>
+                        {isSelected && (
+                          <Icon name="check" size={20} color={theme.primary} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })
+                ) : (
+                  <Text style={[styles.emptyTagsText, { color: theme.textSecondary }]}>
+                    No payment methods found in transactions
+                  </Text>
+                )}
                   </View>
 
                   {/* Tags Filter */}
@@ -1137,6 +1309,20 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     textAlign: 'center',
     paddingVertical: spacing.md,
+  },
+  dateHeader: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.md,
+  },
+  dateHeaderText: {
+    ...typography.titleSmall,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
+  dateHeaderLine: {
+    height: 1,
+    width: '100%',
   },
 });
 

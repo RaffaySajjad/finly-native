@@ -102,8 +102,17 @@ const AddExpenseScreen: React.FC = () => {
       setCategories(loadedCategories);
 
       // Set default category to first one if available and no category selected
-      if (loadedCategories.length > 0 && !category) {
+      // BUT only if we're NOT editing (editing expense will set category via useEffect)
+      if (loadedCategories.length > 0 && !category && !isEditing) {
         setCategory(loadedCategories[0].id);
+      }
+
+      // If editing and we have the categoryId, set it now that categories are loaded
+      if (isEditing && editingExpense?.categoryId && loadedCategories.length > 0) {
+        const categoryExists = loadedCategories.some(cat => cat.id === editingExpense.categoryId);
+        if (categoryExists) {
+          setCategory(editingExpense.categoryId);
+        }
       }
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -121,6 +130,7 @@ const AddExpenseScreen: React.FC = () => {
   };
 
   // Pre-fill form when editing or when data is passed from receipt scanner
+  // Note: Category is set in loadCategories() after categories are loaded to avoid race condition
   useEffect(() => {
     if (editingExpense) {
       // Convert amount from USD (base currency) to display currency for editing
@@ -128,12 +138,14 @@ const AddExpenseScreen: React.FC = () => {
         const amountInDisplayCurrency = convertFromUSD(editingExpense.amount);
         setAmount(amountInDisplayCurrency.toString());
       }
-      if (editingExpense.categoryId) setCategory(editingExpense.categoryId); // Use categoryId
+      // Category is set in loadCategories() after categories are loaded
       if (editingExpense.description) setDescription(editingExpense.description);
       if (editingExpense.date) setDate(new Date(editingExpense.date));
       if (editingExpense.paymentMethod) setPaymentMethod(editingExpense.paymentMethod);
       if (editingExpense.tags) {
-        setSelectedTags(editingExpense.tags.map(tag => typeof tag === 'string' ? tag : tag.id));
+        // Handle both string IDs and tag objects
+        const tagIds = editingExpense.tags.map(tag => typeof tag === 'string' ? tag : tag.id);
+        setSelectedTags(tagIds);
       }
     }
   }, [editingExpense, convertFromUSD]);
@@ -187,7 +199,8 @@ const AddExpenseScreen: React.FC = () => {
         if (paymentMethod) {
           payload.paymentMethod = paymentMethod;
         }
-        if (selectedTags.length > 0) {
+        // Only include tags if there are any selected (backend validation requires at least 1 item if tags is provided)
+        if (selectedTags && selectedTags.length > 0) {
           payload.tags = selectedTags;
         }
 
@@ -217,7 +230,8 @@ const AddExpenseScreen: React.FC = () => {
         if (paymentMethod) {
           payload.paymentMethod = paymentMethod;
         }
-        if (selectedTags.length > 0) {
+        // Only include tags if there are any selected
+        if (selectedTags && selectedTags.length > 0) {
           payload.tags = selectedTags;
         }
 
@@ -276,6 +290,7 @@ const AddExpenseScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
+      <View style={{ height: spacing.md }} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
@@ -727,7 +742,7 @@ const AddExpenseScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flex: 1
   },
   keyboardView: {
     flex: 1,

@@ -119,12 +119,22 @@ export interface Category {
 
 export interface Insight {
   id: string;
-  type: 'savings' | 'warning' | 'achievement' | 'tip';
+  type: 'warning' | 'success' | 'info' | 'achievement';
   title: string;
   description: string;
-  amount?: number;
   icon: string;
   color: string;
+  isRead?: boolean;
+  createdAt: string;
+}
+
+export interface PaginatedInsightsResponse {
+  insights: Insight[];
+  pagination: {
+    hasMore: boolean;
+    nextCursor: string | null;
+    total: number;
+  };
 }
 
 export interface MonthlyStats {

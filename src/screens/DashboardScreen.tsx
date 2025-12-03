@@ -31,6 +31,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 import { useTheme } from '../contexts/ThemeContext';
+import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useBottomSheet } from '../contexts/BottomSheetContext';
 import {
@@ -59,6 +60,97 @@ import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
 
+const RECENT_TRANSACTIONS_LIMIT = 10;
+
+interface GroupedTransactions {
+  date: string;
+  dateLabel: string;
+  transactions: UnifiedTransaction[];
+}
+
+/**
+ * Format date for display (same as InsightsScreen and CategoryDetailsScreen)
+ */
+const formatDateLabel = (dateString: string): string => {
+  const date = new Date(dateString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  // Reset time for comparison
+  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+
+  if (dateOnly.getTime() === todayOnly.getTime()) {
+    return 'Today';
+  } else if (dateOnly.getTime() === yesterdayOnly.getTime()) {
+    return 'Yesterday';
+  } else {
+    // Check if it's within the last 7 days
+    const daysDiff = Math.floor((todayOnly.getTime() - dateOnly.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysDiff <= 7) {
+      return date.toLocaleDateString('en-US', { weekday: 'long' });
+    } else {
+      // Check if it's in the past year
+      const oneYearAgo = new Date(today);
+      oneYearAgo.setFullYear(today.getFullYear() - 1);
+
+      if (date.getFullYear() < today.getFullYear()) {
+        // Past year - include year: "26 November, 2024"
+        return date.toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+      } else {
+        // Current year but more than 7 days ago - no year: "26 November"
+        return date.toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'long'
+        });
+      }
+    }
+  }
+};
+
+/**
+ * Group transactions by date
+ */
+const groupTransactionsByDate = (transactions: UnifiedTransaction[]): GroupedTransactions[] => {
+  // First, ensure transactions are sorted by date (newest first)
+  const sortedTransactions = [...transactions].sort((a, b) =>
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+
+  const grouped: Record<string, UnifiedTransaction[]> = {};
+
+  sortedTransactions.forEach((transaction) => {
+    const date = new Date(transaction.date);
+    // Use local date components to avoid timezone issues
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateKey = `${year}-${month}-${day}`; // YYYY-MM-DD in local timezone
+
+    if (!grouped[dateKey]) {
+      grouped[dateKey] = [];
+    }
+    grouped[dateKey].push(transaction);
+  });
+
+  // Convert to array and sort by date (newest first)
+  return Object.entries(grouped)
+    .map(([date, transactions]) => ({
+      date,
+      dateLabel: formatDateLabel(transactions[0].date),
+      transactions: transactions.sort((a, b) =>
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      ),
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+};
+
 type DashboardNavigationProp = StackNavigationProp<RootStackParamList, 'MainTabs'>;
 
 /**
@@ -73,8 +165,11 @@ const DashboardScreen: React.FC = () => {
   const { openBottomSheet, setOnTransactionAdded } = useBottomSheet();
   const optionsSheetRef = useRef<BottomSheet>(null);
   const balanceAdjustSheetRef = useRef<BottomSheet>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   
   const [transactions, setTransactions] = useState<UnifiedTransaction[]>([]);
+  const [totalTransactions, setTotalTransactions] = useState<number>(0);
+  const [groupedTransactions, setGroupedTransactions] = useState<GroupedTransactions[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
   const [insights, setInsights] = useState<Insight[]>([]);
@@ -126,19 +221,22 @@ const DashboardScreen: React.FC = () => {
     };
   }, []);
 
-  // Refresh data when screen gains focus
+  // Refresh data when screen gains focus - use cache for faster load
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      loadData(false); // Use cache by default
     }, [])
   );
+
+  // Scroll to top when tab is pressed while already on this screen
+  useScrollToTopOnTabPress(scrollViewRef);
 
   // Register callback to refresh when transaction is added
   useEffect(() => {
     setOnTransactionAdded(() => {
       console.log('[DashboardScreen] Transaction added, refreshing data...');
-      loadData();
-    });
+        loadData(true); // Skip cache when transaction is added to show latest data
+      });
 
     // Cleanup on unmount
     return () => {
@@ -181,17 +279,36 @@ const DashboardScreen: React.FC = () => {
     }
   };
 
-  const loadData = async (): Promise<void> => {
+  const loadData = async (skipCache: boolean = false): Promise<void> => {
     try {
-      const [transactionsData, categoriesData, statsData, insightsData] = await Promise.all([
-        apiService.getUnifiedTransactions({ limit: 5 }),
-        apiService.getCategories(),
-        apiService.getMonthlyStats(),
-        apiService.getInsights(),
+      const [transactionsResponse, categoriesData, statsData, insightsResponse] = await Promise.all([
+        apiService.getUnifiedTransactions({
+          limit: RECENT_TRANSACTIONS_LIMIT,
+          includeTotal: true
+        }),
+        apiService.getCategories(skipCache),
+        apiService.getMonthlyStats(skipCache),
+        apiService.getInsights({ limit: 5, forceRefresh: skipCache }), // Get first 5 insights for dashboard
       ]);
-      setTransactions(transactionsData);
+
+      // Handle paginated response with total count
+      if (typeof transactionsResponse === 'object' && 'transactions' in transactionsResponse) {
+        setTransactions(transactionsResponse.transactions);
+        setTotalTransactions(transactionsResponse.total);
+      } else {
+        // Fallback for backward compatibility (array response)
+        const transactionsArray = transactionsResponse as UnifiedTransaction[];
+        setTransactions(transactionsArray);
+        setTotalTransactions(transactionsArray.length);
+      }
+
       setCategories(categoriesData);
       setStats(statsData);
+
+      // Handle both old cached format (array) and new paginated format
+      const insightsData = Array.isArray(insightsResponse)
+        ? insightsResponse
+        : (insightsResponse?.insights || []);
       setInsights(insightsData);
 
       // Trigger confetti for achievements
@@ -206,6 +323,13 @@ const DashboardScreen: React.FC = () => {
       setRefreshing(false);
     }
   };
+
+  // Update grouped transactions when transactions change
+  // No need to slice since we're already fetching exactly RECENT_TRANSACTIONS_LIMIT
+  useEffect(() => {
+    const grouped = groupTransactionsByDate(transactions);
+    setGroupedTransactions(grouped);
+  }, [transactions]);
 
 
   const handleTransactionLongPress = (transaction: UnifiedTransaction) => {
@@ -359,9 +483,10 @@ const DashboardScreen: React.FC = () => {
         </View>
 
         <PullToRefreshScrollView
+          ref={scrollViewRef}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 120 }}
-          onRefresh={loadData}
+          contentContainerStyle={{ paddingBottom: Platform.OS === 'ios' ? 120 : 0 }}
+          onRefresh={() => loadData(true)} // Skip cache on pull-to-refresh
         >
           {/* Premium Balance Card */}
           {stats && (
@@ -439,6 +564,7 @@ const DashboardScreen: React.FC = () => {
                   elevation.sm,
                 ]}
                 activeOpacity={0.8}
+                onPress={() => navigation.navigate('Insights')}
               >
                 <View style={[styles.insightIconContainer, { backgroundColor: insights[0].color + '15' }]}>
                   <Icon name={insights[0].icon as any} size={24} color={insights[0].color} />
@@ -475,19 +601,33 @@ const DashboardScreen: React.FC = () => {
                 <SkeletonCard />
                 <SkeletonCard />
               </>
-            ) : transactions.length > 0 ? (
+            ) : groupedTransactions.length > 0 ? (
               <FlatList
-                data={transactions.slice(0, 20)}
-                renderItem={({ item: transaction }) => (
-                  <ExpenseCard
-                      transaction={transaction}
-                      onPress={() => {
-                        navigation.navigate('TransactionDetails', { transaction });
-                      }}
-                      onLongPress={() => handleTransactionLongPress(transaction)}
-                    />
-                  )}
-                  keyExtractor={(item) => item.id}
+                  data={groupedTransactions}
+                  renderItem={({ item: group }) => (
+                    <View>
+                      {/* Date Header */}
+                      <View style={[styles.dateHeader, { backgroundColor: theme.background }]}>
+                        <Text style={[styles.dateHeaderText, { color: theme.textSecondary }]}>
+                          {group.dateLabel}
+                        </Text>
+                        <View style={[styles.dateHeaderLine, { backgroundColor: theme.border }]} />
+                      </View>
+
+                      {/* Transactions for this date */}
+                      {group.transactions.map((transaction) => (
+                        <ExpenseCard
+                        key={transaction.id}
+                        transaction={transaction}
+                        onPress={() => {
+                          navigation.navigate('TransactionDetails', { transaction });
+                        }}
+                        onLongPress={() => handleTransactionLongPress(transaction)}
+                      />
+                    ))}
+                  </View>
+                )}
+                  keyExtractor={(item) => item.date}
                   scrollEnabled={false}
                   nestedScrollEnabled={true}
                   removeClippedSubviews={true}
@@ -502,14 +642,14 @@ const DashboardScreen: React.FC = () => {
                     />
                   }
                   ListFooterComponent={
-                    transactions.length > 20 ? (
-                      <TouchableOpacity
-                        style={[styles.viewAllFooter, { backgroundColor: theme.card, borderColor: theme.border }]}
-                        onPress={() => navigation.navigate('TransactionsList')}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.viewAllFooterText, { color: theme.text }]}>
-                          +{transactions.length - 20} more transactions
+                  totalTransactions > RECENT_TRANSACTIONS_LIMIT ? (
+                    <TouchableOpacity
+                      style={[styles.viewAllFooter, { backgroundColor: theme.card, borderColor: theme.border }]}
+                      onPress={() => navigation.navigate('TransactionsList')}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.viewAllFooterText, { color: theme.text }]}>
+                          +{totalTransactions - RECENT_TRANSACTIONS_LIMIT} more transactions
                         </Text>
                         <Icon name="chevron-right" size={20} color={theme.primary} />
                       </TouchableOpacity>
@@ -1247,12 +1387,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: spacing.md,
     marginTop: spacing.sm,
-    borderRadius: borderRadius.md,
     borderWidth: 1,
   },
   viewAllFooterText: {
     ...typography.bodyMedium,
     fontWeight: '600',
+  },
+  dateHeader: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.md,
+  },
+  dateHeaderText: {
+    ...typography.titleSmall,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
+  dateHeaderLine: {
+    height: 1,
+    width: '100%',
   },
 });
 

@@ -28,8 +28,9 @@ const initialState: InsightsState = {
 export const fetchInsights = createAsyncThunk(
   'insights/fetchAll',
   async () => {
-    const insights = await apiService.getInsights();
-    return insights;
+    const response = await apiService.getInsights({ limit: 20 });
+    // Extract insights array from paginated response
+    return Array.isArray(response) ? response : response.insights;
   }
 );
 

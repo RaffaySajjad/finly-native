@@ -3,8 +3,18 @@
  * Purpose: Handles expense, category, income, and analytics operations using backend API
  */
 
-import { Expense, Category, Insight, MonthlyStats, Receipt, IncomeSource, IncomeTransaction, UnifiedTransaction } from '../types';
-import { api } from './apiClient';
+import {
+  Expense,
+  Category,
+  Insight,
+  MonthlyStats,
+  Receipt,
+  IncomeSource,
+  IncomeTransaction,
+  UnifiedTransaction,
+  PaginatedInsightsResponse
+} from '../types';
+import { api, apiClient } from './apiClient';
 import { API_ENDPOINTS } from '../config/api.config';
 
 /**
@@ -30,12 +40,18 @@ export const apiService = {
   },
   /**
    * Get all categories with current month spending
+   * @param skipCache - Whether to skip cache and fetch fresh data
    */
-  async getCategories(): Promise<Category[]> {
+  async getCategories(skipCache: boolean = false): Promise<Category[]> {
     try {
-      const response = await api.get<Category[]>(API_ENDPOINTS.CATEGORIES.LIST);
+      const response = await api.get<Category[]>(
+        API_ENDPOINTS.CATEGORIES.LIST,
+        { skipCache }
+      );
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to fetch categories');
+        throw new Error(
+          response.error?.message || 'Failed to fetch categories'
+        );
       }
       return response.data || [];
     } catch (error) {
@@ -49,9 +65,13 @@ export const apiService = {
    */
   async setupDefaultCategories(): Promise<Category[]> {
     try {
-      const response = await api.post<Category[]>(API_ENDPOINTS.CATEGORIES.SETUP_DEFAULTS);
+      const response = await api.post<Category[]>(
+        API_ENDPOINTS.CATEGORIES.SETUP_DEFAULTS
+      );
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to setup categories');
+        throw new Error(
+          response.error?.message || 'Failed to setup categories'
+        );
       }
       return response.data || [];
     } catch (error) {
@@ -65,7 +85,9 @@ export const apiService = {
    */
   async hasCategorySetupCompleted(): Promise<boolean> {
     try {
-      const response = await api.get<{ completed: boolean }>(API_ENDPOINTS.CATEGORIES.SETUP_STATUS);
+      const response = await api.get<{ completed: boolean }>(
+        API_ENDPOINTS.CATEGORIES.SETUP_STATUS
+      );
       if (!response.success) {
         return false;
       }
@@ -86,7 +108,10 @@ export const apiService = {
     budgetLimit?: number;
   }): Promise<Category> {
     try {
-      const response = await api.post<Category>(API_ENDPOINTS.CATEGORIES.LIST, data);
+      const response = await api.post<Category>(
+        API_ENDPOINTS.CATEGORIES.LIST,
+        data
+      );
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to create category');
       }
@@ -130,7 +155,9 @@ export const apiService = {
    */
   async deleteCategory(categoryId: string): Promise<void> {
     try {
-      const response = await api.delete(API_ENDPOINTS.CATEGORIES.DETAIL.replace(':id', categoryId));
+      const response = await api.delete(
+        API_ENDPOINTS.CATEGORIES.DETAIL.replace(':id', categoryId)
+      );
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to delete category');
       }
@@ -148,15 +175,21 @@ export const apiService = {
     endDate?: Date;
     categoryId?: string;
     limit?: number;
+    cursor?: string;
   }): Promise<Expense[]> {
     try {
       const params: Record<string, string> = {};
-      if (options?.startDate) params.startDate = options.startDate.toISOString();
+      if (options?.startDate)
+        params.startDate = options.startDate.toISOString();
       if (options?.endDate) params.endDate = options.endDate.toISOString();
       if (options?.categoryId) params.categoryId = options.categoryId;
       if (options?.limit) params.limit = options.limit.toString();
+      if (options?.cursor) params.cursor = options.cursor;
 
-      const response = await api.get<Expense[]>(API_ENDPOINTS.EXPENSES.LIST, params);
+      const response = await api.get<Expense[]>(
+        API_ENDPOINTS.EXPENSES.LIST,
+        params
+      );
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to fetch expenses');
       }
@@ -168,13 +201,91 @@ export const apiService = {
   },
 
   /**
+   * Get expenses with pagination
+   * @param options - Pagination options
+   * @returns Paginated expenses response
+   */
+  async getExpensesPaginated(options?: {
+    categoryId?: string;
+    limit?: number;
+    cursor?: string;
+  }): Promise<{
+    expenses: Expense[];
+    pagination: {
+      hasMore: boolean;
+      nextCursor: string | null;
+      total: number;
+    };
+  }> {
+    try {
+      const params: Record<string, string> = {};
+      if (options?.categoryId) params.categoryId = options.categoryId;
+      if (options?.limit) params.limit = options.limit.toString();
+      if (options?.cursor) params.cursor = options.cursor;
+
+      console.log('[API] getExpensesPaginated called with:', {
+        categoryId: options?.categoryId,
+        limit: options?.limit,
+        cursor: options?.cursor,
+        params
+      });
+
+      // Skip cache for category-specific requests to ensure fresh data
+      // Cache key might not properly differentiate categoryId in some cases
+      const skipCache = !!options?.categoryId;
+
+      // Backend returns: { success: true, data: [...expenses...], pagination: {...} }
+      // We need to access the raw axios response because api.get extracts response.data
+      // which loses the pagination metadata when cached data is an array
+      // Use apiClient directly to bypass the api.get wrapper and get the full response
+      const axiosResponse = await apiClient.get<{
+        success: boolean;
+        data: Expense[];
+        pagination: {
+          hasMore: boolean;
+          nextCursor: string | null;
+          total: number;
+        };
+      }>(API_ENDPOINTS.EXPENSES.LIST, { params });
+
+      // Axios response structure: axiosResponse.data = { success: true, data: [...], pagination: {...} }
+      const backendResponse = axiosResponse.data;
+
+      if (!backendResponse.success) {
+        throw new Error('Failed to fetch expenses');
+      }
+
+      console.log('[API] getExpensesPaginated parsed:', {
+        expensesCount: backendResponse.data?.length || 0,
+        pagination: backendResponse.pagination,
+        hasData: !!backendResponse.data,
+        hasPagination: !!backendResponse.pagination
+      });
+
+      return {
+        expenses: backendResponse.data || [],
+        pagination: backendResponse.pagination || {
+          hasMore: false,
+          nextCursor: null,
+          total: 0
+        }
+      };
+    } catch (error) {
+      console.error('[API] Get paginated expenses error:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Get expenses for the current month
    */
   async getMonthlyExpenses(): Promise<Expense[]> {
     try {
       const response = await api.get<Expense[]>(API_ENDPOINTS.EXPENSES.MONTHLY);
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to fetch monthly expenses');
+        throw new Error(
+          response.error?.message || 'Failed to fetch monthly expenses'
+        );
       }
       return response.data || [];
     } catch (error) {
@@ -200,7 +311,7 @@ export const apiService = {
     try {
       const response = await api.post<Expense>(API_ENDPOINTS.EXPENSES.LIST, {
         ...data,
-        date: data.date || new Date(),
+        date: data.date || new Date()
       });
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to create expense');
@@ -249,7 +360,9 @@ export const apiService = {
    */
   async deleteExpense(expenseId: string): Promise<void> {
     try {
-      const response = await api.delete(API_ENDPOINTS.EXPENSES.DETAIL.replace(':id', expenseId));
+      const response = await api.delete(
+        API_ENDPOINTS.EXPENSES.DETAIL.replace(':id', expenseId)
+      );
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to delete expense');
       }
@@ -262,19 +375,24 @@ export const apiService = {
   /**
    * Get monthly statistics
    */
-  async getMonthlyStats(): Promise<MonthlyStats> {
+  async getMonthlyStats(skipCache: boolean = false): Promise<MonthlyStats> {
     try {
-      const response = await api.get<MonthlyStats>(API_ENDPOINTS.ANALYTICS.STATS);
+      const response = await api.get<MonthlyStats>(
+        API_ENDPOINTS.ANALYTICS.STATS,
+        { skipCache }
+      );
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to fetch stats');
       }
-      return response.data || {
-        totalIncome: 0,
-        totalExpenses: 0,
-        balance: 0,
-        savings: 0,
-        savingsRate: 0,
-      };
+      return (
+        response.data || {
+          totalIncome: 0,
+          totalExpenses: 0,
+          balance: 0,
+          savings: 0,
+          savingsRate: 0
+        }
+      );
     } catch (error) {
       console.error('[API] Get monthly stats error:', error);
       throw error;
@@ -282,15 +400,65 @@ export const apiService = {
   },
 
   /**
-   * Get AI-powered insights
+   * Get AI-powered insights with pagination
+   * @param limit - Number of insights to fetch (default: 20)
+   * @param cursor - Cursor for pagination (ISO date string)
+   * @param includeRead - Whether to include read insights (default: true)
+   * @param forceRefresh - Force refresh by generating new insights (default: false)
    */
-  async getInsights(): Promise<Insight[]> {
+  async getInsights(options?: {
+    limit?: number;
+    cursor?: string;
+    includeRead?: boolean;
+    forceRefresh?: boolean;
+  }): Promise<PaginatedInsightsResponse> {
     try {
-      const response = await api.get<Insight[]>(API_ENDPOINTS.ANALYTICS.INSIGHTS);
+      const params: Record<string, string> = {};
+      if (options?.limit) params.limit = options.limit.toString();
+      if (options?.cursor) params.cursor = options.cursor;
+      if (options?.includeRead === false) params.includeRead = 'false';
+      if (options?.forceRefresh) params.forceRefresh = 'true';
+
+      // Skip cache when forceRefresh is true
+      const skipCache = options?.forceRefresh === true;
+
+      const response = await api.get<
+        | {
+            insights: Insight[];
+            pagination: {
+              hasMore: boolean;
+              nextCursor: string | null;
+              total: number;
+            };
+          }
+        | Insight[]
+      >(API_ENDPOINTS.ANALYTICS.INSIGHTS, { params, skipCache });
+
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to fetch insights');
       }
-      return response.data || [];
+
+      // Handle both old cached format (array) and new paginated format
+      if (Array.isArray(response.data)) {
+        // Old format - convert to new format
+        return {
+          insights: response.data,
+          pagination: {
+            hasMore: false,
+            nextCursor: null,
+            total: response.data.length
+          }
+        };
+      }
+
+      return {
+        insights: response.data?.insights || [],
+        pagination: response.data?.pagination || {
+          hasMore: false,
+          nextCursor: null,
+          total: 0
+        }
+      };
     } catch (error) {
       console.error('[API] Get insights error:', error);
       throw error;
@@ -302,29 +470,38 @@ export const apiService = {
    */
   async getBalanceInsights(balanceData: {
     dailyBalances: Array<{ date: string; balance: number }>;
-    monthlyBalances: Array<{ month: string; balance: number; income: number; expenses: number }>;
+    monthlyBalances: Array<{
+      month: string;
+      balance: number;
+      income: number;
+      expenses: number;
+    }>;
     projection: {
       endOfMonth: number;
       daysRemaining: number;
       dailySpendingRate: number;
       isPositive: boolean;
     };
-  }): Promise<Array<{
-    id: string;
-    type: 'info' | 'warning' | 'success';
-    title: string;
-    description: string;
-    icon: string;
-  }>> {
+  }): Promise<
+    Array<{
+      id: string;
+      type: 'info' | 'warning' | 'success';
+      title: string;
+      description: string;
+      icon: string;
+    }>
+  > {
     try {
-      const response = await api.post<Array<{
-        id: string;
-        type: 'info' | 'warning' | 'success';
-        title: string;
-        description: string;
-        icon: string;
-      }>>(API_ENDPOINTS.AI.BALANCE_INSIGHTS, {
-        balanceData,
+      const response = await api.post<
+        Array<{
+          id: string;
+          type: 'info' | 'warning' | 'success';
+          title: string;
+          description: string;
+          icon: string;
+        }>
+      >(API_ENDPOINTS.AI.BALANCE_INSIGHTS, {
+        balanceData
       });
       if (!response.success || !response.data) {
         return [];
@@ -345,7 +522,9 @@ export const apiService = {
         API_ENDPOINTS.ANALYTICS.DAILY_SPENDING
       );
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to fetch daily spending');
+        throw new Error(
+          response.error?.message || 'Failed to fetch daily spending'
+        );
       }
       return response.data || [];
     } catch (error) {
@@ -371,14 +550,18 @@ export const apiService = {
         changePercentage: number;
       }>(API_ENDPOINTS.ANALYTICS.TREND);
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to fetch spending trend');
+        throw new Error(
+          response.error?.message || 'Failed to fetch spending trend'
+        );
       }
-      return response.data || {
-        thisWeek: 0,
-        lastWeek: 0,
-        change: 0,
-        changePercentage: 0,
-      };
+      return (
+        response.data || {
+          thisWeek: 0,
+          lastWeek: 0,
+          change: 0,
+          changePercentage: 0
+        }
+      );
     } catch (error) {
       console.error('[API] Get spending trend error:', error);
       throw error;
@@ -389,22 +572,34 @@ export const apiService = {
    * Get comprehensive spending trends data for Trends screen
    * Combines daily spending, category totals, weekly comparison, and top category
    */
-  async getSpendingTrends(): Promise<{
+  async getSpendingTrends(skipCache: boolean = false): Promise<{
     dailySpending: Array<{ date: string; amount: number }>;
     categoryTotals: Array<{ category: string; amount: number; color: string }>;
-    weeklyComparison: { thisWeek: number; lastWeek: number; percentChange: number };
+    weeklyComparison: {
+      thisWeek: number;
+      lastWeek: number;
+      percentChange: number;
+    };
     topCategory: { name: string; amount: number; emoji: string };
   }> {
     try {
-      const [dailySpendingResponse, trendResponse, statsResponse, categoryTotalsResponse] = await Promise.all([
-        api.get<Array<{ date: string; amount: number }>>(API_ENDPOINTS.ANALYTICS.DAILY_SPENDING),
+      const [
+        dailySpendingResponse,
+        trendResponse,
+        statsResponse,
+        categoryTotalsResponse
+      ] = await Promise.all([
+        api.get<Array<{ date: string; amount: number }>>(
+          API_ENDPOINTS.ANALYTICS.DAILY_SPENDING,
+          { skipCache }
+        ),
         api.get<{
           thisWeek: number;
           lastWeek: number;
           change: number;
           changePercentage: number;
-        }>(API_ENDPOINTS.ANALYTICS.TREND),
-        api.get<MonthlyStats>(API_ENDPOINTS.ANALYTICS.STATS),
+        }>(API_ENDPOINTS.ANALYTICS.TREND, { skipCache }),
+        api.get<MonthlyStats>(API_ENDPOINTS.ANALYTICS.STATS, { skipCache }),
         api.get<{
           total: number;
           byCategory: Array<{
@@ -413,56 +608,88 @@ export const apiService = {
             categoryColor: string;
             amount: number;
           }>;
-        }>(API_ENDPOINTS.EXPENSES.STATS_MONTHLY),
+        }>(API_ENDPOINTS.EXPENSES.STATS_MONTHLY, { skipCache })
       ]);
 
-      const dailySpending = dailySpendingResponse.success && dailySpendingResponse.data
-        ? dailySpendingResponse.data
-        : [];
+      const dailySpending =
+        dailySpendingResponse.success && dailySpendingResponse.data
+          ? dailySpendingResponse.data
+          : [];
 
-      const trend = trendResponse.success && trendResponse.data
-        ? trendResponse.data
-        : { thisWeek: 0, lastWeek: 0, change: 0, changePercentage: 0 };
+      const trend =
+        trendResponse.success && trendResponse.data
+          ? trendResponse.data
+          : { thisWeek: 0, lastWeek: 0, change: 0, changePercentage: 0 };
 
-      const stats = statsResponse.success && statsResponse.data
-        ? statsResponse.data
-        : null;
+      const stats =
+        statsResponse.success && statsResponse.data ? statsResponse.data : null;
 
       const categoryTotals =
         categoryTotalsResponse.success && categoryTotalsResponse.data
           ? categoryTotalsResponse.data.byCategory.map(cat => ({
               category: cat.categoryName,
               amount: cat.amount,
-              color: cat.categoryColor,
+              color: cat.categoryColor
             }))
           : [];
 
       // Map emoji for top category (simple mapping)
       const getCategoryEmoji = (categoryName: string): string => {
         const name = categoryName.toLowerCase();
-        if (name.includes('food') || name.includes('restaurant') || name.includes('dining')) return '🍔';
-        if (name.includes('transport') || name.includes('car') || name.includes('gas')) return '🚗';
+        if (
+          name.includes('food') ||
+          name.includes('restaurant') ||
+          name.includes('dining')
+        )
+          return '🍔';
+        if (
+          name.includes('transport') ||
+          name.includes('car') ||
+          name.includes('gas')
+        )
+          return '🚗';
         if (name.includes('shopping') || name.includes('store')) return '🛍️';
-        if (name.includes('entertainment') || name.includes('movie') || name.includes('game')) return '🎬';
-        if (name.includes('health') || name.includes('medical') || name.includes('pharmacy')) return '🏥';
-        if (name.includes('utility') || name.includes('electric') || name.includes('water')) return '⚡';
-        if (name.includes('bills') || name.includes('rent') || name.includes('mortgage')) return '📄';
+        if (
+          name.includes('entertainment') ||
+          name.includes('movie') ||
+          name.includes('game')
+        )
+          return '🎬';
+        if (
+          name.includes('health') ||
+          name.includes('medical') ||
+          name.includes('pharmacy')
+        )
+          return '🏥';
+        if (
+          name.includes('utility') ||
+          name.includes('electric') ||
+          name.includes('water')
+        )
+          return '⚡';
+        if (
+          name.includes('bills') ||
+          name.includes('rent') ||
+          name.includes('mortgage')
+        )
+          return '📄';
         return '💰';
       };
 
       // Top category needs to be derived from categoryTotals
-      const topCategoryData = categoryTotals.reduce((max, cat) => 
-        cat.amount > max.amount ? cat : max, 
+      const topCategoryData = categoryTotals.reduce(
+        (max, cat) => (cat.amount > max.amount ? cat : max),
         categoryTotals[0] || { category: 'None', amount: 0, color: '#000000' }
       );
-      
-      const topCategory = categoryTotals.length > 0 
-        ? {
-            name: topCategoryData.category,
-            amount: topCategoryData.amount,
-            emoji: getCategoryEmoji(topCategoryData.category)
-          }
-        : { name: 'None', amount: 0, emoji: '📊' };
+
+      const topCategory =
+        categoryTotals.length > 0
+          ? {
+              name: topCategoryData.category,
+              amount: topCategoryData.amount,
+              emoji: getCategoryEmoji(topCategoryData.category)
+            }
+          : { name: 'None', amount: 0, emoji: '📊' };
 
       return {
         dailySpending,
@@ -470,9 +697,9 @@ export const apiService = {
         weeklyComparison: {
           thisWeek: trend.thisWeek,
           lastWeek: trend.lastWeek,
-          percentChange: trend.changePercentage,
+          percentChange: trend.changePercentage
         },
-        topCategory,
+        topCategory
       };
     } catch (error) {
       console.error('[API] Get spending trends error:', error);
@@ -497,14 +724,18 @@ export const apiService = {
         total: number;
       }>(API_ENDPOINTS.ANALYTICS.BUDGET_STATUS);
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to fetch budget status');
+        throw new Error(
+          response.error?.message || 'Failed to fetch budget status'
+        );
       }
-      return response.data || {
-        onTrack: 0,
-        overBudget: 0,
-        noBudget: 0,
-        total: 0,
-      };
+      return (
+        response.data || {
+          onTrack: 0,
+          overBudget: 0,
+          noBudget: 0,
+          total: 0
+        }
+      );
     } catch (error) {
       console.error('[API] Get budget status error:', error);
       throw error;
@@ -518,7 +749,9 @@ export const apiService = {
     try {
       const response = await api.get<any[]>(API_ENDPOINTS.INCOME.SOURCES);
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to fetch income sources');
+        throw new Error(
+          response.error?.message || 'Failed to fetch income sources'
+        );
       }
       return response.data || [];
     } catch (error) {
@@ -543,7 +776,9 @@ export const apiService = {
     try {
       const response = await api.post<any>(API_ENDPOINTS.INCOME.SOURCES, data);
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to create income source');
+        throw new Error(
+          response.error?.message || 'Failed to create income source'
+        );
       }
       return response.data!;
     } catch (error) {
@@ -562,7 +797,9 @@ export const apiService = {
         data
       );
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to update income source');
+        throw new Error(
+          response.error?.message || 'Failed to update income source'
+        );
       }
       return response.data!;
     } catch (error) {
@@ -576,9 +813,13 @@ export const apiService = {
    */
   async deleteIncomeSource(sourceId: string): Promise<void> {
     try {
-      const response = await api.delete(API_ENDPOINTS.INCOME.SOURCES + `/${sourceId}`);
+      const response = await api.delete(
+        API_ENDPOINTS.INCOME.SOURCES + `/${sourceId}`
+      );
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to delete income source');
+        throw new Error(
+          response.error?.message || 'Failed to delete income source'
+        );
       }
     } catch (error) {
       console.error('[API] Delete income source error:', error);
@@ -596,13 +837,20 @@ export const apiService = {
   }): Promise<any[]> {
     try {
       const params: Record<string, string> = {};
-      if (options?.startDate) params.startDate = options.startDate.toISOString();
+      if (options?.startDate)
+        params.startDate = options.startDate.toISOString();
       if (options?.endDate) params.endDate = options.endDate.toISOString();
-      if (options?.incomeSourceId) params.incomeSourceId = options.incomeSourceId;
+      if (options?.incomeSourceId)
+        params.incomeSourceId = options.incomeSourceId;
 
-      const response = await api.get<any[]>(API_ENDPOINTS.INCOME.TRANSACTIONS, params);
+      const response = await api.get<any[]>(
+        API_ENDPOINTS.INCOME.TRANSACTIONS,
+        params
+      );
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to fetch income transactions');
+        throw new Error(
+          response.error?.message || 'Failed to fetch income transactions'
+        );
       }
       return response.data || [];
     } catch (error) {
@@ -624,14 +872,17 @@ export const apiService = {
   }): Promise<any> {
     try {
       // Convert date to ISO string if it's a Date object
-      const dateValue = data.date instanceof Date ? data.date.toISOString() : data.date;
-      
+      const dateValue =
+        data.date instanceof Date ? data.date.toISOString() : data.date;
+
       const response = await api.post<any>(API_ENDPOINTS.INCOME.TRANSACTIONS, {
         ...data,
-        date: dateValue,
+        date: dateValue
       });
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to create income transaction');
+        throw new Error(
+          response.error?.message || 'Failed to create income transaction'
+        );
       }
       return response.data!;
     } catch (error) {
@@ -656,14 +907,20 @@ export const apiService = {
   ): Promise<any> {
     try {
       // Convert date to ISO string if it's a Date object
-      const dateValue = data.date instanceof Date ? data.date.toISOString() : data.date;
+      const dateValue =
+        data.date instanceof Date ? data.date.toISOString() : data.date;
 
-      const response = await api.put<any>(API_ENDPOINTS.INCOME.TRANSACTIONS + `/${transactionId}`, {
-        ...data,
-        ...(dateValue && { date: dateValue }),
-      });
+      const response = await api.put<any>(
+        API_ENDPOINTS.INCOME.TRANSACTIONS + `/${transactionId}`,
+        {
+          ...data,
+          ...(dateValue && { date: dateValue })
+        }
+      );
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to update income transaction');
+        throw new Error(
+          response.error?.message || 'Failed to update income transaction'
+        );
       }
       return response.data!;
     } catch (error) {
@@ -677,9 +934,13 @@ export const apiService = {
    */
   async deleteIncomeTransaction(transactionId: string): Promise<void> {
     try {
-      const response = await api.delete(API_ENDPOINTS.INCOME.TRANSACTIONS + `/${transactionId}`);
+      const response = await api.delete(
+        API_ENDPOINTS.INCOME.TRANSACTIONS + `/${transactionId}`
+      );
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to delete income transaction');
+        throw new Error(
+          response.error?.message || 'Failed to delete income transaction'
+        );
       }
     } catch (error) {
       console.error('[API] Delete income transaction error:', error);
@@ -692,9 +953,13 @@ export const apiService = {
    */
   async getMonthlyIncomeTotal(): Promise<number> {
     try {
-      const response = await api.get<{ total: number }>(API_ENDPOINTS.INCOME.STATS_MONTHLY);
+      const response = await api.get<{ total: number }>(
+        API_ENDPOINTS.INCOME.STATS_MONTHLY
+      );
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to fetch monthly income');
+        throw new Error(
+          response.error?.message || 'Failed to fetch monthly income'
+        );
       }
       return response.data?.total || 0;
     } catch (error) {
@@ -706,9 +971,22 @@ export const apiService = {
   /**
    * Create multiple expenses in batch
    */
-  async addExpensesBatch(data: { expenses: Array<{ amount: number; categoryId: string; description: string; date: Date; paymentMethod?: string; notes?: string; tags?: string[] }> }): Promise<Expense[]> {
+  async addExpensesBatch(data: {
+    expenses: Array<{
+      amount: number;
+      categoryId: string;
+      description: string;
+      date: Date;
+      paymentMethod?: string;
+      notes?: string;
+      tags?: string[];
+    }>;
+  }): Promise<Expense[]> {
     try {
-      const response = await api.post<{ expenses: Expense[] }>(API_ENDPOINTS.EXPENSES.BATCH, data);
+      const response = await api.post<{ expenses: Expense[] }>(
+        API_ENDPOINTS.EXPENSES.BATCH,
+        data
+      );
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to create expenses');
       }
@@ -721,25 +999,53 @@ export const apiService = {
 
   /**
    * Get unified transactions (income and expenses)
+   * @param options - Query options including limit, date range, type, and includeTotal
+   * @returns Transactions array, or object with transactions and total if includeTotal is true
    */
   async getUnifiedTransactions(options?: {
     startDate?: string;
     endDate?: string;
     limit?: number;
     type?: 'expense' | 'income' | 'all';
-  }): Promise<UnifiedTransaction[]> {
+    includeTotal?: boolean;
+  }): Promise<
+    UnifiedTransaction[] | { transactions: UnifiedTransaction[]; total: number }
+  > {
     try {
       const params: any = {};
       if (options?.startDate) params.startDate = options.startDate;
       if (options?.endDate) params.endDate = options.endDate;
       if (options?.limit) params.limit = options.limit.toString();
       if (options?.type) params.type = options.type;
+      if (options?.includeTotal) params.includeTotal = 'true';
 
-      const response = await api.get<UnifiedTransaction[]>(API_ENDPOINTS.ANALYTICS.TRANSACTIONS, params);
+      const response = await api.get<
+        | UnifiedTransaction[]
+        | { transactions: UnifiedTransaction[]; total: number }
+      >(API_ENDPOINTS.ANALYTICS.TRANSACTIONS, { params });
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to fetch unified transactions');
+        throw new Error(
+          response.error?.message || 'Failed to fetch unified transactions'
+        );
       }
-      return response.data || [];
+
+      // Handle both response formats: array (backward compatible) or object with transactions and total
+      const data = response.data;
+      if (!data) {
+        return options?.includeTotal ? { transactions: [], total: 0 } : [];
+      }
+
+      // Check if response is paginated format (object with transactions and total)
+      if (
+        typeof data === 'object' &&
+        'transactions' in data &&
+        'total' in data
+      ) {
+        return data as { transactions: UnifiedTransaction[]; total: number };
+      }
+
+      // Otherwise return as array (backward compatible)
+      return data as UnifiedTransaction[];
     } catch (error) {
       console.error('[API] Get unified transactions error:', error);
       throw error;
@@ -757,11 +1063,17 @@ export const apiService = {
   /**
    * Adjust user's starting balance
    */
-  async adjustBalance(balance: number, description?: string): Promise<{ startingBalance: number }> {
+  async adjustBalance(
+    balance: number,
+    description?: string
+  ): Promise<{ startingBalance: number }> {
     try {
-      const response = await api.put<{ startingBalance: number }>(API_ENDPOINTS.AUTH.UPDATE_BALANCE, {
-        balance,
-      });
+      const response = await api.put<{ startingBalance: number }>(
+        API_ENDPOINTS.AUTH.UPDATE_BALANCE,
+        {
+          balance
+        }
+      );
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to adjust balance');
       }
@@ -777,13 +1089,49 @@ export const apiService = {
    */
   async getExchangeRate(toCurrency: string): Promise<number> {
     try {
-      const response = await api.get<{ rate: number }>(API_ENDPOINTS.CURRENCY.EXCHANGE_RATE, {
-        params: { to: toCurrency },
+      const response = await api.get<{
+        rate: number;
+        from: string;
+        to: string;
+      }>(API_ENDPOINTS.CURRENCY.EXCHANGE_RATE, {
+        params: { to: toCurrency }
       });
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to get exchange rate');
+        console.error(
+          '[API] Exchange rate API returned error:',
+          response.error
+        );
+        throw new Error(
+          response.error?.message || 'Failed to get exchange rate'
+        );
       }
-      return response.data?.rate || 1;
+      // Backend returns { success: true, data: { rate, from, to } }
+      // api.get returns ApiResponse<T>, so response is { success: true, data?: T }
+      // So response.data is { rate, from, to } | undefined
+      let rate = response.data?.rate;
+
+      // Defensive check: if rate is not found, log the full response for debugging
+      if (!rate || rate <= 0 || isNaN(rate)) {
+        console.error('[API] Invalid exchange rate received:', {
+          rate,
+          responseData: response.data,
+          fullResponse: response,
+          toCurrency
+        });
+        return 1;
+      }
+
+      // Log the exchange rate clearly for debugging
+      console.log(
+        `[API] ✅ Exchange rate fetched: 1 USD = ${rate} ${toCurrency}`
+      );
+      console.log(`[API] Response structure:`, {
+        success: response.success,
+        data: response.data,
+        rate: rate,
+        toCurrency: toCurrency
+      });
+      return rate;
     } catch (error) {
       console.error('[API] Get exchange rate error:', error);
       // Return 1 as fallback to avoid breaking the app
@@ -815,19 +1163,23 @@ export const apiService = {
         };
       }>(API_ENDPOINTS.ANALYTICS.FORECAST, params);
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to fetch spending forecast');
+        throw new Error(
+          response.error?.message || 'Failed to fetch spending forecast'
+        );
       }
-      return response.data || {
-        predictedAmount: 0,
-        confidence: 'low',
-        factors: [],
-      };
+      return (
+        response.data || {
+          predictedAmount: 0,
+          confidence: 'low',
+          factors: []
+        }
+      );
     } catch (error) {
       console.error('[API] Get spending forecast error:', error);
       return {
         predictedAmount: 0,
         confidence: 'low',
-        factors: [],
+        factors: []
       };
     }
   },
@@ -845,7 +1197,7 @@ export const apiService = {
       console.error('[API] Delete all data error:', error);
       throw error;
     }
-  },
+  }
 };
 
 export default apiService;

@@ -478,7 +478,7 @@ export const CreateCategoryModal: React.FC = () => {
           onPressOut={() => setShowIconPicker(false)}
         >
           <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border, paddingHorizontal: spacing.xl }]}>
               <Text style={[styles.modalTitle, { color: theme.text }]}>Select Icon</Text>
               <TouchableOpacity onPress={() => setShowIconPicker(false)}>
                 <Icon name="close" size={24} color={theme.textSecondary} />
@@ -538,7 +538,7 @@ export const CreateCategoryModal: React.FC = () => {
           onPressOut={() => setShowColorPicker(false)}
         >
           <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border, paddingHorizontal: spacing.xl }]}>
               <Text style={[styles.modalTitle, { color: theme.text }]}>Select Color</Text>
               <TouchableOpacity onPress={() => setShowColorPicker(false)}>
                 <Icon name="close" size={24} color={theme.textSecondary} />

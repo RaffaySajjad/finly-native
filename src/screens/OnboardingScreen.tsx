@@ -669,7 +669,7 @@ const styles = StyleSheet.create({
     width: '100%'
   },
   currencyListContent: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.sm,
   },
   currencyOption: {
     flexDirection: 'row',

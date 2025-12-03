@@ -4,7 +4,7 @@
  * Shows spending breakdown and progress towards budget limits
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useSelector } from 'react-redux';
 import { useTheme } from '../contexts/ThemeContext';
+import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { CategoryCard, AIAssistantFAB } from '../components';
 import { useCreateCategoryModal } from '../contexts/CreateCategoryModalContext';
@@ -49,25 +50,31 @@ const CategoriesScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [setupCompleted, setSetupCompleted] = useState(false);
   const { openCreateCategoryModal } = useCreateCategoryModal();
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useFocusEffect(
     React.useCallback(() => {
-      loadCategories();
+      // Use cache when screen is focused - cache will handle stale-while-revalidate
+      loadCategories(false);
     }, [])
   );
 
+  // Scroll to top when tab is pressed while already on this screen
+  useScrollToTopOnTabPress(scrollViewRef);
+
   useEffect(() => {
-    // Load categories on mount
-    loadCategories();
+    // Load categories on mount - use cache for faster initial load
+    loadCategories(false);
   }, []);
 
   /**
    * Loads categories from API
+   * @param skipCache - Whether to skip cache and fetch fresh data
    */
-  const loadCategories = async (): Promise<void> => {
+  const loadCategories = async (skipCache: boolean = false): Promise<void> => {
     try {
       const [data, completed] = await Promise.all([
-        apiService.getCategories(),
+        apiService.getCategories(skipCache),
         apiService.hasCategorySetupCompleted(),
       ]);
       setCategories(data || []);
@@ -87,7 +94,7 @@ const CategoriesScreen: React.FC = () => {
    */
   const onRefresh = (): void => {
     setRefreshing(true);
-    loadCategories();
+    loadCategories(true); // Skip cache on manual refresh only
   };
 
   /**
@@ -217,7 +224,7 @@ const CategoriesScreen: React.FC = () => {
           <View style={styles.headerLeft}>
         <Text style={[styles.title, { color: theme.text }]}>Categories</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          This Month: {formatCurrency(totalSpent)}
+              Spent this month: {formatCurrency(totalSpent)}
         </Text>
           </View>
           <TouchableOpacity
@@ -231,6 +238,7 @@ const CategoriesScreen: React.FC = () => {
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 60 }}
         refreshControl={
@@ -247,7 +255,7 @@ const CategoriesScreen: React.FC = () => {
           ))}
         </View>
 
-        <View style={{ height: spacing.xl }} />
+        <View style={{ height: Platform.OS === 'ios' ? spacing.xl : 0 }} />
       </ScrollView>
     </SafeAreaView>
   );

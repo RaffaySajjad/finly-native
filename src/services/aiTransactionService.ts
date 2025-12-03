@@ -4,6 +4,7 @@
  * Parses voice/text input and extracts transaction details
  */
 
+import { api } from './apiClient';
 import { Expense, Category } from '../types';
 
 /**
@@ -16,131 +17,40 @@ import { Expense, Category } from '../types';
  * @param input - The natural language input string
  * @param categories - Available categories to match against
  * @param currencySymbol - Optional currency symbol to use in parsing (defaults to $ for backwards compatibility)
+ * @param currencyCode - Optional currency code (e.g., 'PKR', 'USD') to provide context to the AI
  */
 export async function parseTransactionInput(
   input: string,
-  categories: Category[],
-  currencySymbol: string = '$'
+  categories: Category[], // Kept for signature compatibility, but unused as backend handles it
+  currencySymbol: string = '$',
+  currencyCode?: string
 ): Promise<Array<Omit<Expense, 'id' | 'date' | 'category' | 'createdAt' | 'updatedAt'>>> {
-  // Simulate AI processing delay
-  await new Promise(resolve => setTimeout(resolve, 800));
-
-  const transactions: Array<Omit<Expense, 'id' | 'date' | 'category' | 'createdAt' | 'updatedAt'>> = [];
-
-  // Escape special regex characters in currency symbol for use in regex patterns
-  const escapedSymbol = currencySymbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-  // Simple parsing logic (in production, use actual NLP)
-  // Split by common delimiters
-  const parts = input
-    .split(/[,;]|and|then/)
-    .map(p => p.trim())
-    .filter(p => p.length > 0);
-
-  // Extract date mentions
-  const now = new Date();
-  let inferredDate = now.toISOString();
-
-  if (input.toLowerCase().includes('yesterday')) {
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    inferredDate = yesterday.toISOString();
-  } else if (input.toLowerCase().includes('today')) {
-    inferredDate = now.toISOString();
-  }
-
-  // Helper to find category by name match
-  const findCategoryId = (categoryName: string): string => {
-    const lowerName = categoryName.toLowerCase();
-    const matched = categories.find(cat => 
-      cat.name.toLowerCase().includes(lowerName) ||
-      lowerName.includes(cat.name.toLowerCase())
-    );
-    return matched?.id || categories.find(c => c.name.toLowerCase() === 'other')?.id || categories[0]?.id || '';
-  };
-
-  for (const part of parts) {
-    // Extract amount (look for currency symbol + amount pattern)
-    const amountRegex = new RegExp(`${escapedSymbol}?(\\d+\\.?\\d*)`);
-    const amountMatch = part.match(amountRegex);
-    if (!amountMatch) continue;
-
-    const amount = parseFloat(amountMatch[1]);
-
-    // Extract merchant/category from keywords
-    const lowerPart = part.toLowerCase();
-    let categoryId = findCategoryId('other');
-    let description = part;
-
-    // Category detection by matching against category names
-    const foodKeywords = ['food', 'restaurant', 'coffee', 'cafe', 'dining', 'mcdonalds', 'chipotle', 'subway', 'pizza', 'starbucks'];
-    const transportKeywords = ['uber', 'lyft', 'taxi', 'gas', 'fuel', 'transport', 'car', 'parking'];
-    const shoppingKeywords = ['target', 'amazon', 'walmart', 'shopping', 'store', 'mall'];
-    const entertainmentKeywords = ['movie', 'cinema', 'netflix', 'spotify', 'entertainment', 'game'];
-    const healthKeywords = ['pharmacy', 'cvs', 'walgreens', 'doctor', 'hospital', 'health', 'medicine'];
-    const utilitiesKeywords = ['electric', 'gas', 'water', 'utility', 'internet', 'phone'];
-
-    if (foodKeywords.some(kw => lowerPart.includes(kw))) {
-      categoryId = findCategoryId('food');
-    } else if (transportKeywords.some(kw => lowerPart.includes(kw))) {
-      categoryId = findCategoryId('transport');
-    } else if (shoppingKeywords.some(kw => lowerPart.includes(kw))) {
-      categoryId = findCategoryId('shopping');
-    } else if (entertainmentKeywords.some(kw => lowerPart.includes(kw))) {
-      categoryId = findCategoryId('entertainment');
-    } else if (healthKeywords.some(kw => lowerPart.includes(kw))) {
-      categoryId = findCategoryId('health');
-    } else if (utilitiesKeywords.some(kw => lowerPart.includes(kw))) {
-      categoryId = findCategoryId('utilities');
-    }
-
-    // Clean up description - remove currency symbol and amount
-    const cleanupRegex = new RegExp(`${escapedSymbol}?\\d+\\.?\\d*`, 'g');
-    description = part
-      .replace(cleanupRegex, '')
-      .trim()
-      .replace(/^at\s+/i, '')
-      .replace(/^for\s+/i, '');
-
-    if (!description) {
-      const matchedCategory = categories.find(c => c.id === categoryId);
-      description = `${matchedCategory?.name || 'Other'} Expense`;
-    }
-
-    transactions.push({
-      amount,
-      categoryId,
-      description
+  try {
+    const response = await api.post<Array<{
+      amount: number;
+      description: string;
+      categoryId: string;
+      date: string;
+    }>>('/ai/parse-transactions', { 
+      input,
+      ...(currencyCode && { currencyCode })
     });
-  }
 
-  // If no transactions found, try to parse as single transaction
-  if (transactions.length === 0) {
-    const amountRegex = new RegExp(`${escapedSymbol}?(\\d+\\.?\\d*)`);
-    const amountMatch = input.match(amountRegex);
-    if (amountMatch) {
-      const amount = parseFloat(amountMatch[1]);
-      const lowerInput = input.toLowerCase();
-      let categoryId = findCategoryId('other');
-
-      if (lowerInput.match(/\b(food|restaurant|coffee|cafe)\b/)) {
-        categoryId = findCategoryId('food');
-      } else if (lowerInput.match(/\b(transport|uber|gas)\b/)) {
-        categoryId = findCategoryId('transport');
-      } else if (lowerInput.match(/\b(shopping|store)\b/)) {
-        categoryId = findCategoryId('shopping');
-      }
-
-      const cleanupRegex = new RegExp(`${escapedSymbol}?\\d+\\.?\\d*`, 'g');
-      transactions.push({
-        amount,
-        categoryId,
-        description: input.replace(cleanupRegex, '').trim() || 'Transaction'
-      });
+    if (!response.success || !response.data) {
+      throw new Error('Failed to parse transactions');
     }
-  }
 
-  return transactions;
+    return response.data.map((tx) => ({
+      amount: tx.amount,
+      description: tx.description,
+      categoryId: tx.categoryId,
+      // Date is returned by backend but not used in the return type of this function
+      // The calling component handles the date assignment if needed, or we can update the type
+    }));
+  } catch (error) {
+    console.error('Error parsing transactions:', error);
+    throw error;
+  }
 }
 
 /**

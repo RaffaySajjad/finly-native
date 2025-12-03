@@ -168,16 +168,12 @@ const SignupScreen: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : 'Signup failed. Please try again.';
       
       // Try to determine which field has the error
-      const errorLower = errorMessage.toLowerCase();
-      if (errorLower.includes('email') || errorLower.includes('already exists') || errorLower.includes('already registered')) {
-        setEmailError(errorMessage);
-      } else if (errorLower.includes('password')) {
-        setPasswordError(errorMessage);
-      } else if (errorLower.includes('name')) {
-        setNameError(errorMessage);
-      } else {
-        setGeneralError(errorMessage);
-      }
+      // Show error above the button
+      setGeneralError(errorMessage);
+      // Clear field errors to avoid confusion
+      setEmailError('');
+      setPasswordError('');
+      setNameError('');
     }
   };
 

@@ -82,31 +82,24 @@ const InsightsScreen: React.FC = () => {
       
       {/* Header */}
       <View style={styles.header}>
-        {Platform.OS === 'android' && <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Icon name="arrow-left" size={24} color={theme.text} />
-        </TouchableOpacity>}
-        <View style={styles.headerContent}>
-          <Icon name="brain" size={32} color={theme.primary} />
-          <View style={styles.headerText}>
-            <Text style={[styles.title, { color: theme.text }]}>AI Insights</Text>
+        <View style={styles.headerTop}>
+          <View style={styles.headerLeft}>
+            <Text style={[styles.title, { color: theme.text }]}>Insights</Text>
             {!isPremium && (
-              <Text style={[styles.usageText, { color: theme.textSecondary }]}>
+              <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
                 {getRemainingUsage('advancedInsights')} insights remaining this week
               </Text>
             )}
           </View>
+          {!isPremium && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Subscription')}
+              style={styles.upgradeButton}
+            >
+              <PremiumBadge size="small" />
+            </TouchableOpacity>
+          )}
         </View>
-        {!isPremium && (
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Subscription')}
-            style={styles.upgradeButton}
-          >
-            <PremiumBadge size="small" />
-          </TouchableOpacity>
-        )}
       </View>
 
       <ScrollView
@@ -159,36 +152,26 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
+  },
+  headerTop: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    flex: 1,
-  },
-  backButton: {
-    padding: spacing.xs,
-  },
-  headerText: {
+  headerLeft: {
     flex: 1,
   },
   title: {
-    ...typography.titleLarge,
+    ...typography.headlineMedium,
     fontWeight: '600',
-    marginBottom: 2,
-  },
-  usageText: {
-    ...typography.bodySmall,
-  },
-  upgradeButton: {
-    padding: spacing.xs,
+    marginBottom: 4,
   },
   subtitle: {
     ...typography.bodyMedium,
-    marginTop: spacing.xs,
+  },
+  upgradeButton: {
+    padding: spacing.xs,
+    marginLeft: spacing.md,
   },
   content: {
     paddingTop: spacing.md,

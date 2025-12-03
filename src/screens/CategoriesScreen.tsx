@@ -13,17 +13,23 @@ import {
   RefreshControl,
   StatusBar,
   TouchableOpacity,
+  Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useSelector } from 'react-redux';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { CategoryCard, AIAssistantFAB } from '../components';
+import { useCreateCategoryModal } from '../contexts/CreateCategoryModalContext';
 import { apiService } from '../services/api';
 import { Category } from '../types';
 import { RootStackParamList } from '../navigation/types';
+import { RootState } from '../store';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
 type CategoriesNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -35,10 +41,14 @@ const CategoriesScreen: React.FC = () => {
   const { theme } = useTheme();
   const { formatCurrency } = useCurrency();
   const navigation = useNavigation<CategoriesNavigationProp>();
+  const subscription = useSelector((state: RootState) => state.subscription);
+  const isPremium = subscription.subscription.tier === 'PREMIUM';
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [setupCompleted, setSetupCompleted] = useState(false);
+  const { openCreateCategoryModal } = useCreateCategoryModal();
 
   useFocusEffect(
     React.useCallback(() => {
@@ -80,9 +90,62 @@ const CategoriesScreen: React.FC = () => {
     loadCategories();
   };
 
-  const totalSpent = categories.reduce((sum, cat) => sum + (cat.totalSpent || 0), 0);
+  /**
+   * Handles creating a new category
+   */
+  const handleCreateCategory = async (data: {
+    name: string;
+    icon: string;
+    color: string;
+    budgetLimit?: number;
+  }): Promise<void> => {
+    try {
+      const newCategory = await apiService.createCategory(data);
+      setCategories([...categories, newCategory]);
 
-  console.log("CATEGORIES:", categories, "Setup completed:", setupCompleted)
+      if (Platform.OS === 'ios') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error: any) {
+      console.error('[CategoriesScreen] Create category error:', error);
+      throw error; // Re-throw to let modal handle the error display
+    }
+  };
+
+  /**
+   * Handles opening create modal with premium check
+   */
+  const handleOpenCreateModal = (): void => {
+    if (!isPremium) {
+      Alert.alert(
+        'Premium Feature',
+        'Custom categories are available for Premium users. Upgrade to create unlimited custom categories.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Learn More',
+            onPress: () => {
+              // Navigate to subscription/premium screen if available
+              // navigation.navigate('Subscription');
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    openCreateCategoryModal({
+      onCreate: handleCreateCategory,
+      isPremium,
+      existingCategoryNames,
+    });
+  };
+
+  const totalSpent = categories.reduce((sum, cat) => sum + (cat.totalSpent || 0), 0);
+  const existingCategoryNames = categories.map(cat => cat.name);
 
   // Show onboarding if setup not completed and not loading
   if (!setupCompleted && !refreshing && !loading) {
@@ -150,10 +213,21 @@ const CategoriesScreen: React.FC = () => {
       
       {/* Header */}
       <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <View style={styles.headerLeft}>
         <Text style={[styles.title, { color: theme.text }]}>Categories</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
           This Month: {formatCurrency(totalSpent)}
         </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: theme.primary }, elevation.sm]}
+            onPress={handleOpenCreateModal}
+            activeOpacity={0.8}
+          >
+            <Icon name="plus" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -187,12 +261,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerLeft: {
+    flex: 1,
+  },
   title: {
     ...typography.headlineMedium,
+    fontWeight: '600',
     marginBottom: 4,
   },
   subtitle: {
     ...typography.bodyMedium,
+  },
+  addButton: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.md,
   },
   content: {
     paddingTop: spacing.sm,

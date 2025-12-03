@@ -365,7 +365,7 @@ const BalanceHistoryScreen: React.FC = () => {
               type: 'warning',
               title: 'Low Savings Rate',
               description: `You're saving ${savingsRate.toFixed(1)}% of your income. Aim for at least 20% for financial security.`,
-              icon: 'alert',
+              icon: 'alert-circle',
             });
           }
         }

@@ -217,28 +217,26 @@ const TrendsScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={styles.header}>
-        {/* <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Icon name="arrow-left" size={24} color={theme.text} />
-        </TouchableOpacity> */}
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Spending Trends</Text>
-        <TouchableOpacity
-          onPress={handleRefresh}
-          style={styles.refreshButton}
-          disabled={refreshing || (forecast?.rateLimit?.remaining === 0)}
-        >
-          <Icon
-            name="refresh"
-            size={24}
-            color={
-              refreshing || (forecast?.rateLimit?.remaining === 0)
-                ? theme.textTertiary
-                : theme.primary
-            }
-          />
-        </TouchableOpacity>
+        <View style={styles.headerTop}>
+          <View style={styles.headerLeft}>
+            <Text style={[styles.title, { color: theme.text }]}>Trends</Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleRefresh}
+            style={styles.refreshButton}
+            disabled={refreshing || (forecast?.rateLimit?.remaining === 0)}
+          >
+            <Icon
+              name="refresh"
+              size={24}
+              color={
+                refreshing || (forecast?.rateLimit?.remaining === 0)
+                  ? theme.textTertiary
+                  : theme.primary
+              }
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <PullToRefreshScrollView
@@ -474,33 +472,32 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
   },
-  backButton: {
-    width: 40,
-    height: 40,
+  headerTop: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
-  headerTitle: {
-    ...typography.headlineSmall,
-    fontWeight: '700',
+  headerLeft: {
     flex: 1,
-    textAlign: 'center',
-    left: spacing.md,
+  },
+  title: {
+    ...typography.headlineMedium,
+    fontWeight: '600',
+    marginBottom: 4,
   },
   refreshButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: spacing.md,
   },
   scrollContent: {
-    padding: spacing.lg,
+    padding: spacing.md,
     paddingTop: spacing.sm,
   },
   sectionHeader: {

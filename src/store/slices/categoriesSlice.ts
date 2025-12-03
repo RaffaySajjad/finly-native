@@ -51,14 +51,19 @@ const categoriesSlice = createSlice({
   name: 'categories',
   initialState,
   reducers: {
-    clearError: (state) => {
+    clearError: state => {
       state.error = null;
     },
+    clearCategories: state => {
+      state.categories = [];
+      state.error = null;
+      state.isLoading = false;
+    }
   },
-  extraReducers: (builder) => {
+  extraReducers: builder => {
     // Fetch categories
     builder
-      .addCase(fetchCategories.pending, (state) => {
+      .addCase(fetchCategories.pending, state => {
         state.isLoading = true;
         state.error = null;
       })
@@ -73,13 +78,15 @@ const categoriesSlice = createSlice({
 
     // Update category budget
     builder
-      .addCase(updateCategoryBudget.pending, (state) => {
+      .addCase(updateCategoryBudget.pending, state => {
         state.isLoading = true;
         state.error = null;
       })
       .addCase(updateCategoryBudget.fulfilled, (state, action) => {
         state.isLoading = false;
-        const category = state.categories.find(c => c.id === action.payload.categoryId);
+        const category = state.categories.find(
+          c => c.id === action.payload.categoryId
+        );
         if (category) {
           category.budgetLimit = action.payload.budgetLimit;
         }
@@ -88,9 +95,9 @@ const categoriesSlice = createSlice({
         state.isLoading = false;
         state.error = action.error.message || 'Failed to update budget';
       });
-  },
+  }
 });
 
-export const { clearError } = categoriesSlice.actions;
+export const { clearError, clearCategories } = categoriesSlice.actions;
 export default categoriesSlice.reducer;
 

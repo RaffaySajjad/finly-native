@@ -67,33 +67,83 @@ export async function exportExpensesAsCSV(): Promise<string> {
 
 /**
  * Delete all user data
+ * Purpose: Comprehensive deletion of all user data from backend and local storage
+ * Clears: Database records, AsyncStorage, and ensures complete data removal
  */
 export async function deleteAllData(): Promise<void> {
   try {
-    // Import apiService dynamically to avoid circular dependency
+    // Import apiService and cache service dynamically to avoid circular dependency
     const { apiService } = await import('./api');
-    
-    // Call backend API to delete all data
+    const { apiCacheService } = await import('./apiCacheService');
+
+    // Step 1: Call backend API to delete all data from database
+    // This deletes: expenses, income, categories, receipts, tags, AI queries
     await apiService.deleteAllData();
-    
-    // Get all AsyncStorage keys
+    console.log('[DataExport] Backend data deleted successfully');
+
+    // Step 1.5: Clear API cache
+    await apiCacheService.clear();
+    console.log('[DataExport] API cache cleared');
+
+    // Step 2: Get all AsyncStorage keys
     const allKeys = await AsyncStorage.getAllKeys();
-    
-    // Filter keys that start with @finly_ but exclude auth tokens (they'll be cleared on logout)
-    const keysToRemove = allKeys.filter(key => 
-      key.startsWith('@finly_') && 
-      !key.includes('access_token') && 
-      !key.includes('refresh_token') &&
-      !key.includes('token_expiry')
+
+    // Step 3: Explicitly list category-related keys to ensure they're cleared
+    const categoryRelatedKeys = ['@finly_categories', '@finly_category_rules'];
+
+    // Step 4: Filter keys that start with @finly_ but exclude auth tokens (they'll be cleared on logout)
+    const keysToRemove = allKeys.filter(
+      key =>
+        key.startsWith('@finly_') &&
+        !key.includes('access_token') &&
+        !key.includes('refresh_token') &&
+        !key.includes('token_expiry') &&
+        !key.includes('user_data') // Keep user_data for logout process
     );
-    
-    // Clear all filtered keys
-    if (keysToRemove.length > 0) {
-      await AsyncStorage.multiRemove(keysToRemove);
-      console.log(`[DataExport] Cleared ${keysToRemove.length} AsyncStorage keys`);
+
+    // Step 5: Combine explicit category keys with filtered keys (remove duplicates)
+    const allKeysToRemove = Array.from(
+      new Set([...categoryRelatedKeys, ...keysToRemove])
+    );
+
+    // Step 6: Clear all keys
+    if (allKeysToRemove.length > 0) {
+      await AsyncStorage.multiRemove(allKeysToRemove);
+      console.log(
+        `[DataExport] Cleared ${allKeysToRemove.length} AsyncStorage keys:`,
+        allKeysToRemove
+      );
+    } else {
+      console.log('[DataExport] No AsyncStorage keys to clear');
     }
+
+    // Step 7: Verify category-related keys are cleared
+    const remainingCategoryKeys = allKeysToRemove.filter(
+      key => key.includes('category') || key.includes('categories')
+    );
+
+    if (remainingCategoryKeys.length > 0) {
+      // Double-check: try to remove category keys again if they still exist
+      const stillExists = await Promise.all(
+        remainingCategoryKeys.map(async key => {
+          const value = await AsyncStorage.getItem(key);
+          return value !== null ? key : null;
+        })
+      );
+
+      const existingKeys = stillExists.filter(Boolean) as string[];
+      if (existingKeys.length > 0) {
+        await AsyncStorage.multiRemove(existingKeys);
+        console.log(
+          `[DataExport] Removed remaining category keys:`,
+          existingKeys
+        );
+      }
+    }
+
+    console.log('[DataExport] All data deletion completed successfully');
   } catch (error) {
-    console.error('Error deleting data:', error);
+    console.error('[DataExport] Error deleting data:', error);
     throw new Error('Failed to delete data');
   }
 }

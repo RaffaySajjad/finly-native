@@ -20,6 +20,8 @@ import { checkSubscriptionStatus } from '../store/slices/subscriptionSlice';
 import { RootStackParamList, MainTabsParamList, AuthStackParamList } from './types';
 import CustomTabBar from '../components/CustomTabBar';
 import SharedBottomSheet from '../components/SharedBottomSheet';
+import { CreateCategoryModalProvider } from '../contexts/CreateCategoryModalContext';
+import { CreateCategoryModal } from '../components/CreateCategoryModal';
 
 // Import screens
 import DashboardScreen from '../screens/DashboardScreen';
@@ -211,7 +213,7 @@ const MainTabs: React.FC = () => {
 const AppNavigator: React.FC = () => {
   const { theme, isDark } = useTheme();
   const dispatch = useAppDispatch();
-  const { isAuthenticated, isLoading } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, isRestoringAuth } = useAppSelector((state) => state.auth);
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [incomeSetupComplete, setIncomeSetupComplete] = useState<boolean | null>(null);
 
@@ -276,7 +278,7 @@ const AppNavigator: React.FC = () => {
   }, [checkOnboarding, checkIncomeSetup, onboardingComplete, incomeSetupComplete]);
 
   // Show loading screen while checking auth state and onboarding
-  if (isLoading || onboardingComplete === null || (onboardingComplete && incomeSetupComplete === null)) {
+  if (isRestoringAuth || onboardingComplete === null || (onboardingComplete && incomeSetupComplete === null)) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
         <ActivityIndicator size="large" color={theme.primary} />
@@ -316,49 +318,50 @@ const AppNavigator: React.FC = () => {
         },
       }}
     >
-      <Stack.Navigator
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: theme.surface,
-            elevation: 0,
-            shadowOpacity: 0,
-            borderBottomWidth: 1,
-            borderBottomColor: theme.border,
-          },
-          headerTintColor: theme.text,
-          headerTitleStyle: {
-            fontSize: 20,
-            fontWeight: '600',
-          },
-          cardStyle: {
-            backgroundColor: theme.background,
-          },
-        }}
-      >
-        {!isAuthenticated ? (
-          // Auth Stack - shown when user is not authenticated
-          <Stack.Screen
-            name="Auth"
-            component={AuthNavigator}
-            options={{ headerShown: false }}
-          />
-        ) : !onboardingComplete ? (
-          // Onboarding - shown for first-time users
-          <>
+      <CreateCategoryModalProvider>
+        <Stack.Navigator
+          screenOptions={{
+            headerStyle: {
+              backgroundColor: theme.surface,
+              elevation: 0,
+              shadowOpacity: 0,
+              borderBottomWidth: 1,
+              borderBottomColor: theme.border,
+            },
+            headerTintColor: theme.text,
+            headerTitleStyle: {
+              fontSize: 20,
+              fontWeight: '600',
+            },
+            cardStyle: {
+              backgroundColor: theme.background,
+            },
+          }}
+        >
+          {!isAuthenticated ? (
+            // Auth Stack - shown when user is not authenticated
             <Stack.Screen
-              name="Onboarding"
-              component={OnboardingScreen}
-              options={{ headerShown: false, gestureEnabled: false }}
+              name="Auth"
+              component={AuthNavigator}
+              options={{ headerShown: false }}
             />
-            <Stack.Screen
-              name="CSVImport"
-              component={CSVImportScreen}
-              options={{
-                title: 'Import Transactions',
-                presentation: 'modal',
-                headerShown: false,
-              }}
-            />
+          ) : !onboardingComplete ? (
+            // Onboarding - shown for first-time users
+            <>
+              <Stack.Screen
+                name="Onboarding"
+                component={OnboardingScreen}
+                options={{ headerShown: false, gestureEnabled: false }}
+              />
+              <Stack.Screen
+                name="CSVImport"
+                component={CSVImportScreen}
+                options={{
+                  title: 'Import Transactions',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
               <Stack.Screen
                 name="ExportTransactions"
                 component={ExportTransactionsScreen}
@@ -368,17 +371,17 @@ const AppNavigator: React.FC = () => {
                   headerShown: false,
                 }}
               />
-          </>
-        ) : !incomeSetupComplete ? (
-          // Income Setup - shown after onboarding for first-time users
-          <Stack.Screen
-            name="IncomeSetup"
-            component={IncomeSetupScreen}
-            options={{ headerShown: false, gestureEnabled: false }}
+              </>
+            ) : !incomeSetupComplete ? (
+              // Income Setup - shown after onboarding for first-time users
+              <Stack.Screen
+                name="IncomeSetup"
+                component={IncomeSetupScreen}
+                options={{ headerShown: false, gestureEnabled: false }}
               />
-        ) : (
-                  // Main App Stack - shown when user is authenticated, onboarded, and income setup is complete
-          <>
+            ) : (
+              // Main App Stack - shown when user is authenticated, onboarded, and income setup is complete
+              <>
               <Stack.Screen
                 name="MainTabs"
                 component={MainTabs}
@@ -394,15 +397,15 @@ const AppNavigator: React.FC = () => {
                 }}
               />
               <Stack.Screen
-                    name="AddIncome"
-                    component={AddIncomeScreen}
-                    options={{
-                      title: 'Add Income',
-                      presentation: 'modal',
-                      headerShown: false,
-                    }}
-                  />
-                  <Stack.Screen
+                      name="AddIncome"
+                      component={AddIncomeScreen}
+                      options={{
+                        title: 'Add Income',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
+                    <Stack.Screen
                 name="ReceiptUpload"
                 component={ReceiptUploadScreen}
                 options={{
@@ -411,193 +414,197 @@ const AppNavigator: React.FC = () => {
                   headerShown: false,
                 }}
               />
-            <Stack.Screen
-              name="TransactionDetails"
-              component={TransactionDetailsScreen}
-              options={{
-                title: 'Transaction Details',
-                presentation: 'modal',
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="CategoryDetails"
-              component={CategoryDetailsScreen}
-              options={{
-                title: 'Category Details',
-                presentation: 'modal',
-                headerShown: false,
-              }}
-            />
-                    <Stack.Screen
-                      name="Subscription"
-                      component={SubscriptionScreen}
-                      options={{
-                        title: 'Subscription',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="VoiceTransaction"
-                      component={VoiceTransactionScreen}
-                      options={{
-                        title: 'AI Transaction Entry',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="BulkTransaction"
-                      component={BulkTransactionScreen}
-                      options={{
-                        title: 'Bulk Transaction Entry',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="PrivacySettings"
-                      component={PrivacySettingsScreen}
-                      options={{
-                        title: 'Privacy & Data',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                    name="PrivacyPolicy"
-                    component={PrivacyPolicyScreen}
-                    options={{
-                      title: 'Privacy Policy',
-                      presentation: 'modal',
-                      headerShown: false,
-                    }}
-                  />
-                  <Stack.Screen
-                      name="ReceiptGallery"
-                      component={ReceiptGalleryScreen}
-                      options={{
-                        title: 'Receipt Gallery',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="Analytics"
-                      component={AnalyticsScreen}
-                      options={{
-                        title: 'Analytics',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="Insights"
-                      component={InsightsScreen}
-                      options={{
-                        title: 'Insights',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="Trends"
-                      component={TrendsScreen}
-                      options={{
-                        title: 'Trends',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="BalanceHistory"
-                      component={BalanceHistoryScreen}
-                      options={{
-                        title: 'Balance History',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="TransactionsList"
-                      component={TransactionsListScreen}
-                      options={{
-                        title: 'All Transactions',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="CategoryOnboarding"
-                      component={CategoryOnboardingScreen}
-                      options={{
-                        title: 'Set Up Categories',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="IncomeManagement"
-                      component={IncomeManagementScreen}
-                      options={{
-                        title: 'Income Management',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="CSVImport"
-                      component={CSVImportScreen}
-                      options={{
-                        title: 'Import Transactions',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                    name="ExportTransactions"
-                    component={ExportTransactionsScreen}
-                    options={{
-                      title: 'Export Transactions',
-                      presentation: 'modal',
-                      headerShown: false,
-                    }}
-                  />
-                  <Stack.Screen
-                      name="AIAssistant"
-                      component={AIAssistantScreen}
-                      options={{
-                        title: 'AI Assistant',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                    <Stack.Screen
-                      name="Settings"
-                      component={ProfileScreen}
-                      options={{
-                        title: 'Settings',
-                        presentation: 'modal',
-                        headerShown: false,
-                      }}
-                    />
-                  <Stack.Screen
-                    name="DevMenu"
-                    component={DevMenuScreen}
-                    options={{
-                      title: 'Dev Menu',
-                      presentation: 'modal',
-                      headerShown: false,
-                    }}
-                  />
+              <Stack.Screen
+                name="TransactionDetails"
+                component={TransactionDetailsScreen}
+                options={{
+                  title: 'Transaction Details',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="CategoryDetails"
+                component={CategoryDetailsScreen}
+                options={{
+                  title: 'Category Details',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="Subscription"
+                component={SubscriptionScreen}
+                options={{
+                  title: 'Subscription',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="VoiceTransaction"
+                component={VoiceTransactionScreen}
+                options={{
+                  title: 'AI Transaction Entry',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="BulkTransaction"
+                component={BulkTransactionScreen}
+                options={{
+                  title: 'Bulk Transaction Entry',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="PrivacySettings"
+                component={PrivacySettingsScreen}
+                options={{
+                  title: 'Privacy & Data',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="PrivacyPolicy"
+                component={PrivacyPolicyScreen}
+                options={{
+                  title: 'Privacy Policy',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="ReceiptGallery"
+                component={ReceiptGalleryScreen}
+                options={{
+                  title: 'Receipt Gallery',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="Analytics"
+                component={AnalyticsScreen}
+                options={{
+                  title: 'Analytics',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="Insights"
+                component={InsightsScreen}
+                options={{
+                  title: 'Insights',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="Trends"
+                component={TrendsScreen}
+                options={{
+                  title: 'Trends',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="BalanceHistory"
+                component={BalanceHistoryScreen}
+                options={{
+                  title: 'Balance History',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="TransactionsList"
+                component={TransactionsListScreen}
+                options={{
+                  title: 'All Transactions',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="CategoryOnboarding"
+                component={CategoryOnboardingScreen}
+                options={{
+                  title: 'Set Up Categories',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="IncomeManagement"
+                component={IncomeManagementScreen}
+                options={{
+                  title: 'Income Management',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="CSVImport"
+                component={CSVImportScreen}
+                options={{
+                  title: 'Import Transactions',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="ExportTransactions"
+                component={ExportTransactionsScreen}
+                options={{
+                  title: 'Export Transactions',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="AIAssistant"
+                component={AIAssistantScreen}
+                options={{
+                  title: 'AI Assistant',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="Settings"
+                component={ProfileScreen}
+                options={{
+                  title: 'Settings',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="DevMenu"
+                component={DevMenuScreen}
+                options={{
+                  title: 'Dev Menu',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+            </>
+          )}
+        </Stack.Navigator>
+        {/* SharedBottomSheet - rendered outside Stack to be always accessible */}
+        {isAuthenticated && onboardingComplete && incomeSetupComplete && (
+          <>
+            <SharedBottomSheet />
+            <CreateCategoryModal />
           </>
         )}
-      </Stack.Navigator>
-      {/* SharedBottomSheet - rendered outside Stack to be always accessible */}
-      {isAuthenticated && onboardingComplete && incomeSetupComplete && (
-        <SharedBottomSheet />
-      )}
+      </CreateCategoryModalProvider>
     </NavigationContainer>
   );
 };

@@ -28,7 +28,7 @@ interface CurrencyContextType {
   currency: Currency;
   currencyCode: string;
   setCurrency: (code: string) => Promise<void>;
-  formatCurrency: (amount: number) => string;
+  formatCurrency: (amount: number, options?: { disableAbbreviations?: boolean }) => string;
   getCurrencySymbol: () => string;
   showDecimals: boolean;
   setShowDecimals: (show: boolean) => Promise<void>;
@@ -240,14 +240,14 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
    * IMPORTANT: Amounts are stored in USD in the database
    * This function converts from USD to display currency before formatting
    */
-  const formatCurrency = (amount: number): string => {
+  const formatCurrency = (amount: number, options?: { disableAbbreviations?: boolean }): string => {
     // Ensure we have a valid exchange rate (use ref for immediate access)
     const rate = exchangeRateRef.current ?? exchangeRate ?? 1;
     const convertedAmount = amount * rate;
 
     // Check if number is large enough to use k/M/B notation
     const absAmount = Math.abs(convertedAmount);
-    const useShortNotation = absAmount >= 100000; // Use k/M/B for numbers >= 10k
+    const useShortNotation = !options?.disableAbbreviations && absAmount >= 100000; // Use k/M/B for numbers >= 10k
     
     if (useShortNotation) {
       const formatted = formatLargeNumber(convertedAmount, showDecimals);

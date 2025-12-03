@@ -4,8 +4,17 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start --dev-client",
+    "start:dev": "EXPO_PUBLIC_ENV=development expo start --dev-client",
+    "start:staging": "EXPO_PUBLIC_ENV=staging expo start --dev-client",
+    "start:prod": "EXPO_PUBLIC_ENV=production expo start --dev-client",
     "android": "expo run:android",
+    "android:dev": "EXPO_PUBLIC_ENV=development expo run:android",
+    "android:staging": "EXPO_PUBLIC_ENV=staging expo run:android",
+    "android:prod": "EXPO_PUBLIC_ENV=production expo run:android",
     "ios": "expo run:ios",
+    "ios:dev": "EXPO_PUBLIC_ENV=development expo run:ios",
+    "ios:staging": "EXPO_PUBLIC_ENV=staging expo run:ios",
+    "ios:prod": "EXPO_PUBLIC_ENV=production expo run:ios",
     "web": "expo start --web",
     "generate-icons": "node scripts/generate-icons.js"
   },

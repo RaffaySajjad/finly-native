@@ -339,44 +339,22 @@ const DashboardScreen: React.FC = () => {
         <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
 
         {/* Header with Trends and Settings buttons */}
-        <View style={[styles.header, { backgroundColor: theme.background }]}>
-          <View style={styles.headerLeft}>
-            {isPremium ? (
-              <TouchableOpacity
-                style={[
-                  styles.premiumBadge,
-                  {
-                    backgroundColor: theme.warning + '15',
-                    borderColor: theme.warning + '30',
-                  }
-                ]}
-                onPress={() => navigation.navigate('Subscription')}
-              >
-                <Icon name="star-circle" size={16} color={theme.warning} style={{ marginRight: 6 }} />
-                <Text style={[
-                  { color: theme.warning }
-                ]}>
-                  PREMIUM
-                </Text>
-              </TouchableOpacity>
-            ) : (
-                <IconButton
-                  icon="crown"
-                  onPress={() => navigation.navigate('Subscription')}
-                  color={theme.warning}
-                />
-            )}
-          </View>
-          <View style={styles.headerRight}>
-            {Platform.OS === 'android' && <IconButton
-              icon="lightbulb-on"
-              onPress={() => navigation.navigate('Insights')}
-              color={theme.primary}
-            />}
-            <IconButton
-              icon="cog"
-              onPress={() => navigation.navigate('Settings')}
-            />
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <View style={styles.headerLeft}>
+              <Text style={[styles.title, { color: theme.text }]}>Home</Text>
+            </View>
+            <View style={styles.headerRight}>
+              {Platform.OS === 'android' && <IconButton
+                icon="lightbulb-on"
+                onPress={() => navigation.navigate('Insights')}
+                color={theme.primary}
+              />}
+              <IconButton
+                icon="cog"
+                onPress={() => navigation.navigate('Settings')}
+              />
+            </View>
           </View>
         </View>
 
@@ -385,26 +363,6 @@ const DashboardScreen: React.FC = () => {
           contentContainerStyle={{ paddingBottom: 120 }}
           onRefresh={loadData}
         >
-          {/* Premium Status Banner */}
-          {/* {!isPremium && (
-            <View style={styles.premiumBanner}>
-              <View style={[styles.premiumBannerContent, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                <View style={styles.premiumBadgeContainer}>
-                  <PremiumBadge size="small" />
-                </View>
-                <Text style={[styles.premiumBannerText, { color: theme.text }]}>
-                  {getRemainingUsage('receiptScanning')} receipt scans remaining this month
-                </Text>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate('Subscription')}
-                  style={styles.upgradeLink}
-                >
-                  <Text style={[styles.upgradeLinkText, { color: theme.primary }]}>Upgrade</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )} */}
-
           {/* Premium Balance Card */}
           {stats && (
             <View style={styles.balanceCardContainer}>
@@ -428,8 +386,13 @@ const DashboardScreen: React.FC = () => {
                       <Icon name="pencil" size={24} color="rgba(255, 255, 255, 0.9)" />
                     </View>
 
-                    <Text style={styles.balanceAmount}>
-                      {formatCurrency(stats.balance)}
+                    <Text
+                      style={[styles.balanceAmount]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.5}
+                    >
+                      {formatCurrency(stats.balance, { disableAbbreviations: true })}
                     </Text>
 
                     <View style={styles.balanceSummary}>
@@ -833,15 +796,21 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   headerLeft: {
     flex: 1,
-    justifyContent: 'center',
+  },
+  title: {
+    ...typography.headlineMedium,
+    fontWeight: '600',
+    marginBottom: 4,
   },
   headerRight: {
     flexDirection: 'row',

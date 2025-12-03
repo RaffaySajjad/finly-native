@@ -9,6 +9,7 @@ import { api, tokenManager, ApiResponse } from './apiClient';
 import { API_ENDPOINTS, STORAGE_KEYS } from '../config/api.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import logger from '../utils/logger';
+import { apiCacheService } from './apiCacheService';
 
 /**
  * User interface
@@ -177,8 +178,10 @@ class AuthService {
       console.error('[AuthService] Logout API error:', error);
       // Continue with local cleanup even if API call fails
     } finally {
-      // Always clear local tokens and user data
+      // Always clear local tokens, user data, and API cache
       await tokenManager.clearTokens();
+      await apiCacheService.clear();
+      logger.info('[AuthService] Cleared API cache on logout');
     }
   }
 

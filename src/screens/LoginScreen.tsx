@@ -200,49 +200,16 @@ const LoginScreen: React.FC = () => {
           }
           
           // For validation errors, show on the appropriate field or general
-          if (isValidationError) {
-            if (errorLower.includes('email') && (errorLower.includes('valid') || errorLower.includes('invalid') || errorLower.includes('format'))) {
-              // Email validation error - show under email field
-              setEmailError(errorMessage);
-              setPasswordError('');
-              setGeneralError('');
-              console.log('[LoginScreen] Set email error (validation):', errorMessage);
-            } else if (errorLower.includes('password')) {
-              // Password validation error - show under password field
-              setEmailError('');
-              setPasswordError(errorMessage);
-              setGeneralError('');
-              console.log('[LoginScreen] Set password error (validation):', errorMessage);
-            } else {
-              // Other validation errors - show as general error
-              setEmailError('');
-              setPasswordError('');
-              setGeneralError(errorMessage);
-              console.log('[LoginScreen] Set general error (validation):', errorMessage);
-            }
-          } else if (isAuthError || errorLower.includes('invalid email or password')) {
-            // This is a general authentication error - show on general error container
-            setEmailError('');
-            setPasswordError('');
-            setGeneralError(errorMessage);
-            console.log('[LoginScreen] Set general error (auth error):', errorMessage);
-          } else if (errorLower.includes('email') && !errorLower.includes('password') && (errorLower.includes('user not found') || errorLower.includes('not found'))) {
-            setEmailError(errorMessage);
-            setPasswordError('');
-            setGeneralError('');
-            console.log('[LoginScreen] Set email error:', errorMessage);
-          } else if (errorLower.includes('password') && !errorLower.includes('email') && (errorLower.includes('incorrect password') || errorLower.includes('invalid password') || errorLower.includes('wrong password'))) {
-            setEmailError('');
-            setPasswordError(errorMessage);
-            setGeneralError('');
-            console.log('[LoginScreen] Set password error:', errorMessage);
-          } else {
-            // Default: show general error for any other errors
-            setEmailError('');
-            setPasswordError('');
-            setGeneralError(errorMessage);
-            console.log('[LoginScreen] Set general error (default):', errorMessage);
-          }
+          // MODIFICATION: For API errors, we want to show them above the button (generalError)
+          // instead of mapping them to specific fields, unless it's a purely local validation (which is handled before this catch block)
+
+          // Clear field-specific errors
+          setEmailError('');
+          setPasswordError('');
+
+          // Set the general error message to be displayed above the button
+          setGeneralError(errorMessage);
+          console.log('[LoginScreen] Set general error (API):', errorMessage);
         };
         
         // Set errors immediately

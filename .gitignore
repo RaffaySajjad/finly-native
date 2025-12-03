@@ -37,3 +37,6 @@ src/config/api.config.local.ts
 
 # typescript
 *.tsbuildinfo
+
+# env files
+.env

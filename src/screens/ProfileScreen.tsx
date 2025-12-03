@@ -746,7 +746,7 @@ const ProfileScreen: React.FC = () => {
       <BottomSheet
         ref={deleteAccountFeedbackSheetRef}
         index={-1}
-        snapPoints={['75%']}
+        snapPoints={['100%']}
         enablePanDownToClose={false}
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}

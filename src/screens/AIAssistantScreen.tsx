@@ -315,25 +315,24 @@ const AIAssistantScreen: React.FC = () => {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <Icon name="robot" size={32} color={theme.primary} />
-            <View style={styles.headerText}>
+          <View style={styles.headerTop}>
+            <View style={styles.headerLeft}>
               <Text style={[styles.title, { color: theme.text }]}>AI Assistant</Text>
               {!isPremium && (
-                <Text style={[styles.usageText, { color: theme.textSecondary }]}>
+                <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
                   {queryLimits.limit - queryLimits.used} queries remaining today
                 </Text>
               )}
             </View>
+            {!isPremium && (
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Subscription')}
+                style={styles.upgradeButton}
+              >
+                <PremiumBadge size="small" />
+              </TouchableOpacity>
+            )}
           </View>
-          {!isPremium && (
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Subscription')}
-              style={styles.upgradeButton}
-            >
-              <PremiumBadge size="small" />
-            </TouchableOpacity>
-          )}
         </View>
 
         {/* Messages */}
@@ -507,33 +506,26 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
+  },
+  headerTop: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
   },
-  backButton: {
-    padding: spacing.xs,
-    marginRight: spacing.xs,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    flex: 1,
-  },
-  headerText: {
+  headerLeft: {
     flex: 1,
   },
   title: {
-    ...typography.titleLarge,
+    ...typography.headlineMedium,
     fontWeight: '600',
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  usageText: {
-    ...typography.bodySmall,
+  subtitle: {
+    ...typography.bodyMedium,
   },
   upgradeButton: {
     padding: spacing.xs,
+    marginLeft: spacing.md,
   },
   messagesContainer: {
     flex: 1,

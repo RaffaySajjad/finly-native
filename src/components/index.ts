@@ -39,6 +39,7 @@ export { default as SecondaryButton } from './SecondaryButton';
 export { default as GradientCard } from './GradientCard';
 export { default as IconButton } from './IconButton';
 export { CategoryPickerModal } from './CategoryPickerModal';
+export { CreateCategoryModal } from './CreateCategoryModal';
 export { PullToRefreshScrollView } from './PullToRefreshScrollView';
 export { PullToRefreshFlatList } from './PullToRefreshFlatList';
 export { AlertDialog } from './AlertDialog';

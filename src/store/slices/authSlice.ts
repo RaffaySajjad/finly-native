@@ -20,6 +20,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isRestoringAuth: boolean;
   error: string | null;
   pendingVerificationEmail: string | null;
 }
@@ -28,7 +29,8 @@ const initialState: AuthState = {
   user: null,
   token: null,
   isAuthenticated: false,
-  isLoading: true,
+  isLoading: false,
+  isRestoringAuth: true,
   error: null,
   pendingVerificationEmail: null,
 };
@@ -145,7 +147,7 @@ export const logout = createAsyncThunk('auth/logout', async () => {
  */
 export const deleteAccount = createAsyncThunk(
   'auth/deleteAccount',
-  async (feedback?: { reasonForDeletion?: string; feedback?: string }, { getState, rejectWithValue }) => {
+  async (feedback: { reasonForDeletion?: string; feedback?: string } | undefined, { getState, rejectWithValue }) => {
     try {
       const state = getState() as { auth: AuthState };
       const user = state.auth.user;
@@ -201,17 +203,17 @@ const authSlice = createSlice({
     // Check auth status
     builder
       .addCase(checkAuthStatus.pending, state => {
-        state.isLoading = true;
+        state.isRestoringAuth = true;
       })
       .addCase(checkAuthStatus.fulfilled, (state, action) => {
-        state.isLoading = false;
+        state.isRestoringAuth = false;
         if (action.payload) {
           state.user = action.payload.user;
           state.isAuthenticated = true;
         }
       })
       .addCase(checkAuthStatus.rejected, state => {
-        state.isLoading = false;
+        state.isRestoringAuth = false;
       });
 
     // Login

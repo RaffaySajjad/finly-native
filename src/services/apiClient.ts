@@ -9,6 +9,7 @@ import axios, { AxiosInstance, AxiosError, AxiosRequestConfig, InternalAxiosRequ
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, buildApiUrl, STORAGE_KEYS } from '../config/api.config';
 import logger from '../utils/logger';
+import { apiCacheService } from './apiCacheService';
 
 /**
  * Standard API Response format
@@ -215,21 +216,99 @@ async function executeWithRetry<T>(
 export const apiClient = createApiClient();
 
 /**
- * HTTP Methods with retry logic
+ * Extract params from config for cache key generation
+ */
+const extractParams = (config?: AxiosRequestConfig): Record<string, any> | undefined => {
+  if (!config?.params) return undefined;
+  return config.params as Record<string, any>;
+};
+
+/**
+ * HTTP Methods with retry logic and caching
  */
 export const api = {
   /**
-   * GET request
+   * GET request with caching support
+   * Implements stale-while-revalidate pattern:
+   * - Returns cached data immediately if available (even if stale)
+   * - Fetches fresh data in background
+   * - On 429 errors, returns cached data if available
    */
-  async get<T = any>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    return executeWithRetry(async () => {
-      const response = await apiClient.get<ApiResponse<T>>(url, config);
-      return response.data;
-    });
+  async get<T = any>(
+    url: string,
+    config?: AxiosRequestConfig & { skipCache?: boolean }
+  ): Promise<ApiResponse<T>> {
+    const params = extractParams(config);
+    const skipCache = config?.skipCache || false;
+
+    // Check cache first (unless explicitly skipped)
+    if (!skipCache) {
+      const cached = await apiCacheService.get<T>(url, params);
+      
+      if (cached.data !== null) {
+        // Return cached data immediately
+        const cachedResponse: ApiResponse<T> = {
+          success: true,
+          data: cached.data,
+        };
+
+        // If data is stale and we should revalidate, fetch fresh data in background
+        if (cached.isStale && apiCacheService.shouldUseStaleWhileRevalidate(url)) {
+          // Fire and forget - fetch fresh data in background
+          executeWithRetry(async () => {
+            try {
+              const response = await apiClient.get<ApiResponse<T>>(url, config);
+              if (response.data.success && response.data.data) {
+                await apiCacheService.set(url, response.data.data, params);
+              }
+            } catch (error) {
+              // Silently fail background refresh - we already have cached data
+              logger.debug('[API] Background cache refresh failed', { url, error });
+            }
+          }).catch(() => {
+            // Ignore errors in background refresh
+          });
+        }
+
+        logger.debug(`[API] Cache hit: ${url}`, { isStale: cached.isStale, age: cached.age });
+        return cachedResponse;
+      }
+    }
+
+    // No cache or cache miss - fetch from API
+    try {
+      return await executeWithRetry(async () => {
+        const response = await apiClient.get<ApiResponse<T>>(url, config);
+        
+        // Cache successful responses
+        if (response.data.success && response.data.data && !skipCache) {
+          await apiCacheService.set(url, response.data.data, params);
+        }
+        
+        return response.data;
+      });
+    } catch (error) {
+      // Handle 429 rate limit errors by returning cached data if available
+      if (axios.isAxiosError(error) && error.response?.status === 429) {
+        logger.warn(`[API] Rate limited (429) for ${url}, attempting to use cached data`);
+        
+        const cached = await apiCacheService.get<T>(url, params);
+        if (cached.data !== null) {
+          logger.info(`[API] Returning cached data for rate-limited request: ${url}`);
+          return {
+            success: true,
+            data: cached.data,
+          };
+        }
+      }
+      
+      // Re-throw if no cached data available
+      throw error;
+    }
   },
 
   /**
-   * POST request
+   * POST request with cache invalidation
    */
   async post<T = any>(
     url: string,
@@ -239,6 +318,12 @@ export const api = {
     return executeWithRetry(
       async () => {
         const response = await apiClient.post<ApiResponse<T>>(url, data, config);
+        
+        // Invalidate related caches after successful mutation
+        if (response.data.success) {
+          await invalidateRelatedCaches(url);
+        }
+        
         return response.data;
       },
       { retryCondition: (error) => error.response?.status === 503 } // Only retry on service unavailable
@@ -246,7 +331,7 @@ export const api = {
   },
 
   /**
-   * PUT request
+   * PUT request with cache invalidation
    */
   async put<T = any>(
     url: string,
@@ -256,6 +341,12 @@ export const api = {
     return executeWithRetry(
       async () => {
         const response = await apiClient.put<ApiResponse<T>>(url, data, config);
+        
+        // Invalidate related caches after successful mutation
+        if (response.data.success) {
+          await invalidateRelatedCaches(url);
+        }
+        
         return response.data;
       },
       { retries: 1 } // Fewer retries for update operations
@@ -263,7 +354,7 @@ export const api = {
   },
 
   /**
-   * PATCH request
+   * PATCH request with cache invalidation
    */
   async patch<T = any>(
     url: string,
@@ -273,6 +364,12 @@ export const api = {
     return executeWithRetry(
       async () => {
         const response = await apiClient.patch<ApiResponse<T>>(url, data, config);
+        
+        // Invalidate related caches after successful mutation
+        if (response.data.success) {
+          await invalidateRelatedCaches(url);
+        }
+        
         return response.data;
       },
       { retries: 1 }
@@ -280,18 +377,51 @@ export const api = {
   },
 
   /**
-   * DELETE request
+   * DELETE request with cache invalidation
    */
   async delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     return executeWithRetry(
       async () => {
         const response = await apiClient.delete<ApiResponse<T>>(url, config);
+        
+        // Invalidate related caches after successful mutation
+        if (response.data.success) {
+          await invalidateRelatedCaches(url);
+        }
+        
         return response.data;
       },
       { retries: 1 }
     );
   },
 };
+
+/**
+ * Invalidate related caches after mutations
+ * This ensures data consistency across the app
+ */
+async function invalidateRelatedCaches(url: string): Promise<void> {
+  try {
+    // Invalidate based on endpoint patterns
+    if (url.includes('/categories')) {
+      await apiCacheService.invalidate('/categories');
+    } else if (url.includes('/expenses')) {
+      await apiCacheService.invalidate('/expenses');
+      await apiCacheService.invalidate('/analytics'); // Analytics depend on expenses
+    } else if (url.includes('/income')) {
+      await apiCacheService.invalidate('/income');
+      await apiCacheService.invalidate('/analytics'); // Analytics depend on income
+    } else if (url.includes('/analytics')) {
+      await apiCacheService.invalidate('/analytics');
+    } else if (url.includes('/tags')) {
+      await apiCacheService.invalidate('/tags');
+    }
+    
+    logger.debug(`[API] Invalidated caches for: ${url}`);
+  } catch (error) {
+    logger.error('[API] Error invalidating caches', error);
+  }
+}
 
 /**
  * Export token manager for use in auth service

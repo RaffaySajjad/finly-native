@@ -78,7 +78,7 @@ const OnboardingScreen: React.FC = () => {
       id: '4',
       icon: 'microphone',
       title: 'Voice & AI Entry',
-      description: `Say or type multiple transactions at once. "Coffee ${getCurrencySymbol()}5, Gas ${getCurrencySymbol()}30, Lunch ${getCurrencySymbol()}15" and we'll parse it all.`,
+      description: `Say or type naturally. "Spent ${getCurrencySymbol()}120 on Groceries at Walmart yesterday, and ${getCurrencySymbol()}50 for Uber ride today." AI handles the rest.`,
       color: '#8B5CF6',
     },
     {
@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
   },
   currencyList: {
     flex: 1,
-    width: '100%',
+    width: '100%'
   },
   currencyListContent: {
     paddingHorizontal: spacing.lg,

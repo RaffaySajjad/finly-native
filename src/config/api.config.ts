@@ -1,63 +1,39 @@
-/**
- * API Configuration
- * Purpose: Centralized API configuration for Finly mobile app
- * Manages base URL, timeouts, and API versioning
- * Supports environment variables via Expo Constants
- */
-
-import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 /**
- * Gets the development base URL based on the execution environment
- * Priority: Environment variable > Expo config > Auto-detection
- * @returns {string} Development API base URL
+ * Get API Base URL
+ * Priority:
+ * 1. EXPO_PUBLIC_API_URL environment variable (from .env files)
+ * 2. apiUrl from Expo config extra (set by app.config.js)
+ * 3. Default production URL
+ * 
+ * Single source of truth: .env files → app.config.js → Constants.expoConfig.extra
  */
-const getDevBaseUrl = (): string => {
-  const BACKEND_PORT = Constants.expoConfig?.extra?.apiPort || 3000;
+const getBaseUrl = () => {
+  // Runtime environment variable (for Metro bundler, takes precedence)
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  
+  // Build-time config from app.config.js (from .env files)
+  const configUrl = Constants.expoConfig?.extra?.apiUrl;
+  
+  // Default production URL
+  const defaultUrl = 'https://finly-core.up.railway.app';
 
-  // Check for environment variable first (highest priority)
-  const envApiUrl = Constants.expoConfig?.extra?.apiUrl;
-  if (envApiUrl) {
-    return envApiUrl;
+  const finalUrl = envUrl || configUrl || defaultUrl;
+
+  if (__DEV__) {
+    console.log('[API Config] Environment variables:', {
+      'EXPO_PUBLIC_API_URL': envUrl || 'not set',
+      'Constants.expoConfig.extra.apiUrl': configUrl || 'not set',
+      'Final BASE_URL': finalUrl,
+    });
   }
 
-  // Check for local IP in Expo config
-  const localIp = Constants.expoConfig?.extra?.localIp;
-  if (localIp) {
-    return `http://${localIp}:${BACKEND_PORT}`;
-  }
-
-  // Auto-detect based on platform
-  if (Platform.OS === 'android') {
-    // Android emulator uses 10.0.2.2 to access host machine's localhost
-    // For physical Android devices, use your computer's local IP address
-    const androidHost = Constants.expoConfig?.extra?.androidHost || '10.0.2.2';
-    return `http://${androidHost}:${BACKEND_PORT}`;
-  } else {
-    // iOS simulator can use localhost
-    // For physical iOS device, use your computer's local IP address
-    const iosHost = Constants.expoConfig?.extra?.iosHost || 'localhost';
-    return `http://${iosHost}:${BACKEND_PORT}`;
-  }
+  return finalUrl;
 };
 
-/**
- * API Environment Configuration
- * Configuration priority:
- * 1. Environment variable (EXPO_PUBLIC_API_URL)
- * 2. Expo config extra.apiUrl
- * 3. Auto-detection based on platform
- */
 export const API_CONFIG = {
-  // Base URL for the Finly API
-  // For development: Uses environment variable, Expo config, or auto-detection
-  // For production: Uses production API URL from environment variable or default
-  BASE_URL: __DEV__
-    ? getDevBaseUrl()
-    : Constants.expoConfig?.extra?.apiUrl ||
-      process.env.EXPO_PUBLIC_API_URL ||
-      'https://api.finly.app',
+  BASE_URL: getBaseUrl(),
 
   // API version
   API_VERSION: 'v1',
@@ -176,7 +152,7 @@ export const STORAGE_KEYS = {
   ACCESS_TOKEN: '@finly_access_token',
   REFRESH_TOKEN: '@finly_refresh_token',
   USER_DATA: '@finly_user_data',
-  TOKEN_EXPIRY: '@finly_token_expiry',
+  TOKEN_EXPIRY: '@finly_token_expiry'
 } as const;
 
 /**
@@ -188,4 +164,3 @@ export const buildApiUrl = (path: string): string => {
   const cleanPath = path.startsWith('/') ? path.slice(1) : path;
   return `${API_CONFIG.BASE_URL}/api/${API_CONFIG.API_VERSION}/${cleanPath}`;
 };
-

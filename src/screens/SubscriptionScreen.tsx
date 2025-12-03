@@ -164,24 +164,6 @@ const SubscriptionScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Feature Comparison */}
-        {!isPremium && (
-          <View style={styles.comparisonContainer}>
-            <FeatureComparison
-              features={[
-                { name: 'Receipt Scanning', free: '3/month', premium: 'Unlimited' },
-                { name: 'AI Insights', free: '3/week', premium: 'Unlimited' },
-                { name: 'Voice Entry', free: false, premium: true },
-                { name: 'Advanced Analytics', free: false, premium: true },
-                { name: 'Categories', free: '5 max', premium: 'Unlimited' },
-                { name: 'Receipt Gallery', free: false, premium: true },
-                { name: 'Bulk Entry', free: false, premium: true },
-                { name: 'Data Export', free: 'CSV only', premium: 'CSV + PDF' },
-              ]}
-            />
-          </View>
-        )}
-
         {/* Premium Plan Card */}
         <View
           style={[
@@ -361,6 +343,7 @@ const SubscriptionScreen: React.FC = () => {
             </TouchableOpacity>
           )}
         </View>
+
 
         <View style={{ height: spacing.xl }} />
       </ScrollView>

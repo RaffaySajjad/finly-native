@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -26,7 +27,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
 import { UpgradePrompt, PremiumBadge, DatePickerInput } from '../components';
-import { parseTransactionInput, validateTransactions } from '../services/aiTransactionService';
+import { parseTransactionInput } from '../services/aiTransactionService';
 import { apiService } from '../services/api';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -36,7 +37,7 @@ type NavigationProp = StackNavigationProp<RootStackParamList>;
 
 const VoiceTransactionScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency, getCurrencySymbol } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, currencyCode, convertToUSD } = useCurrency();
   const navigation = useNavigation<NavigationProp>();
   const { isPremium, requiresUpgrade } = useSubscription();
 
@@ -44,7 +45,13 @@ const VoiceTransactionScreen: React.FC = () => {
   const [transactionDate, setTransactionDate] = useState(new Date());
   const [isProcessing, setIsProcessing] = useState(false);
   const [parsedTransactions, setParsedTransactions] = useState<
-    Array<Omit<Expense, 'id' | 'date'>>
+    Array<{
+      amount: number;
+      description: string;
+      categoryId: string;
+      date?: string;
+      selected: boolean; // For checkbox selection
+    }>
   >([]);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const inputRef = useRef<TextInput>(null);
@@ -61,18 +68,26 @@ const VoiceTransactionScreen: React.FC = () => {
     }
 
     setIsProcessing(true);
+    Keyboard.dismiss();
 
     try {
-      const transactions = await parseTransactionInput(input, getCurrencySymbol());
-      const validation = validateTransactions(transactions);
-
-      if (!validation.valid) {
-        Alert.alert('Parsing Error', validation.errors.join('\n'));
+      // AI extracts numbers as-is, no currency conversion needed
+      // Pass currency code for better context (amounts are in user's currency, not USD)
+      const transactions = await parseTransactionInput(input, [], getCurrencySymbol(), currencyCode);
+      if (transactions.length === 0) {
+        Alert.alert('No Transactions Found', 'Could not identify any transactions. Please try again with clearer details.');
         setIsProcessing(false);
         return;
       }
 
-      setParsedTransactions(transactions);
+      // Add new transactions to existing preview (append mode)
+      setParsedTransactions(prev => [
+        ...prev,
+        ...transactions.map(tx => ({ ...tx, selected: true })) // New transactions are selected by default
+      ]);
+
+      // Clear input for next batch
+      setInput('');
       
       if (Platform.OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -86,17 +101,31 @@ const VoiceTransactionScreen: React.FC = () => {
   };
 
   const handleConfirmTransactions = async () => {
-    if (parsedTransactions.length === 0) return;
+    const selectedTransactions = parsedTransactions.filter(tx => tx.selected);
+
+    if (selectedTransactions.length === 0) {
+      Alert.alert('No Selection', 'Please select at least one transaction to confirm.');
+      return;
+    }
 
     setIsProcessing(true);
 
     try {
-      const promises = parsedTransactions.map(tx =>
-        apiService.createExpense({
-          ...tx,
-          date: transactionDate.toISOString(),
-        })
-      );
+      const promises = selectedTransactions.map(tx => {
+        const originalAmount = tx.amount; // Amount in user's currency (e.g., PKR)
+        // Convert amount from display currency to USD before sending
+        // All amounts are stored in USD in the database
+        const amountInUSD = convertToUSD(originalAmount);
+        
+        return apiService.addExpense({
+          amount: amountInUSD, // Converted to USD for database storage
+          description: tx.description,
+          categoryId: tx.categoryId,
+          date: transactionDate, // Use the selected date for all transactions
+          originalAmount: originalAmount, // Store the original amount user entered in their currency
+          originalCurrency: currencyCode, // Store user's currency
+        });
+      });
 
       await Promise.all(promises);
 
@@ -106,7 +135,7 @@ const VoiceTransactionScreen: React.FC = () => {
 
       Alert.alert(
         'Success!',
-        `Added ${parsedTransactions.length} transaction${parsedTransactions.length > 1 ? 's' : ''} successfully! 🎉`,
+        `Added ${selectedTransactions.length} transaction${selectedTransactions.length > 1 ? 's' : ''} successfully! 🎉`,
         [
           {
             text: 'OK',
@@ -124,18 +153,35 @@ const VoiceTransactionScreen: React.FC = () => {
 
   const handleClear = () => {
     setInput('');
-    setParsedTransactions([]);
     inputRef.current?.focus();
   };
 
-  const categoryIcons: Record<string, string> = {
-    food: 'food',
-    transport: 'car',
-    shopping: 'shopping',
-    entertainment: 'movie',
-    health: 'heart-pulse',
-    utilities: 'lightning-bolt',
-    other: 'dots-horizontal',
+  const handleClearPreview = () => {
+    setParsedTransactions([]);
+  };
+
+  const toggleTransactionSelection = (index: number) => {
+    setParsedTransactions(prev =>
+      prev.map((tx, i) => i === index ? { ...tx, selected: !tx.selected } : tx)
+    );
+  };
+
+  const toggleSelectAll = () => {
+    const allSelected = parsedTransactions.every(tx => tx.selected);
+    setParsedTransactions(prev =>
+      prev.map(tx => ({ ...tx, selected: !allSelected }))
+    );
+  };
+
+  // Helper to get category name/icon (since we only have ID)
+  // In a real app we might want to fetch categories or pass them in
+  // For now we'll use a generic fallback or try to guess from ID if it matches our hardcoded list
+  const getCategoryDisplay = (categoryId: string) => {
+    // This is a simplification. Ideally we should look up the category from a context or prop
+    return {
+      icon: 'dots-horizontal',
+      name: 'Transaction',
+    };
   };
 
   return (
@@ -152,7 +198,6 @@ const VoiceTransactionScreen: React.FC = () => {
           <Text style={[styles.headerTitle, { color: theme.text }]}>
             AI Transaction Entry
           </Text>
-          {!isPremium && <PremiumBadge size="small" />}
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -164,25 +209,35 @@ const VoiceTransactionScreen: React.FC = () => {
       >
         {/* Instructions */}
         <View style={[styles.instructionsCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
-          <Icon name="lightbulb-on" size={24} color={theme.primary} />
+          <Icon name="robot" size={24} color={theme.primary} />
           <View style={styles.instructionsContent}>
             <Text style={[styles.instructionsTitle, { color: theme.text }]}>
-              Speak or Type Multiple Transactions
+              AI-Powered Entry
             </Text>
             <Text style={[styles.instructionsText, { color: theme.textSecondary }]}>
-              Examples:{'\n'}
-              • "Lunch at Cafe Luna {getCurrencySymbol()}42.50, Uber {getCurrencySymbol()}15, Groceries {getCurrencySymbol()}89.99"{'\n'}
-              • "Coffee {getCurrencySymbol()}5.50, Gas {getCurrencySymbol()}30, Target {getCurrencySymbol()}67.50"{'\n'}
-              • "Starbucks {getCurrencySymbol()}8.75 and Amazon {getCurrencySymbol()}45.99"
+              Speak or type naturally. Finly's AI understands multiple transactions at once.
             </Text>
+            <View style={styles.examplesContainer}>
+              <Text style={[styles.exampleText, { color: theme.textTertiary }]}>
+                "Lunch $15, Uber $20, and Groceries $50"
+              </Text>
+            </View>
           </View>
         </View>
 
         {/* Input Section */}
         <View style={styles.inputSection}>
-          <Text style={[styles.label, { color: theme.textSecondary }]}>
-            Transactions
-          </Text>
+          <View style={styles.inputHeader}>
+            <Text style={[styles.label, { color: theme.textSecondary }]}>
+              Your Transactions
+            </Text>
+            {input.length > 0 && (
+              <TouchableOpacity onPress={handleClear} disabled={isProcessing}>
+                <Text style={[styles.clearLink, { color: theme.primary }]}>Clear</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           <TextInput
             ref={inputRef}
             style={[
@@ -190,7 +245,7 @@ const VoiceTransactionScreen: React.FC = () => {
               { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
               elevation.sm,
             ]}
-            placeholder="Type or speak multiple transactions..."
+            placeholder="Tap microphone on keyboard to speak, or type here..."
             placeholderTextColor={theme.textTertiary}
             value={input}
             onChangeText={setInput}
@@ -201,34 +256,25 @@ const VoiceTransactionScreen: React.FC = () => {
             editable={!isProcessing}
           />
 
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[styles.clearButton, { backgroundColor: theme.card, borderColor: theme.border }]}
-              onPress={handleClear}
-              disabled={isProcessing || !input.trim()}
-            >
-              <Icon name="close" size={20} color={theme.textSecondary} />
-              <Text style={[styles.clearButtonText, { color: theme.textSecondary }]}>
-                Clear
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.processButton, { backgroundColor: theme.primary }, elevation.md]}
-              onPress={handleProcessInput}
-              disabled={isProcessing || !input.trim()}
-            >
-              {isProcessing ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Icon name="robot" size={20} color="#FFFFFF" />
-                  <Text style={styles.processButtonText}>Process</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
+          {/* Process Button */}
+          <TouchableOpacity
+            style={[
+              styles.processButton,
+              { backgroundColor: theme.primary, opacity: (!input.trim() || isProcessing) ? 0.6 : 1 },
+              elevation.md
+            ]}
+            onPress={handleProcessInput}
+            disabled={isProcessing || !input.trim()}
+          >
+            {isProcessing ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Icon name="auto-fix" size={20} color="#FFFFFF" />
+                <Text style={styles.processButtonText}>Process with AI</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Date Picker */}
@@ -236,32 +282,60 @@ const VoiceTransactionScreen: React.FC = () => {
           <DatePickerInput
             date={transactionDate}
             onDateChange={setTransactionDate}
-            label="TRANSACTION DATE"
+            label="DEFAULT DATE (IF NOT SPECIFIED)"
           />
-          <Text style={[styles.dateHint, { color: theme.textTertiary }]}>
-            This date will apply to all transactions
-          </Text>
         </View>
 
         {/* Parsed Transactions Preview */}
         {parsedTransactions.length > 0 && (
           <View style={styles.previewSection}>
-            <Text style={[styles.previewTitle, { color: theme.text }]}>
-              Preview ({parsedTransactions.length} transaction{parsedTransactions.length > 1 ? 's' : ''})
-            </Text>
+            <View style={styles.previewHeader}>
+              <Text style={[styles.previewTitle, { color: theme.text }]}>
+                Preview ({parsedTransactions.filter(tx => tx.selected).length}/{parsedTransactions.length})
+              </Text>
+              <View style={styles.previewActions}>
+                <TouchableOpacity onPress={toggleSelectAll} style={styles.selectAllButton}>
+                  <Text style={[styles.selectAllText, { color: theme.primary }]}>
+                    {parsedTransactions.every(tx => tx.selected) ? 'Deselect All' : 'Select All'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleClearPreview} style={styles.clearPreviewButton}>
+                  <Icon name="close" size={18} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
 
             {parsedTransactions.map((tx, index) => (
-              <View
+              <TouchableOpacity
                 key={index}
                 style={[
                   styles.transactionCard,
-                  { backgroundColor: theme.card, borderColor: theme.border },
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: tx.selected ? theme.primary : theme.border,
+                    borderWidth: tx.selected ? 2 : 1,
+                    opacity: tx.selected ? 1 : 0.6,
+                  },
                   elevation.sm,
                 ]}
+                onPress={() => toggleTransactionSelection(index)}
+                activeOpacity={0.7}
               >
+                <TouchableOpacity
+                  style={[
+                    styles.checkbox,
+                    {
+                      backgroundColor: tx.selected ? theme.primary : 'transparent',
+                      borderColor: tx.selected ? theme.primary : theme.border,
+                    }
+                  ]}
+                  onPress={() => toggleTransactionSelection(index)}
+                >
+                  {tx.selected && <Icon name="check" size={16} color="#FFFFFF" />}
+                </TouchableOpacity>
                 <View style={[styles.transactionIcon, { backgroundColor: theme.primary + '20' }]}>
                   <Icon
-                    name={categoryIcons[tx.category] as any}
+                    name="check-circle-outline"
                     size={24}
                     color={theme.primary}
                   />
@@ -272,14 +346,14 @@ const VoiceTransactionScreen: React.FC = () => {
                   </Text>
                   <View style={styles.transactionMeta}>
                     <Text style={[styles.transactionCategory, { color: theme.textSecondary }]}>
-                      {tx.category.charAt(0).toUpperCase() + tx.category.slice(1)}
+                      Category ID: {tx.categoryId.substring(0, 8)}...
                     </Text>
                   </View>
                 </View>
                 <Text style={[styles.transactionAmount, { color: theme.expense }]}>
                   -{formatCurrency(tx.amount)}
                 </Text>
-              </View>
+              </TouchableOpacity>
             ))}
 
             <TouchableOpacity
@@ -293,7 +367,7 @@ const VoiceTransactionScreen: React.FC = () => {
                 <>
                   <Icon name="check-circle" size={24} color="#FFFFFF" />
                   <Text style={styles.confirmButtonText}>
-                    Confirm & Add {parsedTransactions.length} Transaction{parsedTransactions.length > 1 ? 's' : ''}
+                      Confirm All
                   </Text>
                 </>
               )}
@@ -365,22 +439,35 @@ const styles = StyleSheet.create({
   instructionsText: {
     ...typography.bodySmall,
     lineHeight: 20,
+    marginBottom: spacing.sm,
+  },
+  examplesContainer: {
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+  },
+  exampleText: {
+    ...typography.caption,
+    fontStyle: 'italic',
   },
   inputSection: {
     marginBottom: spacing.lg,
   },
+  inputHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
   dateSection: {
     marginBottom: spacing.lg,
   },
-  dateHint: {
-    ...typography.caption,
-    marginTop: spacing.xs,
-    fontStyle: 'italic',
-    textAlign: 'center',
-  },
   label: {
     ...typography.labelMedium,
-    marginBottom: spacing.sm,
+    fontWeight: '600',
+  },
+  clearLink: {
+    ...typography.labelSmall,
     fontWeight: '600',
   },
   input: {
@@ -391,26 +478,7 @@ const styles = StyleSheet.create({
     minHeight: 120,
     marginBottom: spacing.md,
   },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  clearButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 2,
-    gap: spacing.xs,
-  },
-  clearButtonText: {
-    ...typography.labelMedium,
-    fontWeight: '600',
-  },
   processButton: {
-    flex: 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -426,10 +494,44 @@ const styles = StyleSheet.create({
   previewSection: {
     marginTop: spacing.md,
   },
+  previewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  previewActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  selectAllButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  selectAllText: {
+    ...typography.labelSmall,
+    fontWeight: '600',
+  },
+  clearPreviewButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.sm,
+  },
   previewTitle: {
     ...typography.titleMedium,
     fontWeight: '600',
-    marginBottom: spacing.md,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: borderRadius.sm,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
   },
   transactionCard: {
     flexDirection: 'row',
@@ -462,10 +564,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-  },
-  transactionType: {
-    ...typography.labelSmall,
-    fontWeight: '600',
   },
   transactionAmount: {
     ...typography.titleMedium,

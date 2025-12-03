@@ -24,6 +24,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import { useAppDispatch } from '../store';
 import { logout } from '../store/slices/authSlice';
+import { clearCategories } from '../store/slices/categoriesSlice';
 import dataExportService from '../services/dataExportService';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import {
@@ -125,6 +126,10 @@ const PrivacySettingsScreen: React.FC = () => {
               setIsDeleting(true);
               try {
                 await dataExportService.deleteAllData();
+
+                // Clear categories from Redux state before logout
+                dispatch(clearCategories());
+
                 Alert.alert(
                   'Data Deleted',
                   'All your data has been deleted. You will be logged out.',
@@ -228,20 +233,6 @@ const PrivacySettingsScreen: React.FC = () => {
         {/* Export Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>EXPORT DATA</Text>
-          {/* <SettingItem
-            icon="file-export"
-            title="Export as JSON"
-            subtitle="Download all your data in JSON format"
-            onPress={handleExportJSON}
-            loading={isExporting}
-          />
-          <SettingItem
-            icon="file-excel"
-            title="Export as CSV"
-            subtitle="Download expenses in CSV format"
-            onPress={handleExportCSV}
-            loading={isExporting}
-          /> */}
 
           <SettingItem
             icon="file-export"
@@ -325,7 +316,7 @@ const styles = StyleSheet.create({
   privacyBadge: {
     padding: spacing.lg,
     borderRadius: borderRadius.lg,
-    borderWidth: 2,
+    borderWidth: 1,
     alignItems: 'center',
     marginBottom: spacing.xl,
   },
@@ -341,7 +332,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   section: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.lg
   },
   sectionTitle: {
     ...typography.labelSmall,

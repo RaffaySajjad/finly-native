@@ -53,8 +53,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.md,
+    paddingHorizontal: spacing.md
   },
   title: {
     ...typography.titleLarge,

@@ -167,6 +167,11 @@ const TransactionsListScreen: React.FC = () => {
   const [transactions, setTransactions] = useState<UnifiedTransaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<UnifiedTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -196,7 +201,7 @@ const TransactionsListScreen: React.FC = () => {
 
   useFocusEffect(
     React.useCallback(() => {
-      loadData();
+      loadData(true);
     }, [])
   );
 
@@ -205,26 +210,142 @@ const TransactionsListScreen: React.FC = () => {
     loadTags();
   }, []);
 
-  const loadData = async () => {
+  /**
+   * Load transactions data with pagination
+   */
+  const loadData = async (initialLoad: boolean = false) => {
     try {
-      setLoading(true);
-      const result = await apiService.getUnifiedTransactions();
-      // Handle both array and object response formats
-      const transactionsData = Array.isArray(result) ? result : result.transactions;
-      setTransactions(transactionsData);
-      setFilteredTransactions(transactionsData);
+      if (initialLoad) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
+
+      // Load transactions with pagination
+      if (initialLoad) {
+        await loadTransactions(true, undefined);
+      } else {
+        // On refresh, reset and load from beginning
+        setNextCursor(null);
+        await loadTransactions(true, undefined);
+      }
     } catch (error) {
       console.error('Error loading transactions:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  /**
+   * Load transactions with pagination
+   */
+  const loadTransactions = useCallback(async (initialLoad: boolean = false, cursor?: string | null) => {
+    try {
+      if (!initialLoad) {
+        setLoadingMore(true);
+      }
+
+      const cursorToUse = initialLoad ? undefined : (cursor || undefined);
+
+      // Build date range filters for API
+      let startDate: string | undefined;
+      let endDate: string | undefined;
+      
+      if (selectedDateRange !== 'all' && selectedDateRange !== 'custom') {
+        const now = new Date();
+        let start: Date;
+
+        switch (selectedDateRange) {
+          case 'today':
+            start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            break;
+          case 'week':
+            start = new Date(now);
+            start.setDate(start.getDate() - 7);
+            break;
+          case 'month':
+            start = new Date(now.getFullYear(), now.getMonth(), 1);
+            break;
+          case '3months':
+            start = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+            break;
+          case '6months':
+            start = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+            break;
+          case 'year':
+            start = new Date(now.getFullYear(), 0, 1);
+            break;
+          default:
+            start = new Date(0); // Beginning of time
+        }
+        startDate = start.toISOString();
+        endDate = now.toISOString();
+      } else if (selectedDateRange === 'custom' && customStartDate && customEndDate) {
+        startDate = customStartDate.toISOString();
+        endDate = customEndDate.toISOString();
+      }
+
+      console.log('[TransactionsListScreen] Loading transactions:', {
+        initialLoad,
+        cursor: cursorToUse,
+        startDate,
+        endDate,
+        type: selectedTransactionType === 'all' ? undefined : selectedTransactionType,
+      });
+
+      const result = await apiService.getUnifiedTransactionsPaginated({
+        startDate,
+        endDate,
+        type: selectedTransactionType === 'all' ? undefined : selectedTransactionType,
+        limit: 20,
+        cursor: cursorToUse,
+      });
+
+      console.log('[TransactionsListScreen] Received transactions:', {
+        count: result.transactions.length,
+        total: result.pagination.total,
+        hasMore: result.pagination.hasMore,
+        nextCursor: result.pagination.nextCursor,
+      });
+
+      if (initialLoad) {
+        setTransactions(result.transactions);
+      } else {
+        setTransactions((prev) => [...prev, ...result.transactions]);
+      }
+
+      setHasMore(result.pagination.hasMore);
+      setNextCursor(result.pagination.nextCursor);
+      setTotal(result.pagination.total);
+    } catch (error) {
+      console.error('[TransactionsListScreen] Error loading transactions:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [selectedDateRange, customStartDate, customEndDate, selectedTransactionType]);
+
+  /**
+   * Load more transactions (pagination)
+   */
+  const loadMore = useCallback(() => {
+    console.log('[TransactionsListScreen] loadMore called:', {
+      loadingMore,
+      hasMore,
+      nextCursor,
+      canLoad: !loadingMore && hasMore && nextCursor,
+    });
+
+    if (!loadingMore && hasMore && nextCursor) {
+      loadTransactions(false, nextCursor);
+    }
+  }, [loadingMore, hasMore, nextCursor, loadTransactions]);
 
   /**
    * Handles pull-to-refresh - reloads transactions, categories, and tags
    */
   const handleRefresh = async (): Promise<void> => {
-    await Promise.all([loadData(), loadCategories(), loadTags()]);
+    await Promise.all([loadData(false), loadCategories(), loadTags()]);
   };
 
   const loadCategories = async () => {
@@ -258,6 +379,20 @@ const TransactionsListScreen: React.FC = () => {
       ...PAYMENT_METHOD_DISPLAY[method],
     }));
   }, [transactions]);
+
+  // Reset pagination and reload when filters change (date range or transaction type)
+  // Note: This effect only runs when filters that affect server-side queries change
+  useEffect(() => {
+    // Skip initial mount - loadData handles that
+    if (loading) return;
+    
+    // Reset pagination state
+    setNextCursor(null);
+    setHasMore(false);
+    // Reload transactions with new filters
+    loadTransactions(true, undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDateRange, customStartDate, customEndDate, selectedTransactionType]);
 
   // Filter and sort transactions, then group by date
   useEffect(() => {
@@ -772,7 +907,15 @@ const TransactionsListScreen: React.FC = () => {
             renderItem={renderSection}
           keyExtractor={keyExtractor}
           ListEmptyComponent={renderEmptyState}
-          ListFooterComponent={renderListFooter}
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={styles.footer}>
+                <ActivityIndicator size="small" color={theme.primary} />
+              </View>
+            ) : (
+              renderListFooter()
+            )
+          }
           contentContainerStyle={[
             styles.scrollContent,
             groupedTransactions.length === 0 && styles.emptyContentContainer,
@@ -785,6 +928,9 @@ const TransactionsListScreen: React.FC = () => {
           windowSize={10}
           initialNumToRender={15}
           onRefresh={handleRefresh}
+          refreshing={refreshing}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
         />
       )}
 
@@ -1323,6 +1469,10 @@ const styles = StyleSheet.create({
   dateHeaderLine: {
     height: 1,
     width: '100%',
+  },
+  footer: {
+    paddingVertical: spacing.md,
+    alignItems: 'center',
   },
 });
 

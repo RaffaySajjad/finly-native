@@ -466,7 +466,9 @@ const CategoryDetailsScreen: React.FC = () => {
             {/* Transactions Section Header */}
             <View style={styles.transactionsSection}>
               <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                Transactions {total > 0 && `(${total})`}
+                {total > 0
+                  ? `${total.toLocaleString('en-US')} ${total === 1 ? 'Transaction' : 'Transactions'}`
+                  : 'Transactions'}
               </Text>
             </View>
           </View>
@@ -649,7 +651,6 @@ const styles = StyleSheet.create({
   transactionsSection: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
-    marginBottom: spacing.md,
   },
   sectionTitle: {
     ...typography.titleLarge,

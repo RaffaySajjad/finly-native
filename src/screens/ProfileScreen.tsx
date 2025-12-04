@@ -713,7 +713,7 @@ const ProfileScreen: React.FC = () => {
             Finly is your personal expense tracking companion. Track your spending, manage budgets, and gain insights into your financial habits—all while keeping your data private and secure.
           </Text>
 
-          <View style={styles.aboutLinks}>
+          {/* <View style={styles.aboutLinks}>
             <TouchableOpacity
               style={[styles.aboutLink, { borderColor: theme.border }]}
               onPress={() => {
@@ -734,7 +734,7 @@ const ProfileScreen: React.FC = () => {
               <Icon name="file-document-outline" size={20} color={theme.textSecondary} />
               <Text style={[styles.aboutLinkText, { color: theme.textSecondary }]}>Terms of Service</Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
 
           <Text style={[styles.aboutCopyright, { color: theme.textTertiary }]}>
             © {new Date().getFullYear()} Finly. All rights reserved.

@@ -77,15 +77,15 @@ const DATE_RANGE_OPTIONS: DateRangeOption[] = [
       return { startDate, endDate };
     },
   },
-  {
-    id: 'all_time',
-    label: 'All Time',
-    getDateRange: () => {
-      const endDate = new Date();
-      const startDate = new Date(2020, 0, 1); // Start from 2020
-      return { startDate, endDate };
-    },
-  },
+  // {
+  //   id: 'all_time',
+  //   label: 'All Time',
+  //   getDateRange: () => {
+  //     const endDate = new Date();
+  //     const startDate = new Date(2020, 0, 1); // Start from 2020
+  //     return { startDate, endDate };
+  //   },
+  // },
 ];
 
 /**

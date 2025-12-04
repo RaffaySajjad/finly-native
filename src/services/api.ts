@@ -1019,35 +1019,114 @@ export const apiService = {
       if (options?.type) params.type = options.type;
       if (options?.includeTotal) params.includeTotal = 'true';
 
-      const response = await api.get<
-        | UnifiedTransaction[]
-        | { transactions: UnifiedTransaction[]; total: number }
-      >(API_ENDPOINTS.ANALYTICS.TRANSACTIONS, { params });
-      if (!response.success) {
-        throw new Error(
-          response.error?.message || 'Failed to fetch unified transactions'
-        );
+      // Backend returns paginated format: { data: [], pagination: { total } }
+      // Use apiClient directly to access pagination metadata
+      const axiosResponse = await apiClient.get<{
+        success: boolean;
+        data: UnifiedTransaction[];
+        pagination?: {
+          hasMore: boolean;
+          nextCursor: string | null;
+          total: number;
+        };
+      }>(API_ENDPOINTS.ANALYTICS.TRANSACTIONS, { params });
+
+      const backendResponse = axiosResponse.data;
+
+      if (!backendResponse.success) {
+        throw new Error('Failed to fetch unified transactions');
       }
 
-      // Handle both response formats: array (backward compatible) or object with transactions and total
-      const data = response.data;
-      if (!data) {
-        return options?.includeTotal ? { transactions: [], total: 0 } : [];
+      const transactions = backendResponse.data || [];
+      const total = backendResponse.pagination?.total;
+
+      // If includeTotal is requested or limit is provided, return with total
+      if (options?.includeTotal || (options?.limit && total !== undefined)) {
+        return {
+          transactions,
+          total: total ?? transactions.length
+        };
       }
 
-      // Check if response is paginated format (object with transactions and total)
-      if (
-        typeof data === 'object' &&
-        'transactions' in data &&
-        'total' in data
-      ) {
-        return data as { transactions: UnifiedTransaction[]; total: number };
-      }
-
-      // Otherwise return as array (backward compatible)
-      return data as UnifiedTransaction[];
+      return transactions;
     } catch (error) {
       console.error('[API] Get unified transactions error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get unified transactions with pagination
+   * @param options - Pagination options
+   * @returns Paginated unified transactions response
+   */
+  async getUnifiedTransactionsPaginated(options?: {
+    startDate?: string;
+    endDate?: string;
+    type?: 'expense' | 'income' | 'all';
+    limit?: number;
+    cursor?: string;
+  }): Promise<{
+    transactions: UnifiedTransaction[];
+    pagination: {
+      hasMore: boolean;
+      nextCursor: string | null;
+      total: number;
+    };
+  }> {
+    try {
+      const params: Record<string, string> = {};
+      if (options?.startDate) params.startDate = options.startDate;
+      if (options?.endDate) params.endDate = options.endDate;
+      if (options?.type) params.type = options.type;
+      if (options?.limit) params.limit = options.limit.toString();
+      if (options?.cursor) params.cursor = options.cursor;
+
+      console.log('[API] getUnifiedTransactionsPaginated called with:', {
+        startDate: options?.startDate,
+        endDate: options?.endDate,
+        type: options?.type,
+        limit: options?.limit,
+        cursor: options?.cursor,
+        params
+      });
+
+      // Use apiClient directly to bypass the api.get wrapper and get the full response
+      // This ensures we get pagination metadata even when cached data might be an array
+      const axiosResponse = await apiClient.get<{
+        success: boolean;
+        data: UnifiedTransaction[];
+        pagination: {
+          hasMore: boolean;
+          nextCursor: string | null;
+          total: number;
+        };
+      }>(API_ENDPOINTS.ANALYTICS.TRANSACTIONS, { params });
+
+      // Axios response structure: axiosResponse.data = { success: true, data: [...], pagination: {...} }
+      const backendResponse = axiosResponse.data;
+
+      if (!backendResponse.success) {
+        throw new Error('Failed to fetch unified transactions');
+      }
+
+      console.log('[API] getUnifiedTransactionsPaginated parsed:', {
+        transactionsCount: backendResponse.data?.length || 0,
+        pagination: backendResponse.pagination,
+        hasData: !!backendResponse.data,
+        hasPagination: !!backendResponse.pagination
+      });
+
+      return {
+        transactions: backendResponse.data || [],
+        pagination: backendResponse.pagination || {
+          hasMore: false,
+          nextCursor: null,
+          total: 0
+        }
+      };
+    } catch (error) {
+      console.error('[API] Get paginated unified transactions error:', error);
       throw error;
     }
   },

@@ -300,8 +300,7 @@ export const CreateCategoryModal: React.FC = () => {
                   }
                 }}
                 error={errors.name}
-                helperText={`${categoryName.length}/30 characters`}
-                required
+              helperText={`${categoryName.length}/30 characters`}
                 maxLength={30}
               />
           </View>

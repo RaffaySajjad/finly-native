@@ -65,10 +65,11 @@ const TrendsScreen: React.FC = () => {
   const [selectedDataPoint, setSelectedDataPoint] = useState<{ date: string; amount: number; index: number } | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
 
-  // Animation values
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
+  // Animation values - start visible to prevent flicker
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
+  const hasAnimated = useRef(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -79,12 +80,17 @@ const TrendsScreen: React.FC = () => {
   // Scroll to top when tab is pressed while already on this screen
   useScrollToTopOnTabPress(scrollViewRef);
 
+  // Animate only on initial data load (not on updates/refreshes)
   useEffect(() => {
-    if (!loading) {
+    if (trendsData && !hasAnimated.current) {
+      hasAnimated.current = true;
+      // Start from hidden state and animate in
+      fadeAnim.setValue(0);
+      slideAnim.setValue(50);
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 600,
+          duration: 400,
           useNativeDriver: true,
         }),
         Animated.spring(slideAnim, {
@@ -94,15 +100,22 @@ const TrendsScreen: React.FC = () => {
           useNativeDriver: true,
         }),
       ]).start();
+    } else if (trendsData && hasAnimated.current) {
+      // For subsequent updates, keep content visible (no animation flicker)
+      fadeAnim.setValue(1);
+      slideAnim.setValue(0);
     }
-  }, [loading]);
+  }, [trendsData, fadeAnim, slideAnim]);
 
   const loadData = async (forceRefresh: boolean = false) => {
     try {
       if (forceRefresh) {
         setRefreshing(true);
       } else {
-        setLoading(true);
+        // Only show loading screen if we don't have data yet
+        if (!trendsData) {
+          setLoading(true);
+        }
       }
       const [trends, forecastData] = await Promise.all([
         apiService.getSpendingTrends(forceRefresh), // Skip cache on force refresh
@@ -123,7 +136,8 @@ const TrendsScreen: React.FC = () => {
     loadData(true);
   };
 
-  if (loading) {
+  // Only show loading screen if we don't have data yet (prevents flicker on navigation)
+  if (loading && !trendsData) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.loadingContainer}>

@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   section: {
-    marginBottom: spacing.lg
+    marginBottom: spacing.lg,
   },
   sectionTitle: {
     ...typography.labelSmall,

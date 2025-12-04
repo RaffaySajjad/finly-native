@@ -32,6 +32,7 @@ import {
   updateIncomeSource,
   deleteIncomeSource,
 } from '../services/incomeService';
+import { syncWidgetData } from '../services/widgetSync';
 import { IncomeSource, IncomeFrequency } from '../types';
 import { BottomSheetBackground, CurrencyInput, DatePickerInput, PullToRefreshScrollView } from '../components';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -48,7 +49,7 @@ const FREQUENCY_OPTIONS: Array<{ value: IncomeFrequency; label: string; icon: st
 
 const IncomeManagementScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency, getCurrencySymbol, convertToUSD, convertFromUSD } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, convertToUSD, convertFromUSD, currencyCode } = useCurrency();
   const navigation = useNavigation<IncomeManagementNavigationProp>();
   const [incomeSources, setIncomeSources] = useState<IncomeSource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -194,6 +195,12 @@ const IncomeManagementScreen: React.FC = () => {
       }
 
       await loadIncomeSources();
+      
+      // Sync widget data after saving income source
+      syncWidgetData(currencyCode, getCurrencySymbol()).catch(err => {
+        console.error('[IncomeManagement] Error syncing widget data:', err);
+      });
+      
       handleCloseSheet();
       if (Platform.OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -223,6 +230,12 @@ const IncomeManagementScreen: React.FC = () => {
             try {
               await deleteIncomeSource(source.id);
               await loadIncomeSources();
+              
+              // Sync widget data after deleting income source
+              syncWidgetData(currencyCode, getCurrencySymbol()).catch(err => {
+                console.error('[IncomeManagement] Error syncing widget data:', err);
+              });
+              
               if (Platform.OS === 'ios') {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               }

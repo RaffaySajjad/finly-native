@@ -1,0 +1,22 @@
+/**
+ * WidgetDataSyncPackage
+ * Purpose: Register WidgetDataSyncModule with React Native bridge
+ */
+
+package com.raffay.finly.modules
+
+import com.facebook.react.ReactPackage
+import com.facebook.react.bridge.NativeModule
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.uimanager.ViewManager
+
+class WidgetDataSyncPackage : ReactPackage {
+    override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
+        return listOf(WidgetDataSyncModule(reactContext))
+    }
+
+    override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
+        return emptyList()
+    }
+}
+

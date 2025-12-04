@@ -53,6 +53,7 @@ import {
 } from '../components';
 import { useSubscription } from '../hooks/useSubscription';
 import { apiService } from '../services/api';
+import { syncWidgetData } from '../services/widgetSync';
 import { Expense, MonthlyStats, Insight, Category, UnifiedTransaction } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -310,6 +311,11 @@ const DashboardScreen: React.FC = () => {
         ? insightsResponse
         : (insightsResponse?.insights || []);
       setInsights(insightsData);
+
+      // Sync widget data after loading stats
+      syncWidgetData(currencyCode, getCurrencySymbol()).catch(err => {
+        console.error('[Dashboard] Error syncing widget data:', err);
+      });
 
       // Trigger confetti for achievements
       const hasAchievement = insightsData.some(insight => insight.type === 'achievement');

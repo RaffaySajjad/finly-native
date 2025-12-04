@@ -87,6 +87,12 @@ module.exports = ({ config }) => {
             NSExceptionDomains: iosATSDomains,
           },
         },
+        bundleIdentifier: 'com.raffay.finly',
+      },
+      scheme: 'finly',
+      android: {
+        ...existingExpo.android,
+        package: 'com.raffay.finly',
       },
     },
   };

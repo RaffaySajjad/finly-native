@@ -23,6 +23,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
+import { syncWidgetData } from '../services/widgetSync';
 import { getIncomeSources } from '../services/incomeService';
 import { IncomeSource } from '../types';
 import { RootStackParamList } from '../navigation/types';
@@ -98,6 +99,12 @@ const AddIncomeScreen: React.FC = () => {
 
       if (isEditing) {
         await apiService.updateIncomeTransaction(editingIncome.id, payload);
+        
+        // Sync widget data after updating income
+        syncWidgetData(currencyCode, getCurrencySymbol()).catch(err => {
+          console.error('[AddIncome] Error syncing widget data:', err);
+        });
+        
         Alert.alert(
           'Success',
           'Income updated successfully!',
@@ -105,6 +112,12 @@ const AddIncomeScreen: React.FC = () => {
         );
       } else {
         await apiService.createIncomeTransaction(payload);
+        
+        // Sync widget data after adding income
+        syncWidgetData(currencyCode, getCurrencySymbol()).catch(err => {
+          console.error('[AddIncome] Error syncing widget data:', err);
+        });
+        
         Alert.alert(
           'Success',
           'Income recorded successfully!',

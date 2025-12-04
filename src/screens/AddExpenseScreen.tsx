@@ -23,6 +23,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
+import { syncWidgetData } from '../services/widgetSync';
 import tagsService from '../services/tagsService';
 import { PaymentMethod, Tag, Category } from '../types';
 import { RootStackParamList } from '../navigation/types';
@@ -206,6 +207,11 @@ const AddExpenseScreen: React.FC = () => {
 
         await apiService.updateExpense(editingExpense.id, payload);
 
+        // Sync widget data after updating expense
+        syncWidgetData(currencyCode, getCurrencySymbol()).catch(err => {
+          console.error('[AddExpense] Error syncing widget data:', err);
+        });
+
         showSuccess(
           'Success',
           'Transaction updated successfully!',
@@ -236,6 +242,11 @@ const AddExpenseScreen: React.FC = () => {
         }
 
         await apiService.addExpense(payload);
+
+        // Sync widget data after adding expense
+        syncWidgetData(currencyCode, getCurrencySymbol()).catch(err => {
+          console.error('[AddExpense] Error syncing widget data:', err);
+        });
 
         showSuccess(
           'Success',

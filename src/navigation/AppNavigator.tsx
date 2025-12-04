@@ -4,12 +4,12 @@
  * Implements smooth transitions, premium navigation UI, and authentication flow
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { Platform, ActivityIndicator, View } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Platform, ActivityIndicator, View, Linking } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createNativeBottomTabNavigator } from '@bottom-tabs/react-navigation';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -216,6 +216,7 @@ const AppNavigator: React.FC = () => {
   const { isAuthenticated, isRestoringAuth } = useAppSelector((state) => state.auth);
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [incomeSetupComplete, setIncomeSetupComplete] = useState<boolean | null>(null);
+  const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
 
   // Check onboarding status
   const checkOnboarding = useCallback(async () => {
@@ -277,6 +278,34 @@ const AppNavigator: React.FC = () => {
     return () => clearInterval(interval);
   }, [checkOnboarding, checkIncomeSetup, onboardingComplete, incomeSetupComplete]);
 
+  // Handle deep linking from widgets
+  useEffect(() => {
+    const handleDeepLink = (url: string) => {
+      if (url.startsWith('finly://add-transaction')) {
+        // Navigate to AddExpense screen when widget button is tapped
+        if (isAuthenticated && onboardingComplete && navigationRef.current) {
+          navigationRef.current.navigate('AddExpense');
+        }
+      }
+    };
+
+    // Handle initial URL (app opened from widget)
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink(url);
+      }
+    });
+
+    // Handle URL changes (app already running)
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isAuthenticated, onboardingComplete]);
+
   // Show loading screen while checking auth state and onboarding
   if (isRestoringAuth || onboardingComplete === null || (onboardingComplete && incomeSetupComplete === null)) {
     return (
@@ -288,6 +317,7 @@ const AppNavigator: React.FC = () => {
 
   return (
     <NavigationContainer
+      ref={navigationRef}
       theme={{
         dark: isDark,
         colors: {

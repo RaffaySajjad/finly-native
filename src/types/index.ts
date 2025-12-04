@@ -208,3 +208,17 @@ export interface CategoryRule {
   categoryId: string;
   isActive: boolean;
 }
+
+/**
+ * Widget Data Model
+ * Purpose: Data structure shared between React Native app and native widgets
+ * Used for iOS WidgetKit and Android App Widgets
+ */
+export interface WidgetData {
+  balance: number;
+  monthlyIncome: number;
+  monthlyExpenses: number;
+  currencyCode: string;
+  currencySymbol?: string;
+  lastUpdated: string; // ISO timestamp
+}

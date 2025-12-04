@@ -77,10 +77,15 @@ const createApiClient = (): AxiosInstance => {
         config.headers.Authorization = `Bearer ${token}`;
       }
       
+      // For FormData uploads, remove Content-Type header to let browser set it with boundary
+      if (config.data instanceof FormData && config.headers) {
+        delete config.headers['Content-Type'];
+      }
+      
       // Log request details (debug level)
       const fullUrl = `${config.baseURL}${config.url}`;
       logger.debug(`[API] Request: ${config.method?.toUpperCase()} ${fullUrl}`, {
-        data: config.data,
+        data: config.data instanceof FormData ? '[FormData]' : config.data,
         headers: config.headers,
       });
       

@@ -47,12 +47,16 @@ type SharedBottomSheetNavigationProp = StackNavigationProp<RootStackParamList>;
 
 const SharedBottomSheet: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency, getCurrencySymbol, convertToUSD, currencyCode } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, convertToUSD, convertFromUSD, currencyCode } = useCurrency();
   const { isPremium, getRemainingUsage, requiresUpgrade } = useSubscription();
   const [toggleWidth, setToggleWidth] = useState(0);
   const navigation = useNavigation<SharedBottomSheetNavigationProp>();
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const { setBottomSheetRef, onTransactionAdded } = useBottomSheet();
+  const { setBottomSheetRef, onTransactionAdded, editingExpense, editingIncome, setEditingExpense, setEditingIncome } = useBottomSheet();
+
+  // Determine if we're in editing mode
+  const isEditingExpense = !!editingExpense?.id;
+  const isEditingIncome = !!editingIncome?.id;
 
   // Determine if using translucent background (affects text colors)
   const usesTranslucentBackground = shouldUseLiquidGlass();
@@ -97,6 +101,12 @@ const SharedBottomSheet: React.FC = () => {
   const [newTagName, setNewTagName] = useState('');
   const [isAddingExpense, setIsAddingExpense] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [showCreateIncomeSourceModal, setShowCreateIncomeSourceModal] = useState(false);
+  const [newIncomeSourceName, setNewIncomeSourceName] = useState('');
+  const [newIncomeSourceAmount, setNewIncomeSourceAmount] = useState('');
+  const [incomeSourceNameError, setIncomeSourceNameError] = useState('');
+  const [incomeSourceAmountError, setIncomeSourceAmountError] = useState('');
+  const [isCreatingIncomeSource, setIsCreatingIncomeSource] = useState(false);
 
   // Error states for validation
   const [expenseAmountError, setExpenseAmountError] = useState('');
@@ -124,6 +134,52 @@ const SharedBottomSheet: React.FC = () => {
   useEffect(() => {
     loadCategoriesAndTags();
   }, []);
+
+  // Pre-fill form when editing expense
+  useEffect(() => {
+    if (editingExpense && isEditingExpense) {
+      // Convert amount from USD (base currency) to display currency for editing
+      if (editingExpense.amount) {
+        const amountInDisplayCurrency = convertFromUSD(editingExpense.amount);
+        setNewExpenseAmount(amountInDisplayCurrency.toString());
+      }
+      if (editingExpense.description) setNewExpenseDescription(editingExpense.description);
+      if (editingExpense.date) setNewExpenseDate(new Date(editingExpense.date));
+      // Set payment method (can be undefined)
+      setNewExpensePaymentMethod(editingExpense.paymentMethod || undefined);
+      if (editingExpense.tags && editingExpense.tags.length > 0) {
+        // Handle both string IDs and tag objects
+        const tagIds = editingExpense.tags.map(tag => typeof tag === 'string' ? tag : tag.id);
+        setNewExpenseTags(tagIds);
+      } else {
+        setNewExpenseTags([]);
+      }
+      // Set transaction type to expense
+      setTransactionType('expense');
+      // Category will be set in loadCategoriesAndTags after categories load
+      if (editingExpense.categoryId) {
+        setNewExpenseCategoryId(editingExpense.categoryId);
+      }
+    }
+  }, [editingExpense, isEditingExpense, convertFromUSD]);
+
+  // Pre-fill form when editing income
+  useEffect(() => {
+    if (editingIncome && isEditingIncome) {
+      // Convert amount from USD (base currency) to display currency for editing
+      if (editingIncome.amount) {
+        const amountInDisplayCurrency = convertFromUSD(editingIncome.amount);
+        setNewIncomeAmount(amountInDisplayCurrency.toString());
+      }
+      if (editingIncome.description) setNewIncomeDescription(editingIncome.description);
+      if (editingIncome.date) setNewIncomeDate(new Date(editingIncome.date));
+      if (editingIncome.incomeSourceId) {
+        setNewIncomeSourceId(editingIncome.incomeSourceId);
+      }
+      // Set transaction type to income
+      setTransactionType('income');
+    }
+  }, [editingIncome, isEditingIncome, convertFromUSD]);
 
   // Register bottom sheet ref with context - cleanup on unmount
   useEffect(() => {
@@ -178,6 +234,9 @@ const SharedBottomSheet: React.FC = () => {
     setNewIncomeSourceId('');
     // Reset transaction type to expense
     setTransactionType('expense');
+    // Clear editing state
+    setEditingExpense(null);
+    setEditingIncome(null);
     // Reset category to first available
     setCategories((prevCategories) => {
       if (prevCategories.length > 0) {
@@ -185,7 +244,7 @@ const SharedBottomSheet: React.FC = () => {
       }
       return prevCategories;
     });
-  }, []);
+  }, [setEditingExpense, setEditingIncome]);
 
   const handleAddExpense = async (): Promise<void> => {
     // Clear previous errors
@@ -235,10 +294,17 @@ const SharedBottomSheet: React.FC = () => {
         payload.tags = newExpenseTags;
       }
 
-      await apiService.addExpense(payload);
-
-      handleCloseBottomSheet();
-      showSuccess('Success', 'Expense added successfully! 🎉');
+      if (isEditingExpense && editingExpense?.id) {
+        // Update existing expense
+        await apiService.updateExpense(editingExpense.id, payload);
+        handleCloseBottomSheet();
+        showSuccess('Success', 'Expense updated successfully! 🎉');
+      } else {
+      // Create new expense
+        await apiService.addExpense(payload);
+        handleCloseBottomSheet();
+        showSuccess('Success', 'Expense added successfully! 🎉');
+      }
 
       // Reload categories and tags in case they changed
       await loadCategoriesAndTags();
@@ -246,7 +312,7 @@ const SharedBottomSheet: React.FC = () => {
       // Trigger dashboard refresh
       onTransactionAdded();
     } catch (error) {
-      showError('Error', 'Failed to add expense');
+      showError('Error', isEditingExpense ? 'Failed to update expense' : 'Failed to add expense');
       console.error(error);
     } finally {
       setIsAddingExpense(false);
@@ -292,10 +358,17 @@ const SharedBottomSheet: React.FC = () => {
 
       console.log('[DEBUG FE] Sending income transaction:', payload);
 
-      await apiService.createIncomeTransaction(payload);
-
-      handleCloseBottomSheet();
-      showSuccess('Success', 'Income recorded successfully! 💰');
+      if (isEditingIncome && editingIncome?.id) {
+        // Update existing income transaction
+        await apiService.updateIncomeTransaction(editingIncome.id, payload);
+        handleCloseBottomSheet();
+        showSuccess('Success', 'Income updated successfully! 💰');
+      } else {
+      // Create new income transaction
+        await apiService.createIncomeTransaction(payload);
+        handleCloseBottomSheet();
+        showSuccess('Success', 'Income recorded successfully! 💰');
+      }
 
       // Reload data in case it changed
       await loadCategoriesAndTags();
@@ -303,7 +376,7 @@ const SharedBottomSheet: React.FC = () => {
       // Trigger dashboard refresh
       onTransactionAdded();
     } catch (error) {
-      showError('Error', 'Failed to add income');
+      showError('Error', isEditingIncome ? 'Failed to update income' : 'Failed to add income');
       console.error(error);
     } finally {
       setIsAddingIncome(false);
@@ -344,6 +417,49 @@ const SharedBottomSheet: React.FC = () => {
     }
   };
 
+  const handleCreateIncomeSource = async () => {
+    setIncomeSourceNameError('');
+    setIncomeSourceAmountError('');
+
+    if (!newIncomeSourceName.trim()) {
+      setIncomeSourceNameError('Income source name is required');
+      return;
+    }
+
+    // Amount is optional for MANUAL frequency sources
+    if (newIncomeSourceAmount && parseFloat(newIncomeSourceAmount) < 0) {
+      setIncomeSourceAmountError('Amount cannot be negative');
+      return;
+    }
+
+    setIsCreatingIncomeSource(true);
+    try {
+      // For MANUAL frequency, amount can be 0 if not provided
+      const amountInUSD = newIncomeSourceAmount && newIncomeSourceAmount.trim() !== ''
+        ? convertToUSD(parseFloat(newIncomeSourceAmount))
+        : 0;
+      const newSource = await apiService.createIncomeSource({
+        name: newIncomeSourceName.trim(),
+        amount: amountInUSD,
+        frequency: 'MANUAL',
+        startDate: new Date(),
+        autoAdd: false,
+      });
+
+      setIncomeSources([...incomeSources, newSource]);
+      setNewIncomeSourceId(newSource.id);
+      setNewIncomeSourceName('');
+      setNewIncomeSourceAmount('');
+      setShowCreateIncomeSourceModal(false);
+      showSuccess('Success', 'Income source created successfully!');
+    } catch (error) {
+      showError('Error', 'Failed to create income source. Please try again.');
+      console.error('Error creating income source:', error);
+    } finally {
+      setIsCreatingIncomeSource(false);
+    }
+  };
+
   // Get selected category display info
   const selectedCategory = categories.find(cat => cat.id === newExpenseCategoryId);
 
@@ -376,7 +492,9 @@ const SharedBottomSheet: React.FC = () => {
           style={styles.bottomSheetContent}
           contentContainerStyle={[styles.bottomSheetContentContainer, { paddingTop: spacing.md, paddingBottom: 100 }]}
         >
-          <Text style={[styles.sheetTitle, { color: theme.text }]}>Add Transaction</Text>
+          <Text style={[styles.sheetTitle, { color: theme.text }]}>
+            {isEditingExpense || isEditingIncome ? 'Edit Transaction' : 'Add Transaction'}
+          </Text>
 
           {/* Transaction Type Toggle - Pill Style */}
           <View
@@ -585,7 +703,7 @@ const SharedBottomSheet: React.FC = () => {
                       <>
                         <Icon name="briefcase-outline" size={18} color={theme.textSecondary} />
                         <Text style={[styles.pickerButtonText, { color: theme.textSecondary }]}>
-                          Select income source
+                            Select income source (optional)
                         </Text>
                       </>
                     )}
@@ -835,7 +953,9 @@ const SharedBottomSheet: React.FC = () => {
               {isAddingExpense ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.addButtonText}>Add Expense</Text>
+                  <Text style={styles.addButtonText}>
+                    {isEditingExpense ? 'Update Expense' : 'Add Expense'}
+                  </Text>
               )}
             </TouchableOpacity>
           ) : (
@@ -847,7 +967,9 @@ const SharedBottomSheet: React.FC = () => {
               {isAddingIncome ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.addButtonText}>Add Income</Text>
+                    <Text style={styles.addButtonText}>
+                      {isEditingIncome ? 'Update Income' : 'Add Income'}
+                    </Text>
               )}
             </TouchableOpacity>
           )}
@@ -994,22 +1116,105 @@ const SharedBottomSheet: React.FC = () => {
                   <Icon name="check-circle" size={24} color={theme.primary} />
                 )}
               </TouchableOpacity>
-              {incomeSources.map((source) => (
-                <TouchableOpacity
-                  key={source.id}
-                  style={[styles.modalOption, { borderBottomColor: theme.border }]}
-                  onPress={() => {
-                    setNewIncomeSourceId(source.id);
-                    setShowIncomeSourcePicker(false);
-                  }}
-                >
-                  <Text style={[styles.modalOptionText, { color: theme.text }]}>{source.name}</Text>
-                  {newIncomeSourceId === source.id && (
-                    <Icon name="check-circle" size={24} color={theme.primary} />
-                  )}
-                </TouchableOpacity>
-              ))}
+
+              {/* Default Income Sources */}
+              {[
+                { name: 'Salary', icon: 'briefcase' },
+                { name: 'Freelance Work', icon: 'laptop' },
+                { name: 'Investment Returns', icon: 'chart-line' },
+                { name: 'Rental Income', icon: 'home' },
+                { name: 'Business Income', icon: 'store' },
+                { name: 'Side Gig', icon: 'briefcase-outline' },
+                { name: 'Bonus', icon: 'gift' },
+                { name: 'Other', icon: 'dots-horizontal' },
+              ].map((defaultSource, index) => {
+                // Check if user has a source with this name
+                const userSource = incomeSources.find(s => s.name.toLowerCase() === defaultSource.name.toLowerCase());
+                if (userSource) {
+                  // Show user's source instead
+                  return (
+                    <TouchableOpacity
+                      key={userSource.id}
+                      style={[styles.modalOption, { borderBottomColor: theme.border }]}
+                      onPress={() => {
+                        setNewIncomeSourceId(userSource.id);
+                        setShowIncomeSourcePicker(false);
+                      }}
+                    >
+                      <Icon name={defaultSource.icon as any} size={20} color={theme.primary} />
+                      <Text style={[styles.modalOptionText, { color: theme.text }]}>{userSource.name}</Text>
+                      {newIncomeSourceId === userSource.id && (
+                        <Icon name="check-circle" size={24} color={theme.primary} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                }
+                // Show default option (will create on selection)
+                return (
+                  <TouchableOpacity
+                    key={`default-${index}`}
+                    style={[styles.modalOption, { borderBottomColor: theme.border }]}
+                    onPress={async () => {
+                      // Create this income source on the fly
+                      try {
+                        setIsCreatingIncomeSource(true);
+                        const newSource = await apiService.createIncomeSource({
+                          name: defaultSource.name,
+                          amount: 0, // Will be set when user adds income
+                          frequency: 'MANUAL',
+                          startDate: new Date(),
+                          autoAdd: false,
+                        });
+                        setIncomeSources([...incomeSources, newSource]);
+                        setNewIncomeSourceId(newSource.id);
+                        setShowIncomeSourcePicker(false);
+                      } catch (error) {
+                        showError('Error', 'Failed to create income source. Please try again.');
+                        console.error('Error creating income source:', error);
+                      } finally {
+                        setIsCreatingIncomeSource(false);
+                      }
+                    }}
+                  >
+                    <Icon name={defaultSource.icon as any} size={20} color={theme.textSecondary} />
+                    <Text style={[styles.modalOptionText, { color: theme.text }]}>{defaultSource.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* User Created Sources (excluding defaults) */}
+              {incomeSources
+                .filter(source => {
+                  const defaultNames = ['salary', 'freelance work', 'investment returns', 'rental income', 'business income', 'side gig', 'bonus', 'other'];
+                  return !defaultNames.includes(source.name.toLowerCase());
+                })
+                .map((source) => (
+                  <TouchableOpacity
+                    key={source.id}
+                    style={[styles.modalOption, { borderBottomColor: theme.border }]}
+                    onPress={() => {
+                      setNewIncomeSourceId(source.id);
+                      setShowIncomeSourcePicker(false);
+                    }}
+                  >
+                    <Icon name="briefcase-outline" size={20} color={theme.primary} />
+                    <Text style={[styles.modalOptionText, { color: theme.text }]}>{source.name}</Text>
+                    {newIncomeSourceId === source.id && (
+                      <Icon name="check-circle" size={24} color={theme.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
             </ScrollView>
+            <TouchableOpacity
+              style={[styles.addButton, { backgroundColor: theme.primary, marginHorizontal: spacing.lg, marginTop: spacing.md }]}
+              onPress={() => {
+                setShowIncomeSourcePicker(false);
+                setShowCreateIncomeSourceModal(true);
+              }}
+            >
+              <Icon name="plus" size={20} color="#FFFFFF" />
+              <Text style={styles.addButtonText}>Create New Income Source</Text>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -1064,6 +1269,85 @@ const SharedBottomSheet: React.FC = () => {
                 onPress={handleCreateTag}
               >
                 <Text style={styles.addButtonText}>Create Tag</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Create Income Source Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showCreateIncomeSourceModal}
+        onRequestClose={() => {
+          setShowCreateIncomeSourceModal(false);
+          setNewIncomeSourceName('');
+          setNewIncomeSourceAmount('');
+          setIncomeSourceNameError('');
+          setIncomeSourceAmountError('');
+        }}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPressOut={() => {
+            setShowCreateIncomeSourceModal(false);
+            setNewIncomeSourceName('');
+            setNewIncomeSourceAmount('');
+            setIncomeSourceNameError('');
+            setIncomeSourceAmountError('');
+          }}
+        >
+          <View style={[styles.modalContent, styles.createTagModalContent, { backgroundColor: theme.background }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Create New Income Source</Text>
+              <TouchableOpacity onPress={() => {
+                setShowCreateIncomeSourceModal(false);
+                setNewIncomeSourceName('');
+                setNewIncomeSourceAmount('');
+                setIncomeSourceNameError('');
+                setIncomeSourceAmountError('');
+              }}>
+                <Icon name="close" size={24} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={{ padding: spacing.lg }}>
+              <InputGroup
+                label=""
+                placeholder="Income Source Name"
+                value={newIncomeSourceName}
+                onChangeText={(text) => {
+                  setNewIncomeSourceName(text);
+                  if (incomeSourceNameError) setIncomeSourceNameError('');
+                }}
+                error={incomeSourceNameError}
+                containerStyle={styles.tagInputContainer}
+              />
+              <View style={{ marginTop: spacing.md }}>
+                <InputGroup
+                  label=""
+                  placeholder="Amount (optional)"
+                  value={newIncomeSourceAmount}
+                  onChangeText={(text) => {
+                    setNewIncomeSourceAmount(text);
+                    if (incomeSourceAmountError) setIncomeSourceAmountError('');
+                  }}
+                  error={incomeSourceAmountError}
+                  keyboardType="numeric"
+                  containerStyle={styles.tagInputContainer}
+                />
+              </View>
+              <TouchableOpacity
+                style={[styles.addButton, { backgroundColor: theme.primary }]}
+                onPress={handleCreateIncomeSource}
+                disabled={isCreatingIncomeSource}
+              >
+                {isCreatingIncomeSource ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.addButtonText}>Create Income Source</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>

@@ -141,7 +141,10 @@ export const API_ENDPOINTS = {
     BALANCE_INSIGHTS: '/ai/balance-insights',
     HISTORY: '/ai/history',
     LIMITS: '/ai/limits',
-    THREADS: '/ai/threads'
+    THREADS: '/ai/threads',
+    TRANSCRIBE_AUDIO: '/ai/transcribe-audio',
+    PARSE_TRANSACTIONS: '/ai/parse-transactions',
+    EXTRACT_RECEIPT: '/ai/extract-receipt'
   }
 } as const;
 

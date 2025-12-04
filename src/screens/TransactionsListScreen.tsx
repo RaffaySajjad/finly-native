@@ -25,10 +25,11 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '../contexts/ThemeContext';
+import { useBottomSheet } from '../contexts/BottomSheetContext';
 import { ExpenseCard, ExpenseOptionsSheet, PullToRefreshFlatList } from '../components';
 import { apiService } from '../services/api';
 import tagsService from '../services/tagsService';
-import { Expense, PaymentMethod, Tag, UnifiedTransaction, Category } from '../types';
+import { Expense, PaymentMethod, Tag, UnifiedTransaction, Category, IncomeTransaction } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
@@ -163,6 +164,7 @@ const groupTransactionsByDate = (
 const TransactionsListScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<TransactionsListNavigationProp>();
+  const { openBottomSheet } = useBottomSheet();
 
   const [transactions, setTransactions] = useState<UnifiedTransaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<UnifiedTransaction[]>([]);
@@ -525,9 +527,21 @@ const TransactionsListScreen: React.FC = () => {
         createdAt: transaction.createdAt,
         updatedAt: transaction.updatedAt || transaction.createdAt,
       };
-    navigation.navigate('AddExpense', { expense });
+      openBottomSheet(expense);
     } else {
-      Alert.alert('Info', 'Income transaction editing not yet implemented');
+      const income: IncomeTransaction = {
+        id: transaction.id,
+        userId: '', // Not needed for editing
+        amount: transaction.amount,
+        description: transaction.description,
+        date: transaction.date,
+        incomeSourceId: transaction.incomeSource?.id,
+        autoAdded: transaction.autoAdded || false,
+        createdAt: transaction.createdAt,
+        originalAmount: transaction.originalAmount,
+        originalCurrency: transaction.originalCurrency,
+      };
+      openBottomSheet(undefined, income);
     }
   };
 

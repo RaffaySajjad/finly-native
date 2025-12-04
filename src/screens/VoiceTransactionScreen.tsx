@@ -1,10 +1,11 @@
 /**
  * VoiceTransactionScreen Component
- * Purpose: Voice and text input for AI-powered multi-transaction entry
+ * Purpose: Enterprise-grade voice and text input for AI-powered multi-transaction entry
  * Premium feature - allows users to speak or type multiple transactions at once
+ * Features: First-class voice recording with visual feedback, text input fallback
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,49 +17,192 @@ import {
   Alert,
   Platform,
   Keyboard,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { Audio } from 'expo-av';
 
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
-import { UpgradePrompt, PremiumBadge, DatePickerInput } from '../components';
+import { useVoiceRecording } from '../hooks/useVoiceRecording';
+import { UpgradePrompt, DatePickerInput, ToggleSelector } from '../components';
 import { parseTransactionInput } from '../services/aiTransactionService';
+import { transcribeAudio } from '../services/voiceTranscriptionService';
 import { apiService } from '../services/api';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
-import { Expense } from '../types';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
+
+type InputMode = 'voice' | 'text';
 
 const VoiceTransactionScreen: React.FC = () => {
   const { theme } = useTheme();
   const { formatCurrency, getCurrencySymbol, currencyCode, convertToUSD } = useCurrency();
   const navigation = useNavigation<NavigationProp>();
   const { isPremium, requiresUpgrade } = useSubscription();
+  const {
+    state: recordingState,
+    startRecording,
+    stopRecording,
+    pauseRecording,
+    resumeRecording,
+    resetRecording,
+    requestPermissions,
+  } = useVoiceRecording();
 
+  const [inputMode, setInputMode] = useState<InputMode>('voice');
   const [input, setInput] = useState('');
   const [transactionDate, setTransactionDate] = useState(new Date());
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [parsedTransactions, setParsedTransactions] = useState<
     Array<{
       amount: number;
       description: string;
       categoryId: string;
       date?: string;
-      selected: boolean; // For checkbox selection
+      selected: boolean;
     }>
   >([]);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const [recordingUri, setRecordingUri] = useState<string | null>(null);
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
+  const inputRef = useRef<TextInput>(null);
+  const waveformAnimation = useRef(new Animated.Value(0)).current;
+
+  // Waveform animation for recording
+  useEffect(() => {
+    if (recordingState.isRecording && !recordingState.isPaused) {
+      const animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(waveformAnimation, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(waveformAnimation, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      animation.start();
+      return () => animation.stop();
+    } else {
+      waveformAnimation.setValue(0);
+    }
+  }, [recordingState.isRecording, recordingState.isPaused]);
+
+  // Format duration as MM:SS
+  const formatDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Handle recording start
+  const handleStartRecording = async () => {
+    if (requiresUpgrade('voiceEntry')) {
+      setShowUpgradePrompt(true);
+      return;
+    }
+
+    try {
+      await startRecording();
+      if (Platform.OS === 'ios') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+    } catch (error) {
+      Alert.alert('Recording Error', 'Failed to start recording. Please check microphone permissions.');
+    }
+  };
+
+  // Handle recording stop
+  const handleStopRecording = async () => {
+    try {
+      const uri = await stopRecording();
+      setRecordingUri(uri);
+
+      if (Platform.OS === 'ios') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+
+      // Recording is complete - transcription will happen when user clicks "Process with AI"
+      if (uri) {
+        console.log('[VoiceTransaction] Recording saved:', uri);
+      }
+    } catch (error) {
+      Alert.alert('Recording Error', 'Failed to stop recording.');
+      console.error('[VoiceTransaction] Stop recording error:', error);
+    }
+  };
+
+  // Handle pause/resume
+  const handlePauseResume = async () => {
+    if (recordingState.isPaused) {
+      await resumeRecording();
+    } else {
+      await pauseRecording();
+    }
+  };
+
+  // Play recorded audio
+  const handlePlayRecording = async () => {
+    if (!recordingUri) return;
+
+    try {
+      if (sound) {
+        await sound.unloadAsync();
+      }
+
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: recordingUri },
+        {
+          shouldPlay: true,
+          volume: 1.0, // Set volume to maximum (1.0)
+          isMuted: false,
+        }
+      );
+
+      setSound(newSound);
+      setIsPlaying(true);
+
+      // Set volume explicitly after creation (some platforms need this)
+      await newSound.setVolumeAsync(1.0);
+
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsPlaying(false);
+        }
+      });
+    } catch (error) {
+      console.error('[VoiceTransaction] Playback error:', error);
+      Alert.alert('Playback Error', 'Failed to play recording.');
+    }
+  };
+
+  // Stop playback
+  const handleStopPlayback = async () => {
+    if (sound) {
+      await sound.unloadAsync();
+      setSound(null);
+      setIsPlaying(false);
+    }
+  };
+
+  // Process input (text or transcribed)
   const handleProcessInput = async () => {
-    if (!input.trim()) {
-      Alert.alert('Empty Input', 'Please enter or speak transactions');
+    if (!input.trim() && !recordingUri) {
+      Alert.alert('Empty Input', 'Please record or enter transactions');
       return;
     }
 
@@ -71,23 +215,73 @@ const VoiceTransactionScreen: React.FC = () => {
     Keyboard.dismiss();
 
     try {
-      // AI extracts numbers as-is, no currency conversion needed
-      // Pass currency code for better context (amounts are in user's currency, not USD)
-      const transactions = await parseTransactionInput(input, [], getCurrencySymbol(), currencyCode);
+      let textToProcess = input.trim();
+
+      // If we have a recording but no text, transcribe it first
+      if (!textToProcess && recordingUri) {
+        setIsTranscribing(true);
+        try {
+          console.log('[VoiceTransaction] Transcribing recording:', recordingUri);
+          const transcribedText = await transcribeAudio(recordingUri);
+
+          if (!transcribedText || transcribedText.trim().length === 0) {
+            Alert.alert(
+              'Transcription Failed',
+              'Could not transcribe the audio. Please try recording again or type manually.'
+            );
+            setIsProcessing(false);
+            setIsTranscribing(false);
+            return;
+          }
+
+          // Set the transcribed text and use it for processing
+          textToProcess = transcribedText.trim();
+          setInput(textToProcess);
+          console.log('[VoiceTransaction] Transcription successful:', textToProcess);
+        } catch (transcriptionError: any) {
+          console.error('[VoiceTransaction] Transcription error:', transcriptionError);
+          Alert.alert(
+            'Transcription Error',
+            transcriptionError.message || 'Failed to transcribe audio. Please try again or type manually.'
+          );
+          setIsProcessing(false);
+          setIsTranscribing(false);
+          return;
+        } finally {
+          setIsTranscribing(false);
+        }
+      }
+
+      // If we still don't have text, show error
+      if (!textToProcess) {
+        Alert.alert('No Text', 'Please enter or record transactions first.');
+        setIsProcessing(false);
+        return;
+      }
+
+      // Parse transactions from text
+      const transactions = await parseTransactionInput(textToProcess, [], getCurrencySymbol(), currencyCode);
+
       if (transactions.length === 0) {
         Alert.alert('No Transactions Found', 'Could not identify any transactions. Please try again with clearer details.');
         setIsProcessing(false);
         return;
       }
 
-      // Add new transactions to existing preview (append mode)
+      // Add new transactions to existing preview
       setParsedTransactions(prev => [
         ...prev,
-        ...transactions.map(tx => ({ ...tx, selected: true })) // New transactions are selected by default
+        ...transactions.map(tx => ({ ...tx, selected: true }))
       ]);
 
-      // Clear input for next batch
+      // Clear input and recording for next batch
       setInput('');
+      resetRecording();
+      setRecordingUri(null);
+      if (sound) {
+        await sound.unloadAsync();
+        setSound(null);
+      }
       
       if (Platform.OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -112,18 +306,16 @@ const VoiceTransactionScreen: React.FC = () => {
 
     try {
       const promises = selectedTransactions.map(tx => {
-        const originalAmount = tx.amount; // Amount in user's currency (e.g., PKR)
-        // Convert amount from display currency to USD before sending
-        // All amounts are stored in USD in the database
+        const originalAmount = tx.amount;
         const amountInUSD = convertToUSD(originalAmount);
         
         return apiService.addExpense({
-          amount: amountInUSD, // Converted to USD for database storage
+          amount: amountInUSD,
           description: tx.description,
           categoryId: tx.categoryId,
-          date: transactionDate, // Use the selected date for all transactions
-          originalAmount: originalAmount, // Store the original amount user entered in their currency
-          originalCurrency: currencyCode, // Store user's currency
+          date: transactionDate,
+          originalAmount: originalAmount,
+          originalCurrency: currencyCode,
         });
       });
 
@@ -153,6 +345,13 @@ const VoiceTransactionScreen: React.FC = () => {
 
   const handleClear = () => {
     setInput('');
+    resetRecording();
+    setRecordingUri(null);
+    if (sound) {
+      sound.unloadAsync().catch(console.error);
+      setSound(null);
+    }
+    setIsPlaying(false);
     inputRef.current?.focus();
   };
 
@@ -173,16 +372,20 @@ const VoiceTransactionScreen: React.FC = () => {
     );
   };
 
-  // Helper to get category name/icon (since we only have ID)
-  // In a real app we might want to fetch categories or pass them in
-  // For now we'll use a generic fallback or try to guess from ID if it matches our hardcoded list
-  const getCategoryDisplay = (categoryId: string) => {
-    // This is a simplification. Ideally we should look up the category from a context or prop
-    return {
-      icon: 'dots-horizontal',
-      name: 'Transaction',
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (sound) {
+        sound.unloadAsync().catch(console.error);
+      }
+      resetRecording();
     };
-  };
+  }, []);
+
+  const waveformOpacity = waveformAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.3, 1],
+  });
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -212,62 +415,206 @@ const VoiceTransactionScreen: React.FC = () => {
           <Icon name="robot" size={24} color={theme.primary} />
           <View style={styles.instructionsContent}>
             <Text style={[styles.instructionsTitle, { color: theme.text }]}>
-              AI-Powered Entry
+              Intelligent Transaction Entry
             </Text>
             <Text style={[styles.instructionsText, { color: theme.textSecondary }]}>
-              Speak or type naturally. Finly's AI understands multiple transactions at once.
+              Use natural language to record transactions. Our AI extracts amounts, descriptions, and categories automatically—supporting multiple transactions in a single entry.
             </Text>
             <View style={styles.examplesContainer}>
               <Text style={[styles.exampleText, { color: theme.textTertiary }]}>
-                "Lunch $15, Uber $20, and Groceries $50"
+                Example: "Lunch $15, Uber $20, and Groceries $50"
               </Text>
             </View>
           </View>
         </View>
 
-        {/* Input Section */}
-        <View style={styles.inputSection}>
-          <View style={styles.inputHeader}>
-            <Text style={[styles.label, { color: theme.textSecondary }]}>
-              Your Transactions
-            </Text>
-            {input.length > 0 && (
-              <TouchableOpacity onPress={handleClear} disabled={isProcessing}>
-                <Text style={[styles.clearLink, { color: theme.primary }]}>Clear</Text>
-              </TouchableOpacity>
+        {/* Input Mode Toggle */}
+        <View style={styles.modeToggleSection}>
+          <ToggleSelector
+            options={[
+              { value: 'voice', label: 'Voice' },
+              { value: 'text', label: 'Text' },
+            ]}
+            selectedValue={inputMode}
+            onValueChange={(value) => {
+              setInputMode(value as InputMode);
+              if (value === 'text') {
+                inputRef.current?.focus();
+              } else if (value === 'voice' && recordingState.isRecording) {
+                // If switching to voice while recording, stop recording first
+                handleStopRecording();
+              }
+            }}
+            fullWidth
+          />
+        </View>
+
+        {/* Voice Recording Section */}
+        {inputMode === 'voice' && (
+          <View style={styles.voiceSection}>
+            {!recordingState.isRecording && !recordingUri && (
+              <View style={styles.voicePromptCard}>
+                <Icon name="microphone" size={48} color={theme.primary} />
+                <Text style={[styles.voicePromptText, { color: theme.text }]}>
+                  Tap to start recording
+                </Text>
+                <Text style={[styles.voicePromptSubtext, { color: theme.textSecondary }]}>
+                  Speak your transactions clearly
+                </Text>
+              </View>
+            )}
+
+            {recordingState.isRecording && (
+              <View style={[styles.recordingCard, { backgroundColor: theme.card, borderColor: theme.error }, elevation.md]}>
+                <Animated.View style={[styles.waveformContainer, { opacity: waveformOpacity }]}>
+                  <View style={[styles.waveformBar, { backgroundColor: theme.error }]} />
+                  <View style={[styles.waveformBar, styles.waveformBarMedium, { backgroundColor: theme.error }]} />
+                  <View style={[styles.waveformBar, styles.waveformBarLarge, { backgroundColor: theme.error }]} />
+                  <View style={[styles.waveformBar, styles.waveformBarMedium, { backgroundColor: theme.error }]} />
+                  <View style={[styles.waveformBar, { backgroundColor: theme.error }]} />
+                </Animated.View>
+                <Text style={[styles.recordingTimer, { color: theme.error }]}>
+                  {formatDuration(recordingState.duration)}
+                </Text>
+                <Text style={[styles.recordingStatus, { color: theme.textSecondary }]}>
+                  {recordingState.isPaused ? 'Paused' : 'Recording...'}
+                </Text>
+              </View>
+            )}
+
+            {recordingUri && !recordingState.isRecording && (
+              <View style={[styles.recordingCompleteCard, { backgroundColor: theme.card, borderColor: theme.success }, elevation.sm]}>
+                <Icon name="check-circle" size={32} color={theme.success} />
+                <Text style={[styles.recordingCompleteText, { color: theme.text }]}>
+                  Recording Complete
+                </Text>
+                <Text style={[styles.recordingCompleteSubtext, { color: theme.textSecondary }]}>
+                  {formatDuration(recordingState.duration)}
+                </Text>
+              </View>
+            )}
+
+            {/* Recording Controls */}
+            <View style={styles.recordingControls}>
+              {!recordingState.isRecording && !recordingUri && (
+                <TouchableOpacity
+                  style={[styles.recordButton, { backgroundColor: theme.primary }, elevation.lg]}
+                  onPress={handleStartRecording}
+                  disabled={isProcessing || isTranscribing}
+                >
+                  <Icon name="microphone" size={32} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
+
+              {recordingState.isRecording && (
+                <>
+                  <TouchableOpacity
+                    style={[styles.controlButton, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}
+                    onPress={handlePauseResume}
+                  >
+                    <Icon
+                      name={recordingState.isPaused ? 'play' : 'pause'}
+                      size={24}
+                      color={theme.text}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.stopButton, { backgroundColor: theme.error }, elevation.sm]}
+                    onPress={handleStopRecording}
+                  >
+                    <Icon name="stop" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {recordingUri && !recordingState.isRecording && (
+                <>
+                  <TouchableOpacity
+                    style={[styles.controlButton, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}
+                    onPress={isPlaying ? handleStopPlayback : handlePlayRecording}
+                  >
+                    <Icon
+                      name={isPlaying ? 'stop' : 'play'}
+                      size={24}
+                      color={theme.text}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.controlButton, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}
+                    onPress={() => {
+                      resetRecording();
+                      setRecordingUri(null);
+                    }}
+                  >
+                    <Icon name="delete" size={24} color={theme.error} />
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+
+            {isTranscribing && (
+              <View style={styles.transcribingIndicator}>
+                <ActivityIndicator size="small" color={theme.primary} />
+                <Text style={[styles.transcribingText, { color: theme.textSecondary }]}>
+                  Transcribing...
+                </Text>
+              </View>
             )}
           </View>
+        )}
 
-          <TextInput
-            ref={inputRef}
-            style={[
-              styles.input,
-              { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
-              elevation.sm,
-            ]}
-            placeholder="Tap microphone on keyboard to speak, or type here..."
-            placeholderTextColor={theme.textTertiary}
-            value={input}
-            onChangeText={setInput}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-            autoCapitalize="sentences"
-            editable={!isProcessing}
-          />
+        {/* Text Input Section */}
+        {inputMode === 'text' && (
+          <View style={styles.inputSection}>
+            <View style={styles.inputHeader}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>
+                Your Transactions
+              </Text>
+              {input.length > 0 && (
+                <TouchableOpacity onPress={handleClear} disabled={isProcessing}>
+                  <Text style={[styles.clearLink, { color: theme.primary }]}>Clear</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
-          {/* Process Button */}
+            <TextInput
+              ref={inputRef}
+              style={[
+                styles.input,
+                { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+                elevation.sm,
+              ]}
+              placeholder="Type or use keyboard dictation to enter transactions..."
+              placeholderTextColor={theme.textTertiary}
+              value={input}
+              onChangeText={setInput}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              autoCapitalize="sentences"
+              editable={!isProcessing}
+            />
+          </View>
+        )}
+
+        {/* Process Button */}
+        {(input.trim() || recordingUri) && (
           <TouchableOpacity
             style={[
               styles.processButton,
-              { backgroundColor: theme.primary, opacity: (!input.trim() || isProcessing) ? 0.6 : 1 },
+              { backgroundColor: theme.primary, opacity: isProcessing ? 0.6 : 1 },
               elevation.md
             ]}
             onPress={handleProcessInput}
-            disabled={isProcessing || !input.trim()}
+            disabled={isProcessing || isTranscribing}
           >
-            {isProcessing ? (
-              <ActivityIndicator color="#FFFFFF" />
+            {(isProcessing || isTranscribing) ? (
+              <View style={styles.processingContainer}>
+                <ActivityIndicator color="#FFFFFF" />
+                <Text style={styles.processingText}>
+                  {isTranscribing ? 'Transcribing...' : 'Processing...'}
+                </Text>
+              </View>
             ) : (
               <>
                 <Icon name="auto-fix" size={20} color="#FFFFFF" />
@@ -275,7 +622,7 @@ const VoiceTransactionScreen: React.FC = () => {
               </>
             )}
           </TouchableOpacity>
-        </View>
+        )}
 
         {/* Date Picker */}
         <View style={styles.dateSection}>
@@ -450,6 +797,114 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontStyle: 'italic',
   },
+  modeToggleSection: {
+    marginBottom: spacing.lg,
+  },
+  voiceSection: {
+    marginBottom: spacing.lg,
+  },
+  voicePromptCard: {
+    alignItems: 'center',
+    padding: spacing.xl,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.md,
+  },
+  voicePromptText: {
+    ...typography.titleMedium,
+    fontWeight: '600',
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  voicePromptSubtext: {
+    ...typography.bodySmall,
+  },
+  recordingCard: {
+    alignItems: 'center',
+    padding: spacing.xl,
+    borderRadius: borderRadius.lg,
+    borderWidth: 2,
+    marginBottom: spacing.md,
+  },
+  waveformContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  waveformBar: {
+    width: 4,
+    height: 20,
+    borderRadius: 2,
+  },
+  waveformBarMedium: {
+    height: 30,
+  },
+  waveformBarLarge: {
+    height: 40,
+  },
+  recordingTimer: {
+    ...typography.displaySmall,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  recordingStatus: {
+    ...typography.bodySmall,
+  },
+  recordingCompleteCard: {
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    borderWidth: 2,
+    marginBottom: spacing.md,
+  },
+  recordingCompleteText: {
+    ...typography.titleMedium,
+    fontWeight: '600',
+    marginTop: spacing.sm,
+  },
+  recordingCompleteSubtext: {
+    ...typography.bodySmall,
+    marginTop: spacing.xs,
+  },
+  recordingControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+  },
+  recordButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controlButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  stopButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transcribingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  transcribingText: {
+    ...typography.bodySmall,
+  },
   inputSection: {
     marginBottom: spacing.lg,
   },
@@ -485,11 +940,21 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
     gap: spacing.sm,
+    marginBottom: spacing.lg,
   },
   processButtonText: {
     ...typography.labelLarge,
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  processingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  processingText: {
+    ...typography.labelMedium,
+    color: '#FFFFFF',
   },
   previewSection: {
     marginTop: spacing.md,
@@ -586,4 +1051,3 @@ const styles = StyleSheet.create({
 });
 
 export default VoiceTransactionScreen;
-

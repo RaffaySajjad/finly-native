@@ -10,6 +10,12 @@
  * - Development: EXPO_PUBLIC_ENV=development (or default)
  * - Staging: EXPO_PUBLIC_ENV=staging
  * - Production: EXPO_PUBLIC_ENV=production
+ * 
+ * Available Environment Variables:
+ * - EXPO_PUBLIC_API_URL: Backend API URL
+ * - EXPO_PUBLIC_ENABLE_WIDGETS: Enable/disable widget functionality (default: false)
+ *   Set to 'true' or '1' to enable widgets. Useful for disabling widgets when using
+ *   free Apple Developer accounts where App Groups may cause errors.
  */
 
 // Load environment variables based on NODE_ENV or EXPO_PUBLIC_ENV

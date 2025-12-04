@@ -22,9 +22,10 @@ import { StackNavigationProp } from '@react-navigation/stack';
 
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useBottomSheet } from '../contexts/BottomSheetContext';
 import { apiService } from '../services/api';
 import tagsService from '../services/tagsService';
-import { PaymentMethod, Tag, UnifiedTransaction } from '../types';
+import { PaymentMethod, Tag, UnifiedTransaction, Expense, IncomeTransaction } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { RootStackParamList } from '../navigation/types';
 import { useAlert } from '../hooks/useAlert';
@@ -41,6 +42,7 @@ const TransactionDetailsScreen: React.FC = () => {
   const navigation = useNavigation<TransactionDetailsNavigationProp>();
   const route = useRoute<TransactionDetailsRouteProp>();
   const { showError, showInfo, AlertComponent } = useAlert();
+  const { openBottomSheet } = useBottomSheet();
 
   const { transaction } = route.params;
   const [tags, setTags] = useState<Tag[]>([]);
@@ -124,7 +126,7 @@ const TransactionDetailsScreen: React.FC = () => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     if (isExpense) {
-      const expense = {
+      const expense: Expense = {
         id: transaction.id,
         amount: transaction.amount,
         categoryId: transaction.category!.id,
@@ -137,20 +139,24 @@ const TransactionDetailsScreen: React.FC = () => {
         createdAt: transaction.createdAt,
         updatedAt: transaction.updatedAt || transaction.createdAt,
       };
-    navigation.navigate('AddExpense', { expense });
+      navigation.goBack(); // Close details screen first
+      setTimeout(() => openBottomSheet(expense), 300); // Open bottom sheet after navigation completes
     } else {
-      // Navigate to AddIncomeScreen with income transaction data
-      const income = {
+      // Use bottom sheet for income editing
+      const income: IncomeTransaction = {
         id: transaction.id,
+        userId: '', // Not needed for editing
         amount: transaction.amount,
         description: transaction.description,
         date: transaction.date,
-        incomeSource: transaction.incomeSource,
+        incomeSourceId: transaction.incomeSource?.id,
+        autoAdded: transaction.autoAdded || false,
         createdAt: transaction.createdAt,
         originalAmount: transaction.originalAmount,
         originalCurrency: transaction.originalCurrency,
       };
-      navigation.navigate('AddIncome', { income });
+      navigation.goBack(); // Close details screen first
+      setTimeout(() => openBottomSheet(undefined, income), 300); // Open bottom sheet after navigation completes
     }
   };
 

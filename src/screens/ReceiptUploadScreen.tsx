@@ -26,9 +26,11 @@ import { StackNavigationProp } from '@react-navigation/stack';
 
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../hooks/useSubscription';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { UpgradePrompt, PremiumBadge } from '../components';
 import { apiService } from '../services/api';
 import receiptService from '../services/receiptService';
+import { extractReceiptTransactions } from '../services/receiptOCRService';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { Category } from '../types';
@@ -42,6 +44,7 @@ const ReceiptUploadScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<ReceiptUploadNavigationProp>();
   const { isPremium, requiresUpgrade, trackUsage, getRemainingUsage } = useSubscription();
+  const { currencyCode } = useCurrency();
 
   const [image, setImage] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -196,29 +199,32 @@ const ReceiptUploadScreen: React.FC = () => {
     }
 
     try {
-      // TODO: Implement OCR extraction in API service
-      // Simulate OCR extraction with mock data for now
-      const defaultCategoryId = categories.length > 0 ? categories[0].id : '';
-      const extractedData = {
-        amount: 0,
-        description: 'Receipt Upload',
-        categoryId: defaultCategoryId,
-        date: new Date(),
-      };
+      // Extract transactions from receipt using AI OCR
+      const extractedTransactions = await extractReceiptTransactions(image, currencyCode);
+
+      if (!extractedTransactions || extractedTransactions.length === 0) {
+        Alert.alert(
+          'No Transactions Found',
+          'Could not extract any transactions from the receipt. Please try again with a clearer image.'
+        );
+        setScanning(false);
+        return;
+      }
 
       // Track usage for free tier
       trackUsage('receiptScanning');
 
       // Save receipt to gallery (premium feature)
-      if (isPremium) {
+      if (isPremium && extractedTransactions.length > 0) {
+        const firstTransaction = extractedTransactions[0];
         await receiptService.saveReceipt({
           imageUrl: image,
           extractedData: {
-            merchant: extractedData.description.split(' - ')[0] || extractedData.description,
-            date: new Date().toISOString(),
-            total: extractedData.amount,
+            merchant: firstTransaction.description.split(' - ')[0] || firstTransaction.description,
+            date: firstTransaction.date,
+            total: firstTransaction.amount,
           },
-          categoryId: extractedData.categoryId,
+          categoryId: firstTransaction.categoryId,
         });
       }
 
@@ -229,14 +235,53 @@ const ReceiptUploadScreen: React.FC = () => {
 
       setScanning(false);
 
-      // Navigate to Add Expense screen with pre-filled data
-      navigation.navigate('AddExpense', {
-        expense: extractedData,
-      });
-    } catch (error) {
+      // If multiple transactions, navigate to bulk entry screen
+      // Otherwise, navigate to Add Expense with single transaction
+      if (extractedTransactions.length > 1) {
+        // Navigate to bulk entry or show selection screen
+        // For now, navigate to AddExpense with first transaction
+        // TODO: Consider adding a transaction selection screen for multiple transactions
+        Alert.alert(
+          'Multiple Transactions Found',
+          `Found ${extractedTransactions.length} transactions. Opening the first one. You can add the rest manually.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                navigation.navigate('AddExpense', {
+                  expense: {
+                    amount: extractedTransactions[0].amount, // USD amount for backend
+                    description: extractedTransactions[0].description,
+                    categoryId: extractedTransactions[0].categoryId,
+                    date: extractedTransactions[0].date,
+                    originalAmount: extractedTransactions[0].originalAmount, // Original amount in user's currency
+                    originalCurrency: extractedTransactions[0].originalCurrency, // User's currency
+                  },
+                });
+              },
+            },
+          ]
+        );
+      } else {
+        // Single transaction - navigate directly
+        navigation.navigate('AddExpense', {
+          expense: {
+            amount: extractedTransactions[0].amount, // USD amount for backend
+            description: extractedTransactions[0].description,
+            categoryId: extractedTransactions[0].categoryId,
+            date: extractedTransactions[0].date,
+            originalAmount: extractedTransactions[0].originalAmount, // Original amount in user's currency
+            originalCurrency: extractedTransactions[0].originalCurrency, // User's currency
+          },
+        });
+      }
+    } catch (error: any) {
       setScanning(false);
-      Alert.alert('Scan Failed', 'Could not extract receipt data. Please try again.');
-      console.error(error);
+      Alert.alert(
+        'Scan Failed',
+        error.message || 'Could not extract receipt data. Please try again.'
+      );
+      console.error('[ReceiptUpload] OCR error:', error);
     }
   };
 
@@ -352,32 +397,40 @@ const ReceiptUploadScreen: React.FC = () => {
             </View>
 
             {!scanning && (
-              <View style={styles.actionButtons}>
-                <TouchableOpacity
-                  style={[styles.changeButton, { backgroundColor: theme.card, borderColor: theme.border }]}
-                  onPress={() => {
-                    setImage(null);
-                    fadeAnim.setValue(0);
-                  }}
-                >
-                  <Icon name="close" size={20} color={theme.textSecondary} />
-                  <Text style={[styles.changeButtonText, { color: theme.textSecondary }]}>
-                    Change Image
-                  </Text>
-                </TouchableOpacity>
+                <>
+                  <View style={styles.disclaimerContainer}>
+                    <Icon name="information" size={16} color={theme.textSecondary} />
+                    <Text style={[styles.disclaimerText, { color: theme.textSecondary }]}>
+                      AI may make mistakes. Please double-check the extracted transaction details before accepting.
+                    </Text>
+                  </View>
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                      style={[styles.changeButton, { backgroundColor: theme.card, borderColor: theme.border }]}
+                      onPress={() => {
+                        setImage(null);
+                        fadeAnim.setValue(0);
+                      }}
+                    >
+                      <Icon name="close" size={20} color={theme.textSecondary} />
+                      <Text style={[styles.changeButtonText, { color: theme.textSecondary }]}>
+                        Cancel
+                      </Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[
-                    styles.scanButton,
-                    { backgroundColor: theme.primary },
-                    elevation.md,
-                  ]}
-                  onPress={scanReceipt}
-                >
-                  <Icon name="scan-helper" size={24} color="#FFFFFF" />
-                  <Text style={styles.scanButtonText}>Scan Receipt</Text>
-                </TouchableOpacity>
-              </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.scanButton,
+                        { backgroundColor: theme.primary },
+                        elevation.md,
+                      ]}
+                      onPress={scanReceipt}
+                    >
+                      <Icon name="scan-helper" size={24} color="#FFFFFF" />
+                      <Text style={styles.scanButtonText}>Scan Receipt</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
             )}
 
             {scanning && (
@@ -386,7 +439,7 @@ const ReceiptUploadScreen: React.FC = () => {
                   📊 Extracting transaction details...
                 </Text>
                 <Text style={[styles.scanningInfoSubtext, { color: theme.textTertiary }]}>
-                  This usually takes 1-2 seconds
+                    This usually takes 3-5 seconds
                 </Text>
               </View>
             )}
@@ -584,6 +637,20 @@ const styles = StyleSheet.create({
   },
   scanningInfoSubtext: {
     ...typography.bodySmall,
+  },
+  disclaimerContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.md,
+    gap: spacing.sm,
+    borderWidth: 1,
+  },
+  disclaimerText: {
+    ...typography.bodySmall,
+    flex: 1,
+    lineHeight: 18,
   },
 });
 

@@ -364,7 +364,7 @@ const DashboardScreen: React.FC = () => {
         createdAt: transaction.createdAt,
         updatedAt: transaction.updatedAt || transaction.createdAt,
       };
-      navigation.navigate('AddExpense', { expense });
+      openBottomSheet(expense);
     }
   };
 

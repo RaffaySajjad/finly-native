@@ -2,6 +2,10 @@
  * Widget Sync Service
  * Purpose: Synchronize financial data from React Native app to native widgets
  * Supports iOS WidgetKit and Android App Widgets
+ * 
+ * Feature Flag: EXPO_PUBLIC_ENABLE_WIDGETS
+ * Set to 'true' to enable widgets, 'false' or unset to disable
+ * Useful for development with free Apple Developer accounts where App Groups may cause errors
  */
 
 import { NativeModules, Platform } from 'react-native';
@@ -13,9 +17,24 @@ import { getStartingBalance } from './userService';
 const { WidgetDataSync } = NativeModules;
 
 /**
+ * Check if widgets are enabled via environment variable
+ * Defaults to false (disabled) if not set
+ */
+const isWidgetsEnabled = (): boolean => {
+  const enableWidgets = process.env.EXPO_PUBLIC_ENABLE_WIDGETS;
+  return enableWidgets === 'true' || enableWidgets === '1';
+};
+
+/**
  * Check if widget sync is available
+ * Returns true only if:
+ * 1. Widgets are enabled via EXPO_PUBLIC_ENABLE_WIDGETS env var
+ * 2. Native module is available on the platform
  */
 export const isWidgetSyncAvailable = (): boolean => {
+  if (!isWidgetsEnabled()) {
+    return false;
+  }
   return WidgetDataSync !== undefined && WidgetDataSync !== null;
 };
 

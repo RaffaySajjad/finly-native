@@ -142,14 +142,25 @@ const AddExpenseScreen: React.FC = () => {
       // Category is set in loadCategories() after categories are loaded
       if (editingExpense.description) setDescription(editingExpense.description);
       if (editingExpense.date) setDate(new Date(editingExpense.date));
-      if (editingExpense.paymentMethod) setPaymentMethod(editingExpense.paymentMethod);
-      if (editingExpense.tags) {
+      // Always set paymentMethod, even if undefined (to clear previous selection)
+      setPaymentMethod(editingExpense.paymentMethod || undefined);
+      if (editingExpense.tags && editingExpense.tags.length > 0) {
         // Handle both string IDs and tag objects
         const tagIds = editingExpense.tags.map(tag => typeof tag === 'string' ? tag : tag.id);
         setSelectedTags(tagIds);
+      } else {
+        // Clear tags if none provided
+        setSelectedTags([]);
       }
     }
   }, [editingExpense, convertFromUSD]);
+
+  // Reload tags when editing to ensure we have the latest tags for selectedTags
+  useEffect(() => {
+    if (isEditing && editingExpense?.tags) {
+      loadTags();
+    }
+  }, [isEditing]);
 
   /**
    * Handles transaction creation or update
@@ -583,29 +594,40 @@ const AddExpenseScreen: React.FC = () => {
                 <Text style={[styles.modalOptionText, { color: theme.textSecondary }]}>
                   None
                 </Text>
+                {!paymentMethod && (
+                  <Icon name="check" size={20} color={theme.primary} />
+                )}
               </TouchableOpacity>
-              {PAYMENT_METHODS.map((method) => (
-                <TouchableOpacity
-                  key={method.id}
-                  style={[
-                    styles.modalOption,
-                    { borderBottomColor: theme.border },
-                    paymentMethod === method.id && { backgroundColor: theme.primary + '10' },
-                  ]}
-                  onPress={() => {
-                    setPaymentMethod(method.id);
-                    setShowPaymentMethodPicker(false);
-                  }}
-                >
-                  <Icon name={method.icon as any} size={20} color={theme.primary} />
-                  <Text style={[styles.modalOptionText, { color: theme.text }]}>
-                    {method.name}
+              {PAYMENT_METHODS && PAYMENT_METHODS.length > 0 ? (
+                PAYMENT_METHODS.map((method) => (
+                  <TouchableOpacity
+                    key={method.id}
+                    style={[
+                      styles.modalOption,
+                      { borderBottomColor: theme.border },
+                      paymentMethod === method.id && { backgroundColor: theme.primary + '10' },
+                    ]}
+                    onPress={() => {
+                      setPaymentMethod(method.id);
+                      setShowPaymentMethodPicker(false);
+                    }}
+                  >
+                    <Icon name={method.icon as any} size={20} color={theme.primary} />
+                    <Text style={[styles.modalOptionText, { color: theme.text }]}>
+                      {method.name}
+                    </Text>
+                    {paymentMethod === method.id && (
+                      <Icon name="check" size={20} color={theme.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.emptyTagsContainer}>
+                  <Text style={[styles.emptyTagsText, { color: theme.textSecondary }]}>
+                    No payment methods available
                   </Text>
-                  {paymentMethod === method.id && (
-                    <Icon name="check" size={20} color={theme.primary} />
-                  )}
-                </TouchableOpacity>
-              ))}
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>

@@ -39,6 +39,18 @@ interface GroupedInsights {
 }
 
 /**
+ * Get date key (YYYY-MM-DD) in local timezone for consistent grouping
+ */
+const getDateKey = (dateString: string): string => {
+  const date = new Date(dateString);
+  // Use local date components to ensure consistent grouping regardless of timezone
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
  * Format date for display
  */
 const formatDateLabel = (dateString: string): string => {
@@ -47,7 +59,7 @@ const formatDateLabel = (dateString: string): string => {
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
 
-  // Reset time for comparison
+  // Reset time for comparison using local timezone
   const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
@@ -88,16 +100,21 @@ const formatDateLabel = (dateString: string): string => {
  * Group insights by date
  */
 const groupInsightsByDate = (insights: Insight[]): GroupedInsights[] => {
-  // First, ensure insights are sorted by date (newest first)
-  const sortedInsights = [...insights].sort((a, b) =>
+  // Remove duplicates by ID first to prevent duplicate groups
+  const uniqueInsights = Array.from(
+    new Map(insights.map(insight => [insight.id, insight])).values()
+  );
+
+  // Sort by date (newest first)
+  const sortedInsights = [...uniqueInsights].sort((a, b) =>
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 
   const grouped: Record<string, Insight[]> = {};
 
   sortedInsights.forEach((insight) => {
-    const date = new Date(insight.createdAt);
-    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+    // Use consistent date key generation (local timezone)
+    const dateKey = getDateKey(insight.createdAt);
 
     if (!grouped[dateKey]) {
       grouped[dateKey] = [];
@@ -223,7 +240,12 @@ const InsightsScreen: React.FC = () => {
       if (initialLoad) {
         setInsights(result.insights);
       } else {
-        setInsights((prev) => [...prev, ...result.insights]);
+        // Deduplicate by ID when appending paginated results
+        setInsights((prev) => {
+          const existingIds = new Set(prev.map(insight => insight.id));
+          const newInsights = result.insights.filter(insight => !existingIds.has(insight.id));
+          return [...prev, ...newInsights];
+        });
       }
 
       setHasMore(result.pagination.hasMore);

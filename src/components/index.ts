@@ -4,7 +4,7 @@
  */
 
 // Existing components
-export * from './ExpenseCard';
+export * from './TransactionCard';
 export * from './CategoryCard';
 export * from './InsightCard';
 export * from './StatCard';

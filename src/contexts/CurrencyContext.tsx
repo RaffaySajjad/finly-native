@@ -48,6 +48,14 @@ interface CurrencyContextType {
    */
   convertFromUSD: (amount: number) => number;
   /**
+   * Get the display amount for a transaction, preferring originalAmount if available
+   * @param amount - Amount in USD (from database)
+   * @param originalAmount - Original amount in original currency (if available)
+   * @param originalCurrency - Original currency code (if available)
+   * @returns Amount to display (prefers originalAmount if currency matches, otherwise converts from USD)
+   */
+  getTransactionDisplayAmount: (amount: number, originalAmount?: number, originalCurrency?: string) => number;
+  /**
    * Format a transaction amount, using original currency if available and matching
    */
   formatTransactionAmount: (amount: number, originalAmount?: number, originalCurrency?: string) => string;
@@ -316,34 +324,56 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
   };
 
   /**
+   * Get the display amount for a transaction, preferring originalAmount if available
+   * @param amount - Amount in USD (from database)
+   * @param originalAmount - Original amount in original currency (if available)
+   * @param originalCurrency - Original currency code (if available)
+   * @returns Amount to display (prefers originalAmount if currency matches, otherwise converts from USD)
+   */
+  const getTransactionDisplayAmount = (
+    amount: number,
+    originalAmount?: number,
+    originalCurrency?: string
+  ): number => {
+    // If we have original amount/currency and it matches the user's current currency (case-insensitive)
+    if (
+      originalAmount !== undefined &&
+      originalCurrency &&
+      originalCurrency.toUpperCase() === currencyCode.toUpperCase()
+    ) {
+      // Use the original amount directly without conversion
+      return originalAmount;
+    }
+
+    // Fallback to converting from USD
+    return convertFromUSD(amount);
+  };
+
+  /**
    * Format a transaction amount, using original currency if available and matching
+   * Prefers originalAmount when originalCurrency matches current currency
    */
   const formatTransactionAmount = (amount: number, originalAmount?: number, originalCurrency?: string): string => {
-    // If we have original amount/currency and it matches the user's current currency
-    if (originalAmount !== undefined && originalCurrency === currencyCode) {
-      // Use the original amount directly without conversion
+    // Get the display amount (prefers originalAmount if available)
+    const displayAmount = getTransactionDisplayAmount(amount, originalAmount, originalCurrency);
 
-      // Check if number is large enough to use k/M/B notation
-      const absAmount = Math.abs(originalAmount);
-      const useShortNotation = absAmount >= 100000; // Use k/M/B for numbers >= 10k
+    // Check if number is large enough to use k/M/B notation
+    const absAmount = Math.abs(displayAmount);
+    const useShortNotation = absAmount >= 100000; // Use k/M/B for numbers >= 10k
 
-      if (useShortNotation) {
-        const formatted = formatLargeNumber(originalAmount, showDecimals);
-        return `${currency.symbol}${formatted}`;
-      }
-
-      // For smaller numbers, use locale-aware formatting with commas
-      const locale = getLocaleOptions(currencyCode);
-      const formatted = new Intl.NumberFormat(locale, {
-        minimumFractionDigits: showDecimals ? 2 : 0,
-        maximumFractionDigits: showDecimals ? 2 : 0,
-      }).format(originalAmount);
-
+    if (useShortNotation) {
+      const formatted = formatLargeNumber(displayAmount, showDecimals);
       return `${currency.symbol}${formatted}`;
     }
 
-    // Fallback to standard conversion
-    return formatCurrency(amount);
+    // For smaller numbers, use locale-aware formatting with commas
+    const locale = getLocaleOptions(currencyCode);
+    const formatted = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: showDecimals ? 2 : 0,
+      maximumFractionDigits: showDecimals ? 2 : 0,
+    }).format(displayAmount);
+
+    return `${currency.symbol}${formatted}`;
   };
 
   return (
@@ -359,6 +389,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
         exchangeRate,
         convertToUSD,
         convertFromUSD,
+        getTransactionDisplayAmount,
         formatTransactionAmount,
       }}
     >

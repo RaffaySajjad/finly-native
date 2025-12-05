@@ -47,12 +47,28 @@ type SharedBottomSheetNavigationProp = StackNavigationProp<RootStackParamList>;
 
 const SharedBottomSheet: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency, getCurrencySymbol, convertToUSD, convertFromUSD, currencyCode } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, convertToUSD, convertFromUSD, getTransactionDisplayAmount, currencyCode } = useCurrency();
   const { isPremium, getRemainingUsage, requiresUpgrade } = useSubscription();
   const [toggleWidth, setToggleWidth] = useState(0);
   const navigation = useNavigation<SharedBottomSheetNavigationProp>();
   const bottomSheetRef = useRef<BottomSheet>(null);
   const { setBottomSheetRef, onTransactionAdded, editingExpense, editingIncome, setEditingExpense, setEditingIncome } = useBottomSheet();
+
+  // Helper function to convert amount from a specific currency to USD
+  const convertCurrencyToUSD = async (amount: number, fromCurrency: string): Promise<number> => {
+    if (fromCurrency.toUpperCase() === 'USD') {
+      return amount;
+    }
+    
+    // If it's the active currency, use the existing conversion
+    if (fromCurrency.toUpperCase() === currencyCode.toUpperCase()) {
+      return convertToUSD(amount);
+    }
+    
+    // Otherwise, fetch exchange rate for the specific currency
+    const rate = await apiService.getExchangeRate(fromCurrency);
+    return amount / rate;
+  };
 
   // Determine if we're in editing mode
   const isEditingExpense = !!editingExpense?.id;
@@ -126,6 +142,8 @@ const SharedBottomSheet: React.FC = () => {
   const [newIncomeDate, setNewIncomeDate] = useState(new Date());
   const [showIncomeSourcePicker, setShowIncomeSourcePicker] = useState(false);
   const [isAddingIncome, setIsAddingIncome] = useState(false);
+  const [selectedIncomeCurrency, setSelectedIncomeCurrency] = useState<string | undefined>(undefined);
+  const [selectedExpenseCurrency, setSelectedExpenseCurrency] = useState<string | undefined>(undefined);
 
   // Animation values
   const fabScale = useRef(new Animated.Value(1)).current;
@@ -135,12 +153,67 @@ const SharedBottomSheet: React.FC = () => {
     loadCategoriesAndTags();
   }, []);
 
+  // Track bottom sheet state to know when it opens
+  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+  // Track if we've already handled the form reset/pre-fill for this open
+  const hasHandledFormState = useRef(false);
+
+  // Helper function to reset form fields
+  const resetFormFields = useCallback(() => {
+    setNewExpenseAmount('');
+    setNewExpenseDescription('');
+    setNewExpenseDate(new Date());
+    setNewExpensePaymentMethod(undefined);
+    setNewExpenseTags([]);
+    setNewIncomeAmount('');
+    setNewIncomeDescription('');
+    setNewIncomeDate(new Date());
+    setNewIncomeSourceId('');
+    setTransactionType('expense');
+    setSelectedIncomeCurrency(undefined);
+    setSelectedExpenseCurrency(undefined);
+    // Reset category to first available (will be set when categories load)
+    if (categories.length > 0) {
+      setNewExpenseCategoryId(categories[0].id);
+    }
+  }, [categories]);
+
+  // Handle form state when bottom sheet opens or editing state changes
+  useEffect(() => {
+    // Only handle form state when bottom sheet is open
+    if (!isBottomSheetOpen) {
+      hasHandledFormState.current = false;
+      return;
+    }
+
+    // If we've already handled this open, don't do it again
+    if (hasHandledFormState.current) {
+      return;
+    }
+
+    // Check if we're editing
+    const isEditing = (editingExpense && isEditingExpense) || (editingIncome && isEditingIncome);
+
+    if (isEditing) {
+      // We're editing - mark as handled, pre-fill will happen in separate useEffect
+      hasHandledFormState.current = true;
+    } else {
+      // We're not editing - reset form fields
+      resetFormFields();
+      hasHandledFormState.current = true;
+    }
+  }, [isBottomSheetOpen, editingExpense, editingIncome, isEditingExpense, isEditingIncome, resetFormFields]);
+
   // Pre-fill form when editing expense
   useEffect(() => {
-    if (editingExpense && isEditingExpense) {
-      // Convert amount from USD (base currency) to display currency for editing
+    if (editingExpense && isEditingExpense && isBottomSheetOpen) {
+      // Prefer originalAmount if available, otherwise convert from USD
       if (editingExpense.amount) {
-        const amountInDisplayCurrency = convertFromUSD(editingExpense.amount);
+        const amountInDisplayCurrency = getTransactionDisplayAmount(
+          editingExpense.amount,
+          editingExpense.originalAmount,
+          editingExpense.originalCurrency
+        );
         setNewExpenseAmount(amountInDisplayCurrency.toString());
       }
       if (editingExpense.description) setNewExpenseDescription(editingExpense.description);
@@ -161,14 +234,18 @@ const SharedBottomSheet: React.FC = () => {
         setNewExpenseCategoryId(editingExpense.categoryId);
       }
     }
-  }, [editingExpense, isEditingExpense, convertFromUSD]);
+  }, [editingExpense, isEditingExpense, isBottomSheetOpen, getTransactionDisplayAmount]);
 
   // Pre-fill form when editing income
   useEffect(() => {
-    if (editingIncome && isEditingIncome) {
-      // Convert amount from USD (base currency) to display currency for editing
+    if (editingIncome && isEditingIncome && isBottomSheetOpen) {
+      // Prefer originalAmount if available, otherwise convert from USD
       if (editingIncome.amount) {
-        const amountInDisplayCurrency = convertFromUSD(editingIncome.amount);
+        const amountInDisplayCurrency = getTransactionDisplayAmount(
+          editingIncome.amount,
+          editingIncome.originalAmount,
+          editingIncome.originalCurrency
+        );
         setNewIncomeAmount(amountInDisplayCurrency.toString());
       }
       if (editingIncome.description) setNewIncomeDescription(editingIncome.description);
@@ -176,10 +253,16 @@ const SharedBottomSheet: React.FC = () => {
       if (editingIncome.incomeSourceId) {
         setNewIncomeSourceId(editingIncome.incomeSourceId);
       }
+      // Set original currency if available
+      if (editingIncome.originalCurrency) {
+        setSelectedIncomeCurrency(editingIncome.originalCurrency);
+      } else {
+        setSelectedIncomeCurrency(undefined);
+      }
       // Set transaction type to income
       setTransactionType('income');
     }
-  }, [editingIncome, isEditingIncome, convertFromUSD]);
+  }, [editingIncome, isEditingIncome, isBottomSheetOpen, getTransactionDisplayAmount]);
 
   // Register bottom sheet ref with context - cleanup on unmount
   useEffect(() => {
@@ -207,14 +290,6 @@ const SharedBottomSheet: React.FC = () => {
     }
   };
 
-  const handleOpenBottomSheet = useCallback(() => {
-    bottomSheetRef.current?.snapToIndex(0); // Open at 85%
-    Animated.spring(fabScale, {
-      toValue: 0,
-      useNativeDriver: true,
-    }).start();
-  }, []);
-
   const handleCloseBottomSheet = useCallback(() => {
     bottomSheetRef.current?.close();
     Animated.spring(fabScale, {
@@ -232,11 +307,16 @@ const SharedBottomSheet: React.FC = () => {
     setNewIncomeDescription('');
     setNewIncomeDate(new Date());
     setNewIncomeSourceId('');
+    // Reset currency selections
+    setSelectedIncomeCurrency(undefined);
+    setSelectedExpenseCurrency(undefined);
     // Reset transaction type to expense
     setTransactionType('expense');
     // Clear editing state
     setEditingExpense(null);
     setEditingIncome(null);
+    // Reset the handled flag
+    hasHandledFormState.current = false;
     // Reset category to first available
     setCategories((prevCategories) => {
       if (prevCategories.length > 0) {
@@ -274,8 +354,12 @@ const SharedBottomSheet: React.FC = () => {
 
     try {
       const originalAmount = parseFloat(newExpenseAmount);
-      // Convert amount from display currency to USD before sending
-      const amountInUSD = convertToUSD(originalAmount);
+      
+      // Determine which currency the amount is in
+      const amountCurrency = selectedExpenseCurrency || currencyCode;
+      
+      // Convert amount from the selected currency to USD
+      const amountInUSD = await convertCurrencyToUSD(originalAmount, amountCurrency);
 
       const payload: any = {
         amount: amountInUSD,
@@ -283,8 +367,12 @@ const SharedBottomSheet: React.FC = () => {
         description: newExpenseDescription.trim(),
         date: newExpenseDate,
         originalAmount,
-        originalCurrency: currencyCode,
       };
+      
+      // Only include originalCurrency if it's different from current currency
+      if (amountCurrency.toUpperCase() !== currencyCode.toUpperCase()) {
+        payload.originalCurrency = amountCurrency;
+      }
 
       // Only include optional fields if they have values
       if (newExpensePaymentMethod) {
@@ -340,16 +428,24 @@ const SharedBottomSheet: React.FC = () => {
 
     try {
       const originalAmount = parseFloat(newIncomeAmount);
-      // Convert amount from display currency to USD before sending
-      const amountInUSD = convertToUSD(originalAmount);
+      
+      // Determine which currency the amount is in
+      const amountCurrency = selectedIncomeCurrency || currencyCode;
+      
+      // Convert amount from the selected currency to USD
+      const amountInUSD = await convertCurrencyToUSD(originalAmount, amountCurrency);
 
       const payload: any = {
         amount: amountInUSD,
         date: newIncomeDate.toISOString(),
         description: newIncomeDescription.trim(),
         originalAmount,
-        originalCurrency: currencyCode,
       };
+      
+      // Only include originalCurrency if it's different from current currency
+      if (amountCurrency.toUpperCase() !== currencyCode.toUpperCase()) {
+        payload.originalCurrency = amountCurrency;
+      }
 
       // Only include incomeSourceId if it has a value
       if (newIncomeSourceId) {
@@ -480,7 +576,25 @@ const SharedBottomSheet: React.FC = () => {
         enablePanDownToClose
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+        onChange={(index) => {
+          // Track when bottom sheet opens (index >= 0) or closes (index === -1)
+          const isOpen = index >= 0;
+          setIsBottomSheetOpen(isOpen);
+          
+          // Reset the handled flag when closing
+          if (index === -1) {
+            hasHandledFormState.current = false;
+            Animated.spring(fabScale, {
+              toValue: 1,
+              useNativeDriver: true,
+            }).start();
+          } else {
+            // When opening, reset the flag so form state can be handled
+            hasHandledFormState.current = false;
+          }
+        }}
         onClose={() => {
+          setIsBottomSheetOpen(false);
           Animated.spring(fabScale, {
             toValue: 1,
             useNativeDriver: true,
@@ -669,6 +783,11 @@ const SharedBottomSheet: React.FC = () => {
                       setNewIncomeAmount(text);
                       if (incomeAmountError) setIncomeAmountError('');
                     }}
+                    onCurrencyChange={(currencyCode) => {
+                      setSelectedIncomeCurrency(currencyCode);
+                    }}
+                    selectedCurrency={selectedIncomeCurrency}
+                    allowCurrencySelection={true}
                     placeholder="0.00"
                     placeholderTextColor={theme.textTertiary}
                     showSymbol={true}
@@ -752,7 +871,7 @@ const SharedBottomSheet: React.FC = () => {
                 ]} />
                 <Text style={[
                   styles.dividerText,
-                  { color: usesTranslucentBackground ? '#FFFFFF' : theme.textSecondary }
+                  { color: usesTranslucentBackground ? theme.text : theme.textSecondary }
                 ]}>
                   OR ADD MANUALLY
                 </Text>
@@ -778,6 +897,11 @@ const SharedBottomSheet: React.FC = () => {
                       setNewExpenseAmount(text);
                       if (expenseAmountError) setExpenseAmountError('');
                     }}
+                    onCurrencyChange={(currencyCode) => {
+                      setSelectedExpenseCurrency(currencyCode);
+                    }}
+                    selectedCurrency={selectedExpenseCurrency}
+                    allowCurrencySelection={true}
                     placeholder="0.00"
                     placeholderTextColor={theme.textTertiary}
                     showSymbol={true}

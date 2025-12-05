@@ -50,7 +50,7 @@ const AddExpenseScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<AddExpenseRouteProp>();
   const { theme } = useTheme();
-  const { getCurrencySymbol, convertToUSD, convertFromUSD, currencyCode } = useCurrency();
+  const { getCurrencySymbol, convertToUSD, convertFromUSD, getTransactionDisplayAmount, currencyCode } = useCurrency();
 
   const editingExpense = route.params?.expense;
   // Only treat as editing if the expense has an ID (receipt scanning pre-fills data without ID)
@@ -134,9 +134,13 @@ const AddExpenseScreen: React.FC = () => {
   // Note: Category is set in loadCategories() after categories are loaded to avoid race condition
   useEffect(() => {
     if (editingExpense) {
-      // Convert amount from USD (base currency) to display currency for editing
+      // Prefer originalAmount if available, otherwise convert from USD
       if (editingExpense.amount) {
-        const amountInDisplayCurrency = convertFromUSD(editingExpense.amount);
+        const amountInDisplayCurrency = getTransactionDisplayAmount(
+          editingExpense.amount,
+          editingExpense.originalAmount,
+          editingExpense.originalCurrency
+        );
         setAmount(amountInDisplayCurrency.toString());
       }
       // Category is set in loadCategories() after categories are loaded
@@ -153,7 +157,7 @@ const AddExpenseScreen: React.FC = () => {
         setSelectedTags([]);
       }
     }
-  }, [editingExpense, convertFromUSD]);
+  }, [editingExpense, getTransactionDisplayAmount]);
 
   // Reload tags when editing to ensure we have the latest tags for selectedTags
   useEffect(() => {

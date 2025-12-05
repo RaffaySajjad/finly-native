@@ -277,9 +277,33 @@ const ReceiptUploadScreen: React.FC = () => {
       }
     } catch (error: any) {
       setScanning(false);
+
+      // Error haptic feedback
+      if (Platform.OS === 'ios') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+
+      // Extract user-friendly error message
+      const errorMessage = error?.message || 'Could not extract receipt data. Please try again.';
+
       Alert.alert(
         'Scan Failed',
-        error.message || 'Could not extract receipt data. Please try again.'
+        errorMessage,
+        [
+          {
+            text: 'Try Again',
+            style: 'default',
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => {
+              // Optionally clear the image to allow user to select a new one
+              setImage(null);
+              fadeAnim.setValue(0);
+            },
+          },
+        ]
       );
       console.error('[ReceiptUpload] OCR error:', error);
     }

@@ -1,5 +1,5 @@
 /**
- * ExpenseCard component
+ * TransactionCard component
  * Purpose: Displays individual expense or income transaction with category icon, amount, and description
  * Features smooth press animation and long press for edit/delete
  * Performance: Optimized with React.memo and memoized callbacks
@@ -12,9 +12,10 @@ import * as Haptics from 'expo-haptics';
 import { Expense, PaymentMethod, UnifiedTransaction } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { getCurrencyByCode } from '../services/currencyService';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
-interface ExpenseCardProps {
+interface TransactionCardProps {
   expense?: Expense;
   transaction?: UnifiedTransaction;
   onPress?: () => void;
@@ -22,15 +23,15 @@ interface ExpenseCardProps {
 }
 
 /**
- * ExpenseCard component renders a single expense or income transaction
+ * TransactionCard component renders a single expense or income transaction
  * @param expense - The expense object to display (for backward compatibility)
  * @param transaction - The unified transaction object to display
  * @param onPress - Optional callback when card is pressed
  * @param onLongPress - Optional callback when card is long pressed
  */
-const ExpenseCardComponent: React.FC<ExpenseCardProps> = ({ expense, transaction, onPress, onLongPress }) => {
+const TransactionCardComponent: React.FC<TransactionCardProps> = ({ expense, transaction, onPress, onLongPress }) => {
   const { theme } = useTheme();
-  const { formatTransactionAmount } = useCurrency();
+  const { formatTransactionAmount, currencyCode } = useCurrency();
 
   // Use transaction if provided, otherwise fall back to expense
   const tx = transaction || (expense ? {
@@ -214,13 +215,51 @@ const ExpenseCardComponent: React.FC<ExpenseCardProps> = ({ expense, transaction
         >
           {isIncome ? '+' : '-'}{formatTransactionAmount(tx.amount, tx.originalAmount, tx.originalCurrency)}
         </Text>
+        {(() => {
+          // Show original currency amount if:
+          // 1. originalAmount and originalCurrency exist AND differ from active currency, OR
+          // 2. originalAmount/originalCurrency are absent AND active currency is not USD (show USD amount)
+          
+          const hasOriginalCurrency = tx.originalCurrency !== undefined && tx.originalCurrency !== null;
+          const hasOriginalAmount = tx.originalAmount !== undefined && tx.originalAmount !== null;
+          
+          if ((hasOriginalAmount || hasOriginalCurrency) && tx.originalCurrency!.toUpperCase() !== currencyCode.toUpperCase()) {
+            // Case 1: Show original currency amount when it differs from active currency
+            const originalCurrency = getCurrencyByCode(tx.originalCurrency!);
+            const currencySymbol = originalCurrency?.symbol || tx.originalCurrency!;
+            return (
+              <Text style={[styles.originalAmount, { color: theme.textSecondary }]}>
+                {currencySymbol}{tx.originalAmount!.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </Text>
+            );
+          } else if ((!hasOriginalAmount || !hasOriginalCurrency) && currencyCode.toUpperCase() !== 'USD') {
+            // Case 2: Show USD amount when original currency info is missing and active currency is not USD
+            const usdCurrency = getCurrencyByCode('USD');
+            const usdSymbol = usdCurrency?.symbol || '$';
+            return (
+              <Text style={[styles.originalAmount, { color: theme.textSecondary }]}>
+                {usdSymbol}{tx.amount.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </Text>
+            );
+          }
+          // Case 3: Don't show anything if:
+          // - originalAmount/originalCurrency are missing AND active currency is USD (both are USD, no need to show)
+          // - originalAmount/originalCurrency exist AND match active currency (already shown in main amount)
+          return null;
+        })()}
       </View>
     </TouchableOpacity>
   );
 };
 
 // Export memoized component for performance
-export const ExpenseCard = React.memo(ExpenseCardComponent, (prevProps, nextProps) => {
+export const TransactionCard = React.memo(TransactionCardComponent, (prevProps, nextProps) => {
   // Custom comparison function for better memoization
   return (
     prevProps.expense?.id === nextProps.expense?.id &&
@@ -326,6 +365,11 @@ const styles = StyleSheet.create({
   amount: {
     ...typography.titleLarge,
     fontWeight: '700',
+  },
+  originalAmount: {
+    ...typography.bodySmall,
+    fontSize: 11,
+    marginTop: 2,
   },
 });
 

@@ -27,7 +27,7 @@ import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
-import { ExpenseCard, BottomSheetBackground, CurrencyInput } from '../components';
+import { TransactionCard, BottomSheetBackground, CurrencyInput } from '../components';
 import { Expense, Category, UnifiedTransaction } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { RootStackParamList } from '../navigation/types';
@@ -39,6 +39,12 @@ interface GroupedExpenses {
   date: string;
   dateLabel: string;
   expenses: Expense[];
+}
+
+interface MonthGroupedExpenses {
+  monthLabel: string;
+  isCurrentMonth: boolean;
+  dateGroups: GroupedExpenses[];
 }
 
 /**
@@ -88,36 +94,135 @@ const formatDateLabel = (dateString: string): string => {
 };
 
 /**
- * Group expenses by date
+ * Get date key (YYYY-MM-DD) in local timezone for consistent grouping
  */
-const groupExpensesByDate = (expenses: Expense[]): GroupedExpenses[] => {
-  // First, ensure expenses are sorted by date (newest first)
-  const sortedExpenses = [...expenses].sort((a, b) =>
+const getDateKey = (dateString: string): string => {
+  const date = new Date(dateString);
+  // Use local date components to ensure consistent grouping regardless of timezone
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * Check if a date is in the current month
+ */
+const isCurrentMonth = (dateString: string): boolean => {
+  const date = new Date(dateString);
+  const today = new Date();
+  return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth();
+};
+
+/**
+ * Get month label for grouping
+ */
+const getMonthLabel = (dateString: string, isCurrent: boolean): string => {
+  if (isCurrent) {
+    return "This Month's Transactions";
+  }
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+};
+
+/**
+ * Group expenses by month first, then by date within each month
+ */
+const groupExpensesByMonthAndDate = (expenses: Expense[]): MonthGroupedExpenses[] => {
+  // Remove duplicates by ID first
+  const uniqueExpenses = Array.from(
+    new Map(expenses.map(expense => [expense.id, expense])).values()
+  );
+
+  // Sort by date (newest first)
+  const sortedExpenses = [...uniqueExpenses].sort((a, b) =>
     new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 
-  const grouped: Record<string, Expense[]> = {};
+  // Separate into current month and past months
+  const currentMonthExpenses: Expense[] = [];
+  const pastMonthsExpenses: Expense[] = [];
 
   sortedExpenses.forEach((expense) => {
-    const date = new Date(expense.date);
-    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
-
-    if (!grouped[dateKey]) {
-      grouped[dateKey] = [];
+    if (isCurrentMonth(expense.date)) {
+      currentMonthExpenses.push(expense);
+    } else {
+      pastMonthsExpenses.push(expense);
     }
-    grouped[dateKey].push(expense);
   });
 
-  // Convert to array and sort by date (newest first)
-  return Object.entries(grouped)
-    .map(([date, expenses]) => ({
-      date,
-      dateLabel: formatDateLabel(expenses[0].date),
-      expenses: expenses.sort((a, b) =>
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-      ),
-    }))
-    .sort((a, b) => b.date.localeCompare(a.date));
+  /**
+   * Group expenses by date within a month
+   */
+  const groupByDate = (expenseList: Expense[]): GroupedExpenses[] => {
+    const grouped: Record<string, Expense[]> = {};
+
+    expenseList.forEach((expense) => {
+      const dateKey = getDateKey(expense.date);
+
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = [];
+      }
+      grouped[dateKey].push(expense);
+    });
+
+    // Convert to array and sort by date (newest first)
+    return Object.entries(grouped)
+      .map(([date, expenses]) => ({
+        date,
+        dateLabel: formatDateLabel(expenses[0].date),
+        expenses: expenses.sort((a, b) =>
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+        ),
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  };
+
+  const result: MonthGroupedExpenses[] = [];
+
+  // Add current month group if it has expenses
+  if (currentMonthExpenses.length > 0) {
+    result.push({
+      monthLabel: "This Month's Transactions",
+      isCurrentMonth: true,
+      dateGroups: groupByDate(currentMonthExpenses),
+    });
+  }
+
+  // Group past months expenses by month
+  const pastMonthsGrouped: Record<string, Expense[]> = {};
+  pastMonthsExpenses.forEach((expense) => {
+    const date = new Date(expense.date);
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+    if (!pastMonthsGrouped[monthKey]) {
+      pastMonthsGrouped[monthKey] = [];
+    }
+    pastMonthsGrouped[monthKey].push(expense);
+  });
+
+  // Convert past months to array and sort by month (newest first)
+  const pastMonthsArray = Object.entries(pastMonthsGrouped)
+    .map(([monthKey, expenses]) => {
+      const firstExpense = expenses[0];
+      return {
+        monthKey,
+        monthLabel: getMonthLabel(firstExpense.date, false),
+        expenses,
+      };
+    })
+    .sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+
+  // Add past month groups
+  pastMonthsArray.forEach(({ monthLabel, expenses }) => {
+    result.push({
+      monthLabel,
+      isCurrentMonth: false,
+      dateGroups: groupByDate(expenses),
+    });
+  });
+
+  return result;
 };
 
 /**
@@ -133,7 +238,7 @@ const CategoryDetailsScreen: React.FC = () => {
 
   const [category, setCategory] = useState<Category | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [groupedExpenses, setGroupedExpenses] = useState<GroupedExpenses[]>([]);
+  const [groupedExpenses, setGroupedExpenses] = useState<MonthGroupedExpenses[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -274,7 +379,7 @@ const CategoryDetailsScreen: React.FC = () => {
 
   // Update grouped expenses when expenses change
   useEffect(() => {
-    const grouped = groupExpensesByDate(expenses);
+    const grouped = groupExpensesByMonthAndDate(expenses);
     setGroupedExpenses(grouped);
   }, [expenses]);
 
@@ -353,6 +458,9 @@ const CategoryDetailsScreen: React.FC = () => {
   const budgetPercentage = category.budgetLimit ? ((category.totalSpent || 0) / category.budgetLimit) * 100 : 0;
   const remaining = category.budgetLimit ? category.budgetLimit - (category.totalSpent || 0) : 0;
 
+  // Calculate current month transaction count
+  const currentMonthCount = expenses.filter(expense => isCurrentMonth(expense.date)).length;
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       {/* Header */}
@@ -375,27 +483,39 @@ const CategoryDetailsScreen: React.FC = () => {
       {/* Transactions List */}
       <FlatList
         data={groupedExpenses}
-        renderItem={({ item }) => (
+        renderItem={({ item: monthGroup }) => (
           <View>
-            {/* Date Header */}
-            <View style={[styles.dateHeader, { backgroundColor: theme.background }]}>
-              <Text style={[styles.dateHeaderText, { color: theme.textSecondary }]}>
-                {item.dateLabel}
+            {/* Month Header */}
+            <View style={[styles.monthHeader, { backgroundColor: theme.background }]}>
+              <Text style={[styles.monthHeaderText, { color: theme.text }]}>
+                {monthGroup.monthLabel}
               </Text>
-              <View style={[styles.dateHeaderLine, { backgroundColor: theme.border }]} />
             </View>
 
-            {/* Expenses for this date */}
-            {item.expenses.map((expense) => (
-              <ExpenseCard
-                key={expense.id}
-                expense={expense}
-                onPress={() => handleExpenseTap(expense)}
-              />
+            {/* Date groups within this month */}
+            {monthGroup.dateGroups.map((dateGroup) => (
+              <View key={dateGroup.date}>
+                {/* Date Header */}
+                <View style={[styles.dateHeader, { backgroundColor: theme.background }]}>
+                  <Text style={[styles.dateHeaderText, { color: theme.textSecondary }]}>
+                    {dateGroup.dateLabel}
+                  </Text>
+                  <View style={[styles.dateHeaderLine, { backgroundColor: theme.border }]} />
+                </View>
+
+                {/* Expenses for this date */}
+                {dateGroup.expenses.map((expense) => (
+                  <TransactionCard
+                    key={expense.id}
+                    expense={expense}
+                    onPress={() => handleExpenseTap(expense)}
+                  />
+                ))}
+              </View>
             ))}
           </View>
         )}
-        keyExtractor={(item) => item.date}
+        keyExtractor={(item, index) => `${item.monthLabel}-${index}`}
         ListHeaderComponent={
           <View>
             {/* Category Card */}
@@ -416,7 +536,28 @@ const CategoryDetailsScreen: React.FC = () => {
               <Text style={[styles.totalSpent, { color: categoryColor }]}>
                 {formatCurrency(category.totalSpent || 0)}
               </Text>
-              <Text style={[styles.totalLabel, { color: theme.textSecondary }]}>This Month</Text>
+              <Text style={[styles.totalLabel, { color: theme.textSecondary }]}>Transactions</Text>
+
+              {/* Transaction Counts */}
+              <View style={styles.transactionCounts}>
+                <View style={styles.transactionCountItem}>
+                  <Text style={[styles.transactionCountValue, { color: theme.text }]}>
+                    {currentMonthCount.toLocaleString('en-US')}
+                  </Text>
+                  <Text style={[styles.transactionCountLabel, { color: theme.textSecondary }]}>
+                    This Month
+                  </Text>
+                </View>
+                <View style={[styles.transactionCountDivider, { backgroundColor: theme.border }]} />
+                <View style={styles.transactionCountItem}>
+                  <Text style={[styles.transactionCountValue, { color: theme.text }]}>
+                    {total.toLocaleString('en-US')}
+                  </Text>
+                  <Text style={[styles.transactionCountLabel, { color: theme.textSecondary }]}>
+                    Total
+                  </Text>
+                </View>
+              </View>
 
               {/* Progress Ring/Bar */}
               {category.budgetLimit && (
@@ -462,15 +603,6 @@ const CategoryDetailsScreen: React.FC = () => {
                 </View>
               )}
             </Animated.View>
-
-            {/* Transactions Section Header */}
-            <View style={styles.transactionsSection}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                {total > 0
-                  ? `${total.toLocaleString('en-US')} ${total === 1 ? 'Transaction' : 'Transactions'}`
-                  : 'Transactions'}
-              </Text>
-            </View>
           </View>
         }
         ListEmptyComponent={
@@ -609,7 +741,36 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     ...typography.bodySmall,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
+    marginTop: spacing.md,
+  },
+  transactionCounts: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    backgroundColor: 'transparent',
+  },
+  transactionCountItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  transactionCountValue: {
+    ...typography.titleMedium,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  transactionCountLabel: {
+    ...typography.bodySmall,
+    fontSize: 12,
+  },
+  transactionCountDivider: {
+    width: 1,
+    height: 32,
+    marginHorizontal: spacing.lg,
   },
   budgetSection: {
     width: '100%',
@@ -648,13 +809,14 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: spacing.xxl,
   },
-  transactionsSection: {
+  monthHeader: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
+    marginTop: spacing.lg
   },
-  sectionTitle: {
-    ...typography.titleLarge,
-    marginBottom: spacing.md,
+  monthHeaderText: {
+    ...typography.titleMedium,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   dateHeader: {
     paddingHorizontal: spacing.md,

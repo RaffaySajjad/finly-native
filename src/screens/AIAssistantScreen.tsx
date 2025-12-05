@@ -50,7 +50,7 @@ interface Message {
 
 const AIAssistantScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, currencyCode } = useCurrency();
   const navigation = useNavigation<AIAssistantNavigationProp>();
   const route = useRoute<RouteProp<RootStackParamList, 'AIAssistant'>>();
   const { isPremium } = useSubscription();
@@ -217,11 +217,14 @@ const AIAssistantScreen: React.FC = () => {
       setStreamingText('');
 
       // Process query
+      // Ensure currencyCode is always sent (fallback to USD if not available)
+      const currencyToSend = currencyCode || 'USD';
       const result = await processAIQuery(
         textToSend,
         isPremium,
         formatCurrency,
-        routeParams?.context
+        routeParams?.context,
+        currencyToSend // Pass user's active currency (or USD as fallback)
       );
 
       // Stream the response character by character

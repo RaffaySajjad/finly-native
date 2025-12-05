@@ -26,7 +26,7 @@ import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '../contexts/ThemeContext';
 import { useBottomSheet } from '../contexts/BottomSheetContext';
-import { ExpenseCard, ExpenseOptionsSheet, PullToRefreshFlatList } from '../components';
+import { TransactionCard, ExpenseOptionsSheet, PullToRefreshFlatList } from '../components';
 import { apiService } from '../services/api';
 import tagsService from '../services/tagsService';
 import { Expense, PaymentMethod, Tag, UnifiedTransaction, Category, IncomeTransaction } from '../types';
@@ -551,8 +551,7 @@ const TransactionsListScreen: React.FC = () => {
       if (transaction.type === 'expense') {
         await apiService.deleteExpense(transaction.id);
       } else {
-        Alert.alert('Info', 'Income transaction deletion not yet implemented');
-        return;
+        await apiService.deleteIncomeTransaction(transaction.id);
       }
       await loadData();
       Alert.alert('Deleted', 'Transaction deleted successfully');
@@ -586,7 +585,7 @@ const TransactionsListScreen: React.FC = () => {
   ), [theme]);
 
   const renderTransactionItem = useCallback(({ item }: { item: UnifiedTransaction }) => (
-    <ExpenseCard
+    <TransactionCard
       transaction={item}
       onPress={() => handleTransactionPress(item)}
       onLongPress={() => handleTransactionLongPress(item)}
@@ -597,7 +596,7 @@ const TransactionsListScreen: React.FC = () => {
     <View>
       {renderDateHeader({ item })}
       {item.transactions.map((transaction) => (
-        <ExpenseCard
+        <TransactionCard
           key={transaction.id}
           transaction={transaction}
           onPress={() => handleTransactionPress(transaction)}

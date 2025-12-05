@@ -35,7 +35,7 @@ import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useBottomSheet } from '../contexts/BottomSheetContext';
 import {
-  ExpenseCard,
+  TransactionCard,
   ExpenseOptionsSheet,
   SkeletonCard,
   ConfettiCelebration,
@@ -622,14 +622,14 @@ const DashboardScreen: React.FC = () => {
 
                       {/* Transactions for this date */}
                       {group.transactions.map((transaction) => (
-                        <ExpenseCard
-                        key={transaction.id}
-                        transaction={transaction}
-                        onPress={() => {
-                          navigation.navigate('TransactionDetails', { transaction });
-                        }}
-                        onLongPress={() => handleTransactionLongPress(transaction)}
-                      />
+                        <TransactionCard
+                          key={transaction.id}
+                          transaction={transaction}
+                          onPress={() => {
+                            navigation.navigate('TransactionDetails', { transaction });
+                          }}
+                          onLongPress={() => handleTransactionLongPress(transaction)}
+                        />
                     ))}
                   </View>
                 )}
@@ -1392,7 +1392,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: spacing.md,
-    marginTop: spacing.sm,
+    marginTop: spacing.lg,
     borderWidth: 1,
   },
   viewAllFooterText: {

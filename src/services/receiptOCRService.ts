@@ -64,13 +64,23 @@ export async function extractReceiptTransactions(
     console.log('[ReceiptOCR] Uploading receipt image:', filename);
 
     // Make request with FormData
-    const response = await apiClient.post<{ success: boolean; data: ExtractedTransaction[] }>(
+    const response = await apiClient.post<{ 
+      success: boolean; 
+      data?: ExtractedTransaction[];
+      error?: { message: string; code: string; statusCode: number };
+    }>(
       `/ai/extract-receipt${queryParams}`,
       formData,
       {
         timeout: 60000, // 60 seconds timeout for OCR
       }
     );
+
+    // Check if response indicates an error
+    if (response.data?.success === false) {
+      const errorMessage = response.data?.error?.message || 'Failed to extract receipt data. Please try again.';
+      throw new Error(errorMessage);
+    }
 
     if (response.data?.success && response.data?.data) {
       const transactions = response.data.data;
@@ -79,24 +89,41 @@ export async function extractReceiptTransactions(
     }
 
     console.warn('[ReceiptOCR] Unexpected response format:', response.data);
-    return [];
+    throw new Error('Unexpected response format from server. Please try again.');
   } catch (error: any) {
     console.error('[ReceiptOCR] Extraction error:', error);
     
-    // Provide user-friendly error messages
+    // Extract error message from backend response
+    // Backend returns: { success: false, error: { message, code, statusCode } }
+    const errorMessage = error.response?.data?.error?.message 
+      || error.response?.data?.message 
+      || error.message 
+      || 'Failed to extract receipt data. Please try again.';
+    
+    // Provide user-friendly error messages based on status code
     if (error.response?.status === 413) {
       throw new Error('Image file is too large. Maximum size is 20MB.');
     }
     
     if (error.response?.status === 400) {
-      throw new Error(error.response.data?.error?.message || 'Invalid image format.');
+      // Use the backend error message if available, otherwise provide generic message
+      throw new Error(errorMessage || 'Could not extract transaction data from the receipt. Please try again with a clearer image.');
     }
 
     if (error.response?.status === 401) {
       throw new Error('Authentication failed. Please log in again.');
     }
 
-    throw new Error(error.message || 'Failed to extract receipt data. Please try again.');
+    if (error.response?.status === 429) {
+      throw new Error('Too many requests. Please try again later.');
+    }
+
+    // Network or timeout errors
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      throw new Error('Request timed out. Please check your connection and try again.');
+    }
+
+    throw new Error(errorMessage);
   }
 }
 

@@ -20,6 +20,10 @@ export interface Currency {
   flag: string; // Emoji flag for visual representation
 }
 
+// In-memory cache for currencies list
+let currenciesCache: Currency[] | null = null;
+let lastUsedCurrencyCache: string | null = null;
+
 /**
  * Popular currencies list
  */
@@ -59,21 +63,35 @@ const POPULAR_CURRENCIES: Currency[] = [
 /**
  * Mock API call to fetch currencies
  * In production, this would be an actual API call
+ * Uses in-memory cache to avoid repeated fetches
  */
 export const getCurrencies = async (): Promise<Currency[]> => {
-  // Simulate API delay
+  // Return cached currencies if available
+  if (currenciesCache !== null) {
+    return currenciesCache;
+  }
+  
+  // Simulate API delay (only on first fetch)
   await new Promise(resolve => setTimeout(resolve, 300));
   
-  // Return sorted currencies (popular ones first)
-  return [...POPULAR_CURRENCIES];
+  // Cache and return sorted currencies (popular ones first)
+  currenciesCache = [...POPULAR_CURRENCIES];
+  return currenciesCache;
 };
 
 /**
  * Get last used currency
+ * Uses in-memory cache to avoid repeated AsyncStorage reads
  */
 export const getLastUsedCurrency = async (): Promise<string | null> => {
+  // Return cached value if available
+  if (lastUsedCurrencyCache !== null) {
+    return lastUsedCurrencyCache;
+  }
+  
   try {
     const lastCurrency = await AsyncStorage.getItem(LAST_CURRENCY_KEY);
+    lastUsedCurrencyCache = lastCurrency;
     return lastCurrency;
   } catch (error) {
     console.error('Error getting last currency:', error);
@@ -83,10 +101,13 @@ export const getLastUsedCurrency = async (): Promise<string | null> => {
 
 /**
  * Save last used currency
+ * Updates both AsyncStorage and in-memory cache
  */
 export const saveLastUsedCurrency = async (currencyCode: string): Promise<void> => {
   try {
     await AsyncStorage.setItem(LAST_CURRENCY_KEY, currencyCode);
+    // Update cache
+    lastUsedCurrencyCache = currencyCode;
   } catch (error) {
     console.error('Error saving last currency:', error);
   }

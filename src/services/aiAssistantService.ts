@@ -74,7 +74,8 @@ export const processAIQuery = async (
   query: string,
   isPremium: boolean,
   formatCurrency: (amount: number) => string,
-  context?: AIQuery['context']
+  context?: AIQuery['context'],
+  currencyCode?: string
 ): Promise<{ response: string; query: AIQuery }> => {
   try {
     // Check rate limits first
@@ -85,6 +86,24 @@ export const processAIQuery = async (
     }
 
     // Process query via backend API
+    // Build request body, only include currencyCode if it's defined
+    const requestBody: {
+      query: string;
+      context?: AIQuery['context'];
+      currencyCode?: string;
+    } = {
+      query: query.trim(),
+    };
+    
+    if (context) {
+      requestBody.context = context;
+    }
+    
+    // Always include currencyCode if provided (even if empty, backend will handle it)
+    if (currencyCode !== undefined && currencyCode !== null) {
+      requestBody.currencyCode = currencyCode.trim();
+    }
+
     const response = await api.post<{
       id: string;
       query: string;
@@ -92,10 +111,7 @@ export const processAIQuery = async (
       timestamp: string;
       processingTime: number;
       cached: boolean;
-    }>(API_ENDPOINTS.AI.QUERY, {
-      query: query.trim(),
-      context,
-    });
+    }>(API_ENDPOINTS.AI.QUERY, requestBody);
 
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to process AI query');

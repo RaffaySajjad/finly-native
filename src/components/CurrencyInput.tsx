@@ -11,7 +11,8 @@ import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { formatCurrencyInput, parseCurrencyInput, currencyInputToNumber } from '../utils/currencyFormatter';
-import { getCurrencies, getCurrencyByCode, Currency, getLastUsedCurrency } from '../services/currencyService';
+import { getCurrencyByCode, saveLastUsedCurrency } from '../services/currencyService';
+import { CurrencySelector } from './CurrencySelector';
 import { typography, spacing, borderRadius } from '../theme';
 
 interface CurrencyInputProps extends Omit<TextInputProps, 'value' | 'onChangeText'> {
@@ -58,9 +59,6 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   const { theme } = useTheme();
   const { getCurrencySymbol, currencyCode } = useCurrency();
   const [displayValue, setDisplayValue] = useState('');
-  const [currencies, setCurrencies] = useState<Currency[]>([]);
-  const [loadingCurrencies, setLoadingCurrencies] = useState(false);
-  const [lastUsedCurrency, setLastUsedCurrency] = useState<string | null>(null);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
 
   // Use selectedCurrency if provided, otherwise use current active currency
@@ -82,36 +80,10 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
     }
   }, [value, allowDecimals]);
 
-  const loadCurrencies = async () => {
-    // Only show loading if currencies aren't already loaded
-    if (currencies.length === 0) {
-      setLoadingCurrencies(true);
-    }
-
-    try {
-      const currencyList = await getCurrencies();
-      const lastUsed = await getLastUsedCurrency();
-
-      // Sort currencies: last used at top, then alphabetical
-      const sortedList = [...currencyList];
-      if (lastUsed) {
-        const lastUsedIndex = sortedList.findIndex(c => c.code === lastUsed);
-        if (lastUsedIndex > 0) {
-          const [lastUsedCurrencyItem] = sortedList.splice(lastUsedIndex, 1);
-          sortedList.unshift(lastUsedCurrencyItem);
-        }
-      }
-
-      setCurrencies(sortedList);
-      setLastUsedCurrency(lastUsed);
-    } catch (error) {
-      console.error('Error loading currencies:', error);
-    } finally {
-      setLoadingCurrencies(false);
-    }
-  };
-
-  const handleCurrencySelect = (currencyCode: string) => {
+  const handleCurrencySelect = async (currencyCode: string) => {
+    // Save to last used currencies
+    await saveLastUsedCurrency(currencyCode);
+    
     if (onCurrencyChange) {
       onCurrencyChange(currencyCode);
     }
@@ -120,15 +92,7 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
 
   const handleSymbolPress = () => {
     if (allowCurrencySelection) {
-      // If currencies are already loaded, show modal immediately
-      if (currencies.length > 0) {
-        setShowCurrencyModal(true);
-      } else {
-        // Otherwise load currencies first, then show modal
-        loadCurrencies().then(() => {
-          setShowCurrencyModal(true);
-        });
-      }
+      setShowCurrencyModal(true);
     }
   };
 
@@ -210,78 +174,16 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
                   <Icon name="close" size={24} color={theme.textSecondary} />
                 </TouchableOpacity>
               </View>
-              <ScrollView style={styles.modalScrollView}>
-                {loadingCurrencies ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={theme.primary} />
-                  </View>
-                ) : (
-                  <>
-                    {lastUsedCurrency && lastUsedCurrency !== selectedCurrencyCode && (
-                      <>
-                        <Text style={[styles.currencySectionTitle, { color: theme.textSecondary }]}>Recently Used</Text>
-                        {currencies
-                          .filter(c => c.code === lastUsedCurrency)
-                          .map((curr) => (
-                            <TouchableOpacity
-                              key={curr.code}
-                              style={[
-                                styles.currencyOption,
-                                {
-                                  backgroundColor: selectedCurrencyCode === curr.code ? theme.primary + '20' : theme.card,
-                                  borderColor: selectedCurrencyCode === curr.code ? theme.primary : theme.border,
-                                },
-                              ]}
-                              onPress={() => handleCurrencySelect(curr.code)}
-                            >
-                              <View style={styles.currencyInfo}>
-                                <View style={styles.currencyHeader}>
-                                  <Text style={styles.currencyFlag}>{curr.flag}</Text>
-                                  <Text style={[styles.currencyCode, { color: theme.text }]}>{curr.code}</Text>
-                                </View>
-                                <Text style={[styles.currencyName, { color: theme.textSecondary }]}>
-                                  {curr.name}
-                                </Text>
-                              </View>
-                              {selectedCurrencyCode === curr.code && (
-                                <Icon name="check-circle" size={24} color={theme.primary} />
-                              )}
-                            </TouchableOpacity>
-                          ))}
-                        <Text style={[styles.currencySectionTitle, { color: theme.textSecondary, marginTop: spacing.md }]}>All Currencies</Text>
-                      </>
-                    )}
-                    {currencies
-                      .filter(c => !lastUsedCurrency || c.code !== lastUsedCurrency || c.code === selectedCurrencyCode)
-                      .map((curr) => (
-                        <TouchableOpacity
-                          key={curr.code}
-                          style={[
-                            styles.currencyOption,
-                            {
-                              backgroundColor: selectedCurrencyCode === curr.code ? theme.primary + '20' : theme.card,
-                              borderColor: selectedCurrencyCode === curr.code ? theme.primary : theme.border,
-                            },
-                          ]}
-                          onPress={() => handleCurrencySelect(curr.code)}
-                        >
-                          <View style={styles.currencyInfo}>
-                            <View style={styles.currencyHeader}>
-                              <Text style={styles.currencyFlag}>{curr.flag}</Text>
-                              <Text style={[styles.currencyCode, { color: theme.text }]}>{curr.code}</Text>
-                            </View>
-                            <Text style={[styles.currencyName, { color: theme.textSecondary }]}>
-                              {curr.name}
-                            </Text>
-                          </View>
-                          {selectedCurrencyCode === curr.code && (
-                            <Icon name="check-circle" size={24} color={theme.primary} />
-                          )}
-                        </TouchableOpacity>
-                      ))}
-                  </>
+              <CurrencySelector
+                selectedCurrency={selectedCurrencyCode}
+                onCurrencySelect={handleCurrencySelect}
+                title="" // Title is already shown in modal header
+                renderContainer={(children) => (
+                  <ScrollView style={styles.modalScrollView}>
+                    {children}
+                  </ScrollView>
                 )}
-              </ScrollView>
+              />
             </View>
           </TouchableOpacity>
         </Modal>

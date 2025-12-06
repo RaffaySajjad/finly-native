@@ -49,7 +49,7 @@ const IconButton: React.FC<IconButtonProps> = React.memo(({
         containerStyle,
       ]}
       onPress={onPress}
-      activeOpacity={0.7}
+      activeOpacity={0.6}
     >
       <Icon name={icon as any} size={size} color={color || theme.text} />
     </TouchableOpacity>

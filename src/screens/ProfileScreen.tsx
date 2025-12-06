@@ -30,23 +30,21 @@ import { logout as logoutAction, updateProfile as updateProfileAction, deleteAcc
 import { toggleMockIAP, loadDevSettings } from '../store/slices/devSettingsSlice';
 import { iapService } from '../services/iap.service';
 import { useSubscription } from '../hooks/useSubscription';
-import { BottomSheetBackground, SettingItem, Header, InputGroup, PrimaryButton, SecondaryButton } from '../components';
+import { BottomSheetBackground, SettingItem, Header, InputGroup, PrimaryButton, SecondaryButton, CurrencySelector } from '../components';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import {
-  getCurrencies,
   getUserCurrency,
   saveUserCurrency,
-  getLastUsedCurrency,
-  Currency,
 } from '../services/currencyService';
 import {
   isBiometricAvailable,
   authenticateForAccountDeletion,
   getBiometricName,
 } from '../services/biometricService';
+import { usePreferences } from '../contexts/PreferencesContext';
 
 /**
  * ProfileScreen - User settings and preferences
@@ -59,13 +57,11 @@ const ProfileScreen: React.FC = () => {
   const { enableMockIAP } = useAppSelector((state) => state.devSettings || { enableMockIAP: false });
   const { isPremium, subscription } = useSubscription();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+  const { animateBalancePill, setAnimateBalancePill } = usePreferences();
 
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [currency, setCurrency] = useState('USD');
-  const [currencies, setCurrencies] = useState<Currency[]>([]);
-  const [lastUsedCurrency, setLastUsedCurrency] = useState<string | null>(null);
-  const [loadingCurrencies, setLoadingCurrencies] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   const editProfileSheetRef = useRef<BottomSheet>(null);
@@ -96,34 +92,8 @@ const ProfileScreen: React.FC = () => {
     try {
       const savedCurrency = await getUserCurrency();
       setCurrency(savedCurrency);
-      const lastUsed = await getLastUsedCurrency();
-      setLastUsedCurrency(lastUsed);
     } catch (error) {
       console.error('Error loading currency:', error);
-    }
-  };
-
-  const loadCurrencies = async () => {
-    setLoadingCurrencies(true);
-    try {
-      const currencyList = await getCurrencies();
-      const lastUsed = await getLastUsedCurrency();
-
-      // Sort currencies: last used at top, then alphabetical
-      if (lastUsed) {
-        const lastUsedIndex = currencyList.findIndex(c => c.code === lastUsed);
-        if (lastUsedIndex > 0) {
-          const [lastUsedCurrency] = currencyList.splice(lastUsedIndex, 1);
-          currencyList.unshift(lastUsedCurrency);
-        }
-      }
-
-      setCurrencies(currencyList);
-      setLastUsedCurrency(lastUsed);
-    } catch (error) {
-      console.error('Error loading currencies:', error);
-    } finally {
-      setLoadingCurrencies(false);
     }
   };
 
@@ -154,7 +124,7 @@ const ProfileScreen: React.FC = () => {
 
   const handleCurrencySelect = async (curr: string) => {
     setCurrency(curr);
-    await saveUserCurrency(curr);
+    await saveUserCurrency(curr); // This already calls saveLastUsedCurrency
     await setCurrencyGlobal(curr); // Update global currency context
     if (Platform.OS === 'ios') {
       Haptics.selectionAsync();
@@ -163,7 +133,6 @@ const ProfileScreen: React.FC = () => {
   };
 
   const handleOpenCurrencySheet = () => {
-    loadCurrencies();
     currencySheetRef.current?.expand();
   };
 
@@ -350,6 +319,19 @@ const ProfileScreen: React.FC = () => {
               />
             }
           />
+          <SettingItem
+            icon="animation-play"
+            title="Floating Balance Indicator"
+            subtitle={animateBalancePill ? 'Displays balance while scrolling' : 'Hidden while scrolling'}
+            rightComponent={
+              <Switch
+                value={animateBalancePill}
+                onValueChange={setAnimateBalancePill}
+                trackColor={{ false: theme.border, true: theme.primary + '60' }}
+                thumbColor={animateBalancePill ? theme.primary : theme.surface}
+              />
+            }
+          />
         </View>
 
         {/* Preferences Section */}
@@ -362,10 +344,17 @@ const ProfileScreen: React.FC = () => {
             onPress={handleOpenCurrencySheet}
           />
           <SettingItem
-            icon="cash-multiple"
-            title="Income Management"
-            subtitle="Manage your income sources and auto-scheduling"
-            onPress={() => navigation.navigate('IncomeManagement')}
+            icon="decimal"
+            title="Show Decimals"
+            subtitle={showDecimals ? 'Decimal points enabled' : 'Whole numbers only'}
+            rightComponent={
+              <Switch
+                value={showDecimals}
+                onValueChange={setShowDecimals}
+                trackColor={{ false: theme.border, true: theme.primary + '60' }}
+                thumbColor={showDecimals ? theme.primary : theme.surface}
+              />
+            }
           />
           <SettingItem
             icon="bell-outline"
@@ -380,18 +369,22 @@ const ProfileScreen: React.FC = () => {
               />
             }
           />
+        </View>
+
+        {/* Data & Management Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>DATA & MANAGEMENT</Text>
           <SettingItem
-            icon="decimal"
-            title="Show Decimals"
-            subtitle={showDecimals ? 'Decimal points enabled' : 'Whole numbers only'}
-            rightComponent={
-              <Switch
-                value={showDecimals}
-                onValueChange={setShowDecimals}
-                trackColor={{ false: theme.border, true: theme.primary + '60' }}
-                thumbColor={showDecimals ? theme.primary : theme.surface}
-              />
-            }
+            icon="cash-multiple"
+            title="Income Management"
+            subtitle="Manage your income sources and auto-scheduling"
+            onPress={() => navigation.navigate('IncomeManagement')}
+          />
+          <SettingItem
+            icon="shield-check"
+            title="Privacy & Data"
+            subtitle="Manage data imports, exports, and deletion"
+            onPress={() => navigation.navigate('PrivacySettings')}
           />
         </View>
 
@@ -424,24 +417,6 @@ const ProfileScreen: React.FC = () => {
         {/* Support Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>SUPPORT</Text>
-          {/* <SettingItem
-            icon="file-import"
-            title="Import Transactions"
-            subtitle="Import transactions from CSV files"
-            onPress={() => navigation.navigate('CSVImport')}
-          />
-          <SettingItem
-            icon="file-export"
-            title="Export Transactions"
-            subtitle="Export transactions to CSV file"
-            onPress={() => navigation.navigate('ExportTransactions')}
-          /> */}
-          <SettingItem
-            icon="shield-check"
-            title="Privacy & Data"
-            subtitle="Manage data imports, exports, and deletion"
-            onPress={() => navigation.navigate('PrivacySettings')}
-          />
           <SettingItem
             icon="help-circle-outline"
             title="Help & Support"
@@ -563,83 +538,18 @@ const ProfileScreen: React.FC = () => {
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
       >
-        <BottomSheetScrollView
-          style={styles.bottomSheetContent}
-          contentContainerStyle={styles.bottomSheetContentContainer}
-        >
-          <Text style={[styles.sheetTitle, { color: theme.text }]}>Select Currency</Text>
-
-          {loadingCurrencies ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={theme.primary} />
-            </View>
-          ) : (
-            <>
-              {lastUsedCurrency && lastUsedCurrency !== currency && (
-                <>
-                  <Text style={[styles.currencySectionTitle, { color: theme.textSecondary }]}>Recently Used</Text>
-                  {currencies
-                    .filter(c => c.code === lastUsedCurrency)
-                    .map((curr) => (
-                      <TouchableOpacity
-                        key={curr.code}
-                        style={[
-                          styles.currencyOption,
-                          {
-                            backgroundColor: currency === curr.code ? theme.primary + '20' : theme.card,
-                            borderColor: currency === curr.code ? theme.primary : theme.border,
-                          },
-                        ]}
-                        onPress={() => handleCurrencySelect(curr.code)}
-                      >
-                        <View style={styles.currencyInfo}>
-                          <View style={styles.currencyHeader}>
-                            <Text style={styles.currencyFlag}>{curr.flag}</Text>
-                            <Text style={[styles.currencyCode, { color: theme.text }]}>{curr.code}</Text>
-                          </View>
-                          <Text style={[styles.currencyName, { color: theme.textSecondary }]}>
-                            {curr.name}
-                          </Text>
-                        </View>
-                        {currency === curr.code && (
-                          <Icon name="check-circle" size={24} color={theme.primary} />
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  <Text style={[styles.currencySectionTitle, { color: theme.textSecondary, marginTop: spacing.md }]}>All Currencies</Text>
-                </>
-              )}
-              {currencies
-                .filter(c => !lastUsedCurrency || c.code !== lastUsedCurrency || c.code === currency)
-                .map((curr) => (
-                  <TouchableOpacity
-                    key={curr.code}
-                    style={[
-                      styles.currencyOption,
-                      {
-                        backgroundColor: currency === curr.code ? theme.primary + '20' : theme.card,
-                        borderColor: currency === curr.code ? theme.primary : theme.border,
-                      },
-                    ]}
-                    onPress={() => handleCurrencySelect(curr.code)}
-                  >
-                    <View style={styles.currencyInfo}>
-                      <View style={styles.currencyHeader}>
-                        <Text style={styles.currencyFlag}>{curr.flag}</Text>
-                        <Text style={[styles.currencyCode, { color: theme.text }]}>{curr.code}</Text>
-                      </View>
-                      <Text style={[styles.currencyName, { color: theme.textSecondary }]}>
-                        {curr.name}
-                      </Text>
-                    </View>
-                    {currency === curr.code && (
-                      <Icon name="check-circle" size={24} color={theme.primary} />
-                    )}
-                  </TouchableOpacity>
-                ))}
-            </>
+        <CurrencySelector
+          selectedCurrency={currency}
+          onCurrencySelect={handleCurrencySelect}
+          renderContainer={(children) => (
+            <BottomSheetScrollView
+              style={styles.bottomSheetContent}
+              contentContainerStyle={styles.bottomSheetContentContainer}
+            >
+              {children}
+            </BottomSheetScrollView>
           )}
-        </BottomSheetScrollView>
+        />
       </BottomSheet>
 
       {/* Help & Support Bottom Sheet */}

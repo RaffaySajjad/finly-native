@@ -34,6 +34,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useBottomSheet } from '../contexts/BottomSheetContext';
+import { usePreferences } from '../contexts/PreferencesContext';
 import {
   TransactionCard,
   ExpenseOptionsSheet,
@@ -62,6 +63,9 @@ import * as Haptics from 'expo-haptics';
 const { width } = Dimensions.get('window');
 
 const RECENT_TRANSACTIONS_LIMIT = 10;
+const ANIMATION_CYCLE_DURATION = 5000;
+const ANIMATION_FADE_DURATION = 800;
+
 
 interface GroupedTransactions {
   date: string;
@@ -158,7 +162,7 @@ type DashboardNavigationProp = StackNavigationProp<RootStackParamList, 'MainTabs
  * DashboardScreen - Main home screen
  */
 const DashboardScreen: React.FC = () => {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { formatCurrency, getCurrencySymbol, currencyCode, convertFromUSD, convertToUSD } = useCurrency();
   const navigation = useNavigation<DashboardNavigationProp>();
   const insets = useSafeAreaInsets();
@@ -178,6 +182,7 @@ const DashboardScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<UnifiedTransaction | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [showBalancePill, setShowBalancePill] = useState(false);
 
   // Balance adjustment state
   const [newBalance, setNewBalance] = useState('');
@@ -187,6 +192,13 @@ const DashboardScreen: React.FC = () => {
   // Animation values
   const gradientAnimation = useRef(new Animated.Value(0)).current;
   const insightOpacity = useRef(new Animated.Value(0)).current;
+  
+  // Scroll tracking for balance pill
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const balanceCardY = useRef<number>(0);
+  const balanceCardHeight = useRef<number>(0);
+  const pillOpacity = useRef(new Animated.Value(0)).current;
+  const pillScale = useRef(new Animated.Value(0.9)).current;
 
   // Dynamic snap points based on keyboard
   const balanceSheetSnapPoints = useMemo(() => {
@@ -270,6 +282,83 @@ const DashboardScreen: React.FC = () => {
       useNativeDriver: true,
     }).start();
   }, []);
+
+
+  // ... other imports
+
+  // Balance Pill Animation Loop
+  const [pillDisplayMode, setPillDisplayMode] = useState<'balance' | 'summary'>('balance');
+  const pillContentOpacity = useRef(new Animated.Value(1)).current;
+  const isAnimationLoopActive = useRef(false);
+  const { animateBalancePill } = usePreferences();
+
+  useEffect(() => {
+    // If preference is off, reset to balance and stop
+    if (!animateBalancePill) {
+      isAnimationLoopActive.current = false;
+      pillContentOpacity.setValue(1);
+      setPillDisplayMode('balance');
+      return;
+    }
+
+    if (!showBalancePill) {
+      isAnimationLoopActive.current = false;
+      // Reset after a delay to avoid flicker if user is just scrolling quickly
+      const timeout = setTimeout(() => {
+        if (!isAnimationLoopActive.current) {
+          pillContentOpacity.setValue(1);
+          setPillDisplayMode('balance');
+        }
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+
+    // Prevent multiple loops from starting
+    if (isAnimationLoopActive.current) return;
+    isAnimationLoopActive.current = true;
+
+    let abortController = new AbortController();
+
+    const cycleAnimation = async () => {
+      if (!isAnimationLoopActive.current) return;
+
+      // Wait initial duration
+      await new Promise(resolve => setTimeout(resolve, ANIMATION_CYCLE_DURATION));
+      if (!isAnimationLoopActive.current || abortController.signal.aborted) return;
+
+      // Fade out
+      Animated.timing(pillContentOpacity, {
+        toValue: 0,
+        duration: ANIMATION_FADE_DURATION,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished || !isAnimationLoopActive.current) return;
+
+        // Change content
+        setPillDisplayMode(prev => prev === 'balance' ? 'summary' : 'balance');
+
+        // Fade in
+        Animated.timing(pillContentOpacity, {
+          toValue: 1,
+          duration: ANIMATION_FADE_DURATION,
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (finished && isAnimationLoopActive.current) {
+            cycleAnimation();
+          }
+        });
+      });
+    };
+
+    cycleAnimation();
+
+    return () => {
+      isAnimationLoopActive.current = false;
+      abortController.abort();
+      pillContentOpacity.setValue(1);
+      // We don't reset pillDisplayMode here to prevent flashing back to balance while scrolling
+    };
+  }, [showBalancePill, animateBalancePill]);
 
   const initializeApp = async (): Promise<void> => {
     try {
@@ -455,6 +544,77 @@ const DashboardScreen: React.FC = () => {
     }
   };
 
+  // Handle scroll to show/hide balance pill
+  const handleScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+    {
+      useNativeDriver: false, // We need to read the value for calculations
+      listener: (event: any) => {
+        const scrollPosition = event.nativeEvent.contentOffset.y;
+        
+        // Show pill when balance card is scrolled out of view
+        // Use a simpler threshold: show when scrolled past the balance card
+        const headerHeight = 60;
+        let threshold = 0;
+        
+        if (balanceCardY.current > 0) {
+          // Card has been measured - use actual position
+          threshold = balanceCardY.current + balanceCardHeight.current - headerHeight;
+        } else {
+          // Card not measured yet - use a safe fallback (show after 150px scroll)
+          threshold = 150;
+        }
+        
+        const shouldShow = scrollPosition > threshold;
+        
+        if (shouldShow !== showBalancePill) {
+          console.log('[BalancePill] Visibility change:', {
+            scrollPosition,
+            threshold,
+            cardY: balanceCardY.current,
+            cardHeight: balanceCardHeight.current,
+            shouldShow,
+          });
+          
+          setShowBalancePill(shouldShow);
+          
+          Animated.parallel([
+            Animated.timing(pillOpacity, {
+              toValue: shouldShow ? 1 : 0,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+            Animated.spring(pillScale, {
+              toValue: shouldShow ? 1 : 0.9,
+              tension: 50,
+              friction: 7,
+              useNativeDriver: true,
+            }),
+          ]).start();
+        }
+      },
+    }
+  );
+
+  // Handle balance card layout to measure position
+  const handleBalanceCardLayout = (event: any) => {
+    const { y, height } = event.nativeEvent.layout;
+    balanceCardY.current = y;
+    balanceCardHeight.current = height;
+    console.log('[BalancePill] Card measured:', { y, height, threshold: y + height - 60 });
+  };
+
+  // Scroll back to balance card when pill is tapped
+  const handlePillPress = () => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    scrollViewRef.current?.scrollTo({
+      y: 0,
+      animated: true,
+    });
+  };
+
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
@@ -474,6 +634,63 @@ const DashboardScreen: React.FC = () => {
             <View style={styles.headerLeft}>
               <Text style={[styles.title, { color: theme.text }]}>Home</Text>
             </View>
+            {/* Balance Pill - appears when balance card scrolls out of view */}
+            {stats && animateBalancePill && (
+              <Animated.View
+                style={[
+                  styles.balancePill,
+                  {
+                    opacity: Animated.multiply(pillOpacity, pillContentOpacity),
+                    transform: [{ scale: pillScale }],
+                  },
+                ]}
+                pointerEvents={showBalancePill ? 'auto' : 'none'}
+              >
+                <TouchableOpacity
+                  onPress={handlePillPress}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.balancePillContent,
+                    {
+                      backgroundColor: isDark ? '#1E4A6F' : theme.primary,
+                    },
+                    elevation.sm,
+                  ]}
+                >
+                  <Animated.View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      // Opacity handled by parent container now
+                    }}
+                  >
+                    {pillDisplayMode === 'balance' ? (
+                      <>
+                        <Icon name="wallet" size={14} color="#FFFFFF" style={styles.balancePillIcon} />
+                        <Text style={styles.balancePillText} numberOfLines={1}>
+                          {formatCurrency(stats.balance)}
+                        </Text>
+                      </>
+                    ) : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
+                          <Icon name="arrow-down-circle" size={14} color="#4ADE80" style={{ marginRight: 4 }} />
+                          <Text style={[styles.balancePillText]} numberOfLines={1}>
+                            {formatCurrency(stats.totalIncome)}
+                          </Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Icon name="arrow-up-circle" size={14} color="#F87171" style={{ marginRight: 4 }} />
+                          <Text style={[styles.balancePillText]} numberOfLines={1}>
+                            {formatCurrency(stats.totalExpenses)}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                  </Animated.View>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
             <View style={styles.headerRight}>
               {Platform.OS === 'android' && <IconButton
                 icon="lightbulb-on"
@@ -493,14 +710,24 @@ const DashboardScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: Platform.OS === 'ios' ? 120 : 0 }}
           onRefresh={() => loadData(true)} // Skip cache on pull-to-refresh
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
         >
           {/* Premium Balance Card */}
           {stats && (
-            <View style={styles.balanceCardContainer}>
+            <View 
+              style={styles.balanceCardContainer}
+              onLayout={handleBalanceCardLayout}
+            >
               <TouchableOpacity
                 activeOpacity={0.9}
                 onPress={handleOpenBalanceAdjust}
-                onLongPress={() => navigation.navigate('BalanceHistory')}
+                onLongPress={() => {
+                  if (Platform.OS === 'ios') {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  }
+                  navigation.navigate('BalanceHistory');
+                }}
               >
                 <Animated.View style={[styles.balanceCard, {
                   opacity: gradientAnimation.interpolate({
@@ -509,7 +736,10 @@ const DashboardScreen: React.FC = () => {
                   })
                 }]}>
                   <GradientCard
-                    colors={[theme.primary, theme.primaryDark, theme.primaryLight]}
+                    colors={isDark 
+                      ? ['#1E4A6F', '#0F2E4A', '#2E5F8F'] // Darker blues for dark mode
+                      : [theme.primary, theme.primaryDark, theme.primaryLight]
+                    }
                     contentStyle={styles.gradientCard}
                   >
                     <View style={styles.balanceHeader}>
@@ -949,6 +1179,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    position: 'relative',
   },
   headerLeft: {
     flex: 1,
@@ -958,10 +1189,36 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
   },
+  balancePill: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  balancePillContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    minWidth: 80,
+    gap: spacing.xs,
+  },
+  balancePillIcon: {
+    marginRight: 2,
+  },
+  balancePillText: {
+    ...typography.labelMedium,
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
+  },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    zIndex: 2,
   },
   headerButton: {
     width: 40,

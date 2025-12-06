@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider as ReduxProvider } from 'react-redux';
 import { ThemeProvider } from './src/contexts/ThemeContext';
+import { PreferencesProvider } from './src/contexts/PreferencesContext';
 import { CurrencyProvider } from './src/contexts/CurrencyContext';
 import { BottomSheetProvider } from './src/contexts/BottomSheetContext';
 import { store } from './src/store';
@@ -23,16 +24,18 @@ export default function App(): React.ReactElement {
   return (
     <ReduxProvider store={store}>
       <ThemeProvider>
-        <ErrorBoundary>
-          <CurrencyProvider>
-            <BottomSheetProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <AppNavigator />
-                <StatusBar style="auto" />
-              </GestureHandlerRootView>
-            </BottomSheetProvider>
-          </CurrencyProvider>
-        </ErrorBoundary>
+        <PreferencesProvider>
+          <ErrorBoundary>
+            <CurrencyProvider>
+              <BottomSheetProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <AppNavigator />
+                  <StatusBar style="auto" />
+                </GestureHandlerRootView>
+              </BottomSheetProvider>
+            </CurrencyProvider>
+          </ErrorBoundary>
+        </PreferencesProvider>
       </ThemeProvider>
     </ReduxProvider>
   );

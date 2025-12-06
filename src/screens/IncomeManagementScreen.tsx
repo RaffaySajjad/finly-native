@@ -446,13 +446,13 @@ const IncomeManagementScreen: React.FC = () => {
         </TouchableOpacity>
 
         {/* Add Income Transaction Button */}
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={[styles.addButton, { backgroundColor: theme.income, marginTop: spacing.md }, elevation.md]}
           onPress={() => navigation.navigate('AddIncome')}
         >
           <Icon name="cash-plus" size={24} color="#FFFFFF" />
           <Text style={styles.addButtonText}>Record Manual Income</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </PullToRefreshScrollView>
 
       {/* Add/Edit Bottom Sheet */}
@@ -647,7 +647,7 @@ const IncomeManagementScreen: React.FC = () => {
           </View>
 
           {/* Auto Add Toggle */}
-          <View style={[styles.inputGroup, styles.toggleGroup]}>
+          {/* <View style={[styles.inputGroup, styles.toggleGroup]}>
             <View style={styles.toggleInfo}>
               <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Auto-Add Income</Text>
               <Text style={[styles.toggleDescription, { color: theme.textTertiary }]}>
@@ -684,7 +684,7 @@ const IncomeManagementScreen: React.FC = () => {
               trackColor={{ false: theme.border, true: theme.primary + '60' }}
               thumbColor={autoAdd && frequency !== 'MANUAL' ? theme.primary : theme.surface}
             />
-          </View>
+          </View> */}
 
           {/* Save Button */}
           <TouchableOpacity

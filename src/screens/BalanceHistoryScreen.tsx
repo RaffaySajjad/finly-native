@@ -59,7 +59,7 @@ type BalanceHistoryNavigationProp = StackNavigationProp<RootStackParamList>;
  * BalanceHistoryScreen - Balance trends and projections
  */
 const BalanceHistoryScreen: React.FC = () => {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { formatCurrency } = useCurrency();
   const { isPremium } = useSubscription();
   const navigation = useNavigation<BalanceHistoryNavigationProp>();
@@ -603,7 +603,10 @@ const BalanceHistoryScreen: React.FC = () => {
             ]}
           >
             <LinearGradient
-              colors={[theme.primary, theme.primaryDark, theme.primaryLight]}
+              colors={isDark 
+                ? ['#1E4A6F', '#0F2E4A', '#2E5F8F'] // Darker blues for dark mode
+                : [theme.primary, theme.primaryDark, theme.primaryLight]
+              }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.gradientCard}

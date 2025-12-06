@@ -75,6 +75,13 @@ module.exports = ({ config }) => {
   const existingIOS = existingExpo.ios || {};
   const existingInfoPlist = existingIOS.infoPlist || {};
 
+  // Determine bundle identifier based on build configuration
+  // When building with Xcode, Debug uses com.raffay.finly.debug, Release uses com.raffay.finly
+  // This is set in the Xcode project file and will override this value when building with Xcode
+  // For Expo CLI builds, use debug bundle ID for development, production for release
+  const isDevelopment = env === 'development' || !process.env.EXPO_PUBLIC_ENV;
+  const bundleIdentifier = isDevelopment ? 'com.raffay.finly.debug' : 'com.raffay.finly';
+
   return {
     ...config,
     expo: {
@@ -93,7 +100,7 @@ module.exports = ({ config }) => {
             NSExceptionDomains: iosATSDomains,
           },
         },
-        bundleIdentifier: 'com.raffay.finly',
+        bundleIdentifier,
       },
       scheme: 'finly',
       android: {
@@ -103,4 +110,5 @@ module.exports = ({ config }) => {
     },
   };
 };
+
 

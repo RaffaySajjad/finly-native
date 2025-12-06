@@ -405,15 +405,43 @@ const TransactionsListScreen: React.FC = () => {
       filtered = filtered.filter((tx) => tx.type === selectedTransactionType);
     }
 
-    // Search filter
+    // Search filter - searches description, category, payment methods, and tags
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (tx) =>
-          tx.description.toLowerCase().includes(query) ||
-          (tx.type === 'expense' && tx.category?.name.toLowerCase().includes(query)) ||
-          (tx.type === 'income' && tx.incomeSource?.name.toLowerCase().includes(query))
-      );
+      filtered = filtered.filter((tx) => {
+        // Search in description
+        if (tx.description.toLowerCase().includes(query)) {
+          return true;
+        }
+
+        // Search in category (for expenses)
+        if (tx.type === 'expense' && tx.category?.name.toLowerCase().includes(query)) {
+          return true;
+        }
+
+        // Search in income source (for income)
+        if (tx.type === 'income' && tx.incomeSource?.name.toLowerCase().includes(query)) {
+          return true;
+        }
+
+        // Search in payment method (for expenses)
+        if (tx.type === 'expense' && tx.paymentMethod) {
+          const paymentMethodDisplay = PAYMENT_METHOD_DISPLAY[tx.paymentMethod];
+          if (paymentMethodDisplay?.name.toLowerCase().includes(query)) {
+            return true;
+          }
+        }
+
+        // Search in tags (for expenses)
+        if (tx.type === 'expense' && tx.tags && tx.tags.length > 0) {
+          const matchesTag = tx.tags.some((tag) => tag.name.toLowerCase().includes(query));
+          if (matchesTag) {
+            return true;
+          }
+        }
+
+        return false;
+      });
     }
 
     // Category filter (only for expenses)
@@ -669,7 +697,7 @@ const TransactionsListScreen: React.FC = () => {
       </View>
 
       {/* Filter Chips */}
-      {(hasActiveFilters || selectedCategories.length > 0 || selectedPaymentMethods.length > 0 || selectedTags.length > 0 || selectedDateRange !== 'all') && (
+      {(selectedCategories.length > 0 || selectedPaymentMethods.length > 0 || selectedTags.length > 0 || selectedDateRange !== 'all') && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}

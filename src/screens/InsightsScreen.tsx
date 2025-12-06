@@ -462,7 +462,6 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     ...typography.bodyMedium,
-    fontSize: 12
   },
   upgradeButton: {
     padding: spacing.xs,

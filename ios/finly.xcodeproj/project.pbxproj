@@ -478,8 +478,9 @@
 					"-ObjC",
 					"-lc++",
 				);
+				INFOPLIST_KEY_CFBundleDisplayName = "Finly Debug";
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.raffay.finly;
+				PRODUCT_BUNDLE_IDENTIFIER = com.raffay.finly.debug;
 				PRODUCT_NAME = Finly;
 				SWIFT_OBJC_BRIDGING_HEADER = "finly/finly-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -510,6 +511,7 @@
 					"-ObjC",
 					"-lc++",
 				);
+				INFOPLIST_KEY_CFBundleDisplayName = Finly;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.raffay.finly;
 				PRODUCT_NAME = Finly;
@@ -672,7 +674,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.raffay.finly.FinlyWidget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.raffay.finly.debug.FinlyWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

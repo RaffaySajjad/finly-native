@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   detailValue: {
-    ...typography.bodyMedium,
+    ...typography.bodySmall,
     fontWeight: '600',
   },
   detailValueRow: {

@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CURRENCY_STORAGE_KEY = '@finly_currency';
 const LAST_CURRENCY_KEY = '@finly_last_currency';
+const LAST_CURRENCIES_KEY = '@finly_last_currencies'; // Array of last 3 currencies
 
 /**
  * Currency interface
@@ -23,6 +24,7 @@ export interface Currency {
 // In-memory cache for currencies list
 let currenciesCache: Currency[] | null = null;
 let lastUsedCurrencyCache: string | null = null;
+let lastUsedCurrenciesCache: string[] | null = null;
 
 /**
  * Popular currencies list
@@ -80,34 +82,65 @@ export const getCurrencies = async (): Promise<Currency[]> => {
 };
 
 /**
- * Get last used currency
+ * Get last used currency (for backward compatibility)
  * Uses in-memory cache to avoid repeated AsyncStorage reads
  */
 export const getLastUsedCurrency = async (): Promise<string | null> => {
+  const lastCurrencies = await getLastUsedCurrencies();
+  return lastCurrencies.length > 0 ? lastCurrencies[0] : null;
+};
+
+/**
+ * Get last 3 used currencies (most recent first)
+ * Uses in-memory cache to avoid repeated AsyncStorage reads
+ */
+export const getLastUsedCurrencies = async (): Promise<string[]> => {
   // Return cached value if available
-  if (lastUsedCurrencyCache !== null) {
-    return lastUsedCurrencyCache;
+  if (lastUsedCurrenciesCache !== null) {
+    return lastUsedCurrenciesCache;
   }
   
   try {
-    const lastCurrency = await AsyncStorage.getItem(LAST_CURRENCY_KEY);
-    lastUsedCurrencyCache = lastCurrency;
-    return lastCurrency;
+    const lastCurrenciesJson = await AsyncStorage.getItem(LAST_CURRENCIES_KEY);
+    if (lastCurrenciesJson) {
+      const currencies = JSON.parse(lastCurrenciesJson);
+      lastUsedCurrenciesCache = Array.isArray(currencies) ? currencies : [];
+      return lastUsedCurrenciesCache;
+    }
+    lastUsedCurrenciesCache = [];
+    return [];
   } catch (error) {
-    console.error('Error getting last currency:', error);
-    return null;
+    console.error('Error getting last currencies:', error);
+    lastUsedCurrenciesCache = [];
+    return [];
   }
 };
 
 /**
  * Save last used currency
+ * Updates the list of last 3 currencies (most recent first)
  * Updates both AsyncStorage and in-memory cache
  */
 export const saveLastUsedCurrency = async (currencyCode: string): Promise<void> => {
   try {
+    // Get current list of last currencies
+    const lastCurrencies = await getLastUsedCurrencies();
+    
+    // Remove the currency if it already exists in the list
+    const filtered = lastCurrencies.filter(code => code !== currencyCode);
+    
+    // Add the new currency at the beginning (most recent)
+    const updated = [currencyCode, ...filtered].slice(0, 3); // Keep only last 3
+    
+    // Save to AsyncStorage
+    await AsyncStorage.setItem(LAST_CURRENCIES_KEY, JSON.stringify(updated));
+    
+    // Update caches
+    lastUsedCurrenciesCache = updated;
+    lastUsedCurrencyCache = updated[0] || null;
+    
+    // Also update the legacy single currency key for backward compatibility
     await AsyncStorage.setItem(LAST_CURRENCY_KEY, currencyCode);
-    // Update cache
-    lastUsedCurrencyCache = currencyCode;
   } catch (error) {
     console.error('Error saving last currency:', error);
   }

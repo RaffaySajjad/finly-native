@@ -38,6 +38,7 @@ export { default as PrimaryButton } from './PrimaryButton';
 export { default as SecondaryButton } from './SecondaryButton';
 export { default as GradientCard } from './GradientCard';
 export { default as IconButton } from './IconButton';
+export { CurrencySelector } from './CurrencySelector';
 export { CategoryPickerModal } from './CategoryPickerModal';
 export { CreateCategoryModal } from './CreateCategoryModal';
 export { PullToRefreshScrollView } from './PullToRefreshScrollView';

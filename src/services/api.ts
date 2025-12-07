@@ -1,7 +1,8 @@
-/**
- * API Service for Finly app
+/* API Service for Finly app
  * Purpose: Handles expense, category, income, and analytics operations using backend API
- */
+*/
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   Expense,
@@ -1235,7 +1236,25 @@ export const apiService = {
       resetAt: number;
     };
   }> {
+    const CACHE_KEY = '@finly_forecast_cache';
+    const CACHE_DURATION = 4 * 60 * 60 * 1000; // 4 hours
+
     try {
+      // 1. Check cache first
+      if (!forceRefresh) {
+        const cached = await AsyncStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached);
+          const isExpired = Date.now() - timestamp > CACHE_DURATION;
+          
+          if (!isExpired) {
+            console.log('[API] Returning cached forecast');
+            return data;
+          }
+        }
+      }
+
+      // 2. Fetch fresh data
       const params = forceRefresh ? { forceRefresh: 'true' } : {};
       const response = await api.get<{
         predictedAmount: number;
@@ -1246,20 +1265,40 @@ export const apiService = {
           resetAt: number;
         };
       }>(API_ENDPOINTS.ANALYTICS.FORECAST, params);
+
       if (!response.success) {
         throw new Error(
           response.error?.message || 'Failed to fetch spending forecast'
         );
       }
-      return (
-        response.data || {
-          predictedAmount: 0,
-          confidence: 'low',
-          factors: []
-        }
-      );
+
+      const data = response.data || {
+        predictedAmount: 0,
+        confidence: 'low',
+        factors: []
+      };
+
+      // 3. Update cache
+      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+
+      return data;
     } catch (error) {
       console.error('[API] Get spending forecast error:', error);
+      
+      // Fallback to cache if API fails, even if expired
+      try {
+        const cached = await AsyncStorage.getItem(CACHE_KEY);
+        if (cached) {
+          console.warn('[API] Using expired cache due to API error');
+          return JSON.parse(cached).data;
+        }
+      } catch (e) {
+        // Ignore cache error
+      }
+
       return {
         predictedAmount: 0,
         confidence: 'low',

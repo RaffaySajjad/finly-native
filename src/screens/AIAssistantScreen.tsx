@@ -125,7 +125,7 @@ const AIAssistantScreen: React.FC = () => {
         {
           id: 'welcome',
           type: 'assistant',
-          content: `👋 Hi! I'm your Finly AI assistant. I can help you with:\n\n📊 Transaction questions\n💡 Feature explanations\n📈 Spending insights\n\n${isPremium ? '✨ You have unlimited queries!' : `You have ${limits.limit - limits.used} queries remaining today.`}\n\nWhat would you like to know?`,
+          content: `👋 Hi! I'm your Finly Finly AI. I can help you with:\n\n📊 Transaction questions\n💡 Feature explanations\n📈 Spending insights\n\n${isPremium ? '✨ You have unlimited queries!' : `You have ${limits.limit - limits.used} queries remaining today.`}\n\nWhat would you like to know?`,
           timestamp: new Date().toISOString(),
         },
       ];
@@ -347,7 +347,7 @@ const AIAssistantScreen: React.FC = () => {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.headerLeft}>
-              <Text style={[styles.title, { color: theme.text }]}>AI Assistant</Text>
+              <Text style={[styles.title, { color: theme.text }]}>Finly AI</Text>
               {!isPremium && (
                 <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
                   {queryLimits.limit - queryLimits.used} queries remaining today
@@ -519,7 +519,7 @@ const AIAssistantScreen: React.FC = () => {
         <UpgradePrompt
           visible={showUpgrade}
           onClose={() => setShowUpgrade(false)}
-          feature="AI Assistant"
+          feature="Finly AI"
         />
       )}
 

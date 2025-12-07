@@ -43,6 +43,9 @@ import {
   isBiometricAvailable,
   authenticateForAccountDeletion,
   getBiometricName,
+  isBiometricLoginEnabled,
+  enableBiometricLogin,
+  disableBiometricLogin,
 } from '../services/biometricService';
 import { usePreferences } from '../contexts/PreferencesContext';
 
@@ -63,6 +66,8 @@ const ProfileScreen: React.FC = () => {
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [currency, setCurrency] = useState('USD');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricSupported, setBiometricSupported] = useState(false);
 
   const editProfileSheetRef = useRef<BottomSheet>(null);
   const currencySheetRef = useRef<BottomSheet>(null);
@@ -81,7 +86,33 @@ const ProfileScreen: React.FC = () => {
     }
     loadCurrency();
     dispatch(loadDevSettings());
+    checkBiometricSupport();
   }, [user]);
+
+  const checkBiometricSupport = async () => {
+    const supported = await isBiometricAvailable();
+    setBiometricSupported(supported);
+    if (supported) {
+      const enabled = await isBiometricLoginEnabled();
+      setBiometricEnabled(enabled);
+    }
+  };
+
+  const handleToggleBiometric = async (value: boolean) => {
+    if (value) {
+      const success = await enableBiometricLogin();
+      if (success) {
+        setBiometricEnabled(true);
+        if (Platform.OS === 'ios') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Alert.alert('Error', 'Failed to enable biometric login');
+      }
+    } else {
+      await disableBiometricLogin();
+      setBiometricEnabled(false);
+      if (Platform.OS === 'ios') Haptics.selectionAsync();
+    }
+  };
 
   // Sync IAP service with redux state
   useEffect(() => {
@@ -333,6 +364,26 @@ const ProfileScreen: React.FC = () => {
             }
           />
         </View>
+
+        {/* Security Section */}
+        {biometricSupported && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>SECURITY</Text>
+            <SettingItem
+              icon="shield-check"
+              title="Biometric Login"
+              subtitle="Require face or fingerprint to open app"
+              rightComponent={
+                <Switch
+                  value={biometricEnabled}
+                  onValueChange={handleToggleBiometric}
+                  trackColor={{ false: theme.border, true: theme.primary + '60' }}
+                  thumbColor={biometricEnabled ? theme.primary : theme.surface}
+                />
+              }
+            />
+          </View>
+        )}
 
         {/* Preferences Section */}
         <View style={styles.section}>

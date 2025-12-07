@@ -767,14 +767,19 @@ export const apiService = {
     name: string;
     amount: number;
     frequency: string;
-    startDate: Date;
+    startDate: string | Date;
     dayOfMonth?: number;
     dayOfWeek?: number;
     customDates?: number[];
     autoAdd?: boolean;
   }): Promise<any> {
     try {
-      const response = await api.post<any>(API_ENDPOINTS.INCOME.SOURCES, data);
+      // Convert Date to ISO string if needed
+      const payload = {
+        ...data,
+        startDate: data.startDate instanceof Date ? data.startDate.toISOString() : data.startDate,
+      };
+      const response = await api.post<any>(API_ENDPOINTS.INCOME.SOURCES, payload);
       if (!response.success) {
         throw new Error(
           response.error?.message || 'Failed to create income source'

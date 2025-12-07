@@ -40,3 +40,4 @@ src/config/api.config.local.ts
 
 # env files
 .env
+.env.*

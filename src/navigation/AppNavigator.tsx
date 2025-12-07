@@ -90,7 +90,7 @@ const AuthNavigator: React.FC = () => {
 
 /**
  * MainTabs component - Bottom tab navigation
- * Order: Home, Categories, FAB (center), AI Assistant, Settings
+ * Order: Home, Categories, FAB (center), Finly AI, Settings
  */
 const MainTabs: React.FC = () => {
   const { theme } = useTheme();
@@ -144,7 +144,7 @@ const MainTabs: React.FC = () => {
           name="AIAssistant"
           component={AIAssistantScreen}
           options={{
-            title: 'AI Assistant',
+            title: 'Finly AI',
             tabBarIcon: () => ({ sfSymbol: 'brain.fill' }),
           }}
         />
@@ -601,7 +601,7 @@ const AppNavigator: React.FC = () => {
                 name="AIAssistant"
                 component={AIAssistantScreen}
                 options={{
-                  title: 'AI Assistant',
+                  title: 'Finly AI',
                   presentation: 'modal',
                   headerShown: false,
                 }}

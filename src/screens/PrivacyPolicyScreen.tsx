@@ -107,7 +107,7 @@ const PrivacyPolicyScreen: React.FC = () => {
 
         <Section title="4. AI Features">
           <Paragraph>
-            When you use our AI features (Voice Entry, AI Assistant):
+            When you use our AI features (Voice Entry, Finly AI):
           </Paragraph>
           <BulletPoint>
             The text or audio you provide is sent to our secure processing servers solely for the purpose of interpreting your request.

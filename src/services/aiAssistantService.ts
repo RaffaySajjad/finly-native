@@ -1,5 +1,5 @@
 /**
- * AI Assistant Service
+ * Finly AI Service
  * Purpose: Handle AI queries for transaction questions, feature explanations, and financial insights
  * Features: Rate limiting, premium gating, context-aware responses
  * Uses backend API for OpenAI integration

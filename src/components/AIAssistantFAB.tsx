@@ -1,6 +1,6 @@
 /**
  * AIAssistantFAB Component
- * Purpose: Floating Action Button for AI Assistant accessible from all screens
+ * Purpose: Floating Action Button for Finly AI accessible from all screens
  * Features: Consistent positioning, premium badge, haptic feedback
  */
 

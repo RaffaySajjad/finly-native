@@ -6,6 +6,9 @@
 
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const BIOMETRIC_ENABLED_KEY = '@biometric_enabled';
 
 /**
  * Check if biometric hardware is available on the device
@@ -114,5 +117,53 @@ export const authenticateForAccountDeletion = async (): Promise<boolean> => {
     : 'Authenticate to delete your account';
 
   return authenticateWithBiometrics(message, 'Cancel');
+};
+
+/**
+ * Check if biometric login is enabled in settings
+ */
+export const isBiometricLoginEnabled = async (): Promise<boolean> => {
+  try {
+    const value = await AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY);
+    return value === 'true';
+  } catch (error) {
+    console.error('Error checking biometric preference:', error);
+    // Default to false on error to avoid lockout loops
+    return false;
+  }
+};
+
+/**
+ * Enable biometric login
+ * returns true if successful
+ */
+export const enableBiometricLogin = async (): Promise<boolean> => {
+  try {
+    // Verify one last time that it works before enabling
+    const authenticated = await authenticateWithBiometrics(
+      'Confirm biometrics to enable login',
+      'Cancel'
+    );
+
+    if (authenticated) {
+      await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error enabling biometric login:', error);
+    return false;
+  }
+};
+
+/**
+ * Disable biometric login
+ */
+export const disableBiometricLogin = async (): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'false');
+  } catch (error) {
+    console.error('Error disabling biometric login:', error);
+  }
 };
 

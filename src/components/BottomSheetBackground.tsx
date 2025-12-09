@@ -37,16 +37,16 @@ export const BottomSheetBackground: React.FC<BottomSheetBackgroundProps> = ({ st
   const { theme, isDark } = useTheme();
 
   // iOS 26+ Liquid Glass Effect
-  if (shouldUseLiquidGlass()) {
-    return (
-      <BlurView
-        style={[StyleSheet.absoluteFill, style]}
-        blurType={isDark ? 'dark' : 'light'} // Adapts to theme
-        blurAmount={20} // Increased blur for liquid glass effect
-        reducedTransparencyFallbackColor={theme.card}
-      />
-    );
-  }
+  // if (shouldUseLiquidGlass()) {
+  //   return (
+  //     <BlurView
+  //       style={[StyleSheet.absoluteFill, style]}
+  //       blurType={isDark ? 'dark' : 'light'} // Adapts to theme
+  //       blurAmount={20} // Increased blur for liquid glass effect
+  //       reducedTransparencyFallbackColor={theme.card}
+  //     />
+  //   );
+  // }
 
   // Fallback for Android and older iOS versions
   return (

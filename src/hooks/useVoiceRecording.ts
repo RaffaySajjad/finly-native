@@ -7,7 +7,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Audio } from 'expo-av';
-import { Platform, Alert } from 'react-native';
+import { Platform, Alert, AppState, AppStateStatus } from 'react-native';
 
 export interface VoiceRecordingState {
   isRecording: boolean;
@@ -91,6 +91,21 @@ export const useVoiceRecording = (): UseVoiceRecordingReturn => {
    */
   const startRecording = useCallback(async (): Promise<void> => {
     try {
+      // Check if app is in foreground (required for audio session activation on iOS)
+      if (AppState.currentState !== 'active') {
+        const errorMsg = 'Please ensure the app is in the foreground to start recording.';
+        setState(prev => ({
+          ...prev,
+          error: errorMsg,
+        }));
+        Alert.alert(
+          'Recording Unavailable',
+          errorMsg,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
       // Check permissions first
       const hasPermission = await requestPermissions();
       if (!hasPermission) {
@@ -102,6 +117,24 @@ export const useVoiceRecording = (): UseVoiceRecordingReturn => {
         await recordingRef.current.stopAndUnloadAsync();
         recordingRef.current = null;
       }
+
+      // Ensure audio mode is set right before recording (critical for iOS)
+      // This must be done right before creating the recording to ensure app is in foreground
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+      } catch (audioModeError) {
+        console.error('[useVoiceRecording] Failed to set audio mode:', audioModeError);
+        // Continue anyway - might still work
+      }
+
+      // Small delay to ensure audio session is ready (helps with iOS background state)
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Create new recording
       const { recording } = await Audio.Recording.createAsync(
@@ -132,11 +165,31 @@ export const useVoiceRecording = (): UseVoiceRecordingReturn => {
       });
     } catch (error) {
       console.error('[useVoiceRecording] Start recording error:', error);
+      
+      // Provide user-friendly error message for background state
+      let errorMessage = 'Failed to start recording';
+      if (error instanceof Error) {
+        if (error.message.includes('background') || error.message.includes('audio session')) {
+          errorMessage = 'Please ensure the app is in the foreground to start recording.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       setState(prev => ({
         ...prev,
         isRecording: false,
-        error: error instanceof Error ? error.message : 'Failed to start recording',
+        error: errorMessage,
       }));
+      
+      // Show alert for background state error
+      if (error instanceof Error && error.message.includes('background')) {
+        Alert.alert(
+          'Recording Unavailable',
+          'Voice recording requires the app to be in the foreground. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
     }
   }, [requestPermissions]);
 
@@ -257,6 +310,39 @@ export const useVoiceRecording = (): UseVoiceRecordingReturn => {
       error: null,
     });
   }, []);
+
+  // Handle app state changes - stop recording if app goes to background
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState !== 'active' && state.isRecording && recordingRef.current) {
+        // App went to background while recording - stop recording gracefully
+        console.warn('[useVoiceRecording] App went to background, stopping recording');
+        if (recordingRef.current) {
+          recordingRef.current.stopAndUnloadAsync()
+            .then(() => {
+              setState(prev => ({
+                ...prev,
+                isRecording: false,
+                isPaused: false,
+                error: 'Recording stopped because app went to background',
+              }));
+            })
+            .catch(console.error);
+          recordingRef.current = null;
+        }
+        if (durationIntervalRef.current) {
+          clearInterval(durationIntervalRef.current);
+          durationIntervalRef.current = null;
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [state.isRecording]);
 
   // Cleanup on unmount
   useEffect(() => {

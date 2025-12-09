@@ -335,9 +335,17 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
     originalAmount?: number,
     originalCurrency?: string
   ): number => {
+    // Validate amount is a valid number
+    if (amount === undefined || amount === null || isNaN(amount)) {
+      console.warn('[CurrencyContext] Invalid amount provided to getTransactionDisplayAmount:', amount);
+      return 0;
+    }
+
     // If we have original amount/currency and it matches the user's current currency (case-insensitive)
     if (
       originalAmount !== undefined &&
+      originalAmount !== null &&
+      !isNaN(originalAmount) &&
       originalCurrency &&
       originalCurrency.toUpperCase() === currencyCode.toUpperCase()
     ) {
@@ -354,8 +362,20 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
    * Prefers originalAmount when originalCurrency matches current currency
    */
   const formatTransactionAmount = (amount: number, originalAmount?: number, originalCurrency?: string): string => {
+    // Validate amount is a valid number
+    if (amount === undefined || amount === null || isNaN(amount)) {
+      console.warn('[CurrencyContext] Invalid amount provided to formatTransactionAmount:', amount);
+      return `${currency.symbol}0${showDecimals ? '.00' : ''}`;
+    }
+
     // Get the display amount (prefers originalAmount if available)
     const displayAmount = getTransactionDisplayAmount(amount, originalAmount, originalCurrency);
+
+    // Validate displayAmount is a valid number
+    if (displayAmount === undefined || displayAmount === null || isNaN(displayAmount)) {
+      console.warn('[CurrencyContext] Invalid displayAmount calculated:', displayAmount);
+      return `${currency.symbol}0${showDecimals ? '.00' : ''}`;
+    }
 
     // Check if number is large enough to use k/M/B notation
     const absAmount = Math.abs(displayAmount);

@@ -62,6 +62,8 @@ export interface IncomeSource {
   customDates?: number[]; // For custom: array of days of month (e.g., [15, 30] for 15th and 30th)
   autoAdd: boolean; // Whether to automatically add income on schedule
   isActive?: boolean;
+  originalAmount?: number | null;
+  originalCurrency?: string | null;
   createdAt: string;
   updatedAt: string;
 }

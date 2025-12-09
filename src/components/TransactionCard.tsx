@@ -213,7 +213,11 @@ const TransactionCardComponent: React.FC<TransactionCardProps> = ({ expense, tra
             { color: isIncome ? theme.income : theme.expense },
           ]}
         >
-          {isIncome ? '+' : '-'}{formatTransactionAmount(tx.amount, tx.originalAmount, tx.originalCurrency)}
+          {isIncome ? '+' : '-'}{formatTransactionAmount(
+            tx.amount ?? 0,
+            tx.originalAmount,
+            tx.originalCurrency
+          )}
         </Text>
         {(() => {
           // Show original currency amount if:
@@ -221,27 +225,30 @@ const TransactionCardComponent: React.FC<TransactionCardProps> = ({ expense, tra
           // 2. originalAmount/originalCurrency are absent AND active currency is not USD (show USD amount)
           
           const hasOriginalCurrency = tx.originalCurrency !== undefined && tx.originalCurrency !== null;
-          const hasOriginalAmount = tx.originalAmount !== undefined && tx.originalAmount !== null;
+          const hasOriginalAmount = tx.originalAmount !== undefined && tx.originalAmount !== null && !isNaN(tx.originalAmount);
+          const hasValidAmount = tx.amount !== undefined && tx.amount !== null && !isNaN(tx.amount);
           
-          if ((hasOriginalAmount || hasOriginalCurrency) && tx.originalCurrency!.toUpperCase() !== currencyCode.toUpperCase()) {
+          if ((hasOriginalAmount || hasOriginalCurrency) && tx.originalCurrency && tx.originalCurrency.toUpperCase() !== currencyCode.toUpperCase()) {
             // Case 1: Show original currency amount when it differs from active currency
-            const originalCurrency = getCurrencyByCode(tx.originalCurrency!);
-            const currencySymbol = originalCurrency?.symbol || tx.originalCurrency!;
-            return (
-              <Text style={[styles.originalAmount, { color: theme.textSecondary }]}>
-                {currencySymbol}{tx.originalAmount!.toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </Text>
-            );
-          } else if ((!hasOriginalAmount || !hasOriginalCurrency) && currencyCode.toUpperCase() !== 'USD') {
+            const originalCurrency = getCurrencyByCode(tx.originalCurrency);
+            const currencySymbol = originalCurrency?.symbol || tx.originalCurrency;
+            if (hasOriginalAmount) {
+              return (
+                <Text style={[styles.originalAmount, { color: theme.textSecondary }]}>
+                  {currencySymbol}{tx.originalAmount!.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Text>
+              );
+            }
+          } else if ((!hasOriginalAmount || !hasOriginalCurrency) && currencyCode.toUpperCase() !== 'USD' && hasValidAmount) {
             // Case 2: Show USD amount when original currency info is missing and active currency is not USD
             const usdCurrency = getCurrencyByCode('USD');
             const usdSymbol = usdCurrency?.symbol || '$';
             return (
               <Text style={[styles.originalAmount, { color: theme.textSecondary }]}>
-                {usdSymbol}{tx.amount.toLocaleString('en-US', {
+                {usdSymbol}{tx.amount!.toLocaleString('en-US', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}

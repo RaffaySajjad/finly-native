@@ -40,6 +40,8 @@ export const createIncomeSource = async (source: Omit<IncomeSource, 'id' | 'crea
       dayOfWeek: source.dayOfWeek,
       customDates: source.customDates,
       autoAdd: source.autoAdd,
+      originalAmount: source.originalAmount ?? undefined,
+      originalCurrency: source.originalCurrency ?? undefined
     });
     return newSource;
   } catch (error) {
@@ -68,6 +70,10 @@ export const updateIncomeSource = async (sourceId: string, updates: Partial<Omit
     if (updates.customDates !== undefined) updateData.customDates = updates.customDates;
     if (updates.autoAdd !== undefined) updateData.autoAdd = updates.autoAdd;
     if (updates.isActive !== undefined) updateData.isActive = updates.isActive;
+    if (updates.originalAmount !== undefined)
+      updateData.originalAmount = updates.originalAmount;
+    if (updates.originalCurrency !== undefined)
+      updateData.originalCurrency = updates.originalCurrency;
     
     const updatedSource = await apiService.updateIncomeSource(sourceId, updateData);
     return updatedSource;

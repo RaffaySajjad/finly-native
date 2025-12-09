@@ -773,14 +773,22 @@ export const apiService = {
     dayOfWeek?: number;
     customDates?: number[];
     autoAdd?: boolean;
+    originalAmount?: number;
+    originalCurrency?: string;
   }): Promise<any> {
     try {
       // Convert Date to ISO string if needed
       const payload = {
         ...data,
-        startDate: data.startDate instanceof Date ? data.startDate.toISOString() : data.startDate,
+        startDate:
+          data.startDate instanceof Date
+            ? data.startDate.toISOString()
+            : data.startDate
       };
-      const response = await api.post<any>(API_ENDPOINTS.INCOME.SOURCES, payload);
+      const response = await api.post<any>(
+        API_ENDPOINTS.INCOME.SOURCES,
+        payload
+      );
       if (!response.success) {
         throw new Error(
           response.error?.message || 'Failed to create income source'
@@ -1246,7 +1254,7 @@ export const apiService = {
         if (cached) {
           const { data, timestamp } = JSON.parse(cached);
           const isExpired = Date.now() - timestamp > CACHE_DURATION;
-          
+
           if (!isExpired) {
             console.log('[API] Returning cached forecast');
             return data;
@@ -1279,15 +1287,18 @@ export const apiService = {
       };
 
       // 3. Update cache
-      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({
-        data,
-        timestamp: Date.now()
-      }));
+      await AsyncStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify({
+          data,
+          timestamp: Date.now()
+        })
+      );
 
       return data;
     } catch (error) {
       console.error('[API] Get spending forecast error:', error);
-      
+
       // Fallback to cache if API fails, even if expired
       try {
         const cached = await AsyncStorage.getItem(CACHE_KEY);

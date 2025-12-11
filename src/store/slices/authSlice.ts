@@ -4,7 +4,7 @@
  * Integrates with finly-core backend API for authentication
  */
 
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import authService from '../../services/authService';
 import { apiService } from '../../services/api';
 
@@ -188,6 +188,23 @@ export const updateProfile = createAsyncThunk(
   }
 );
 
+export const verifyEmail = createAsyncThunk(
+  'auth/verifyEmail',
+  async ({ email, otp }: { email: string; otp: string }, { rejectWithValue }) => {
+    try {
+      const response = await authService.verifyEmail(email, otp);
+      return response;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.error?.message || 
+        error.message || 
+        'Failed to verify email'
+      );
+    }
+  }
+);
+
+
 /**
  * Auth slice with reducers and actions
  */
@@ -195,65 +212,109 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
+    setAuth: (state, action: PayloadAction<{ user: User; tokens?: { accessToken: string; refreshToken: string } }>) => {
+      state.user = action.payload.user;
+      state.isAuthenticated = true;
+      state.isLoading = false;
+      state.error = null;
+    },
+    logout: (state) => {
+      state.user = null;
+      state.isAuthenticated = false;
+      state.isLoading = false;
+      state.error = null;
+      // Clear data but keep onboarding flags?
+      // Ideally handled by service
+    },
     clearError: (state) => {
       state.error = null;
     },
+    resetAuthState: (state) => {
+      state.isLoading = false;
+      state.error = null;
+      state.pendingVerificationEmail = null;
+    },
   },
   extraReducers: (builder) => {
-    // Check auth status
+    // Check Auth Status
     builder
-      .addCase(checkAuthStatus.pending, state => {
+      .addCase(checkAuthStatus.pending, (state) => {
         state.isRestoringAuth = true;
+        state.isLoading = true;
       })
       .addCase(checkAuthStatus.fulfilled, (state, action) => {
+        state.user = action.payload?.user || null; // Access user from payload
+        state.isAuthenticated = !!action.payload?.user; // Check if user exists
         state.isRestoringAuth = false;
-        if (action.payload) {
-          state.user = action.payload.user;
-          state.isAuthenticated = true;
-        }
+        state.isLoading = false;
       })
-      .addCase(checkAuthStatus.rejected, state => {
+      .addCase(checkAuthStatus.rejected, (state) => {
+        state.user = null;
+        state.isAuthenticated = false;
         state.isRestoringAuth = false;
+        state.isLoading = false;
       });
 
     // Login
     builder
-      .addCase(login.pending, state => {
+      .addCase(login.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
       .addCase(login.fulfilled, (state, action) => {
-        state.isLoading = false;
         state.user = action.payload.user;
         state.isAuthenticated = true;
-        state.pendingVerificationEmail = null;
+        state.isLoading = false;
+        state.error = null;
+        state.pendingVerificationEmail = null; // Clear any pending verification
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string;
+        state.error = (action.payload as { message: string; code?: string })?.message || (action.payload as string); // Handle potential object payload
       });
 
-    // Signup - now requires email verification
+    // Signup
     builder
-      .addCase(signup.pending, state => {
+      .addCase(signup.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
       .addCase(signup.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.error = null;
+        // Signup success now means email verification is pending
         state.pendingVerificationEmail = action.payload.pendingVerificationEmail;
-        // User not authenticated yet - needs email verification
+        // Do NOT set isAuthenticated = true yet
       })
       .addCase(signup.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
       });
 
-    // Logout
+    // Verify Email
+    builder
+      .addCase(verifyEmail.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(verifyEmail.fulfilled, (state, action) => {
+        state.user = action.payload.user;
+        state.isAuthenticated = true; // Log them in!
+        state.isLoading = false;
+        state.error = null;
+        state.pendingVerificationEmail = null;
+      })
+      .addCase(verifyEmail.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      });
+
+    // Logout (async thunk)
     builder.addCase(logout.fulfilled, state => {
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
+      state.pendingVerificationEmail = null; // Clear pending verification on logout
     });
 
     // Delete Account

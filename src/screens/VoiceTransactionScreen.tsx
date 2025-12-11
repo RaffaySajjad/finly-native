@@ -63,9 +63,11 @@ const VoiceTransactionScreen: React.FC = () => {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [parsedTransactions, setParsedTransactions] = useState<
     Array<{
+      type: 'expense' | 'income';
       amount: number;
       description: string;
-      categoryId: string;
+      categoryId?: string;
+      incomeSourceId?: string;
       date?: string;
       selected: boolean;
     }>
@@ -305,18 +307,31 @@ const VoiceTransactionScreen: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      const promises = selectedTransactions.map(tx => {
+      const promises = selectedTransactions.map(async (tx) => {
         const originalAmount = tx.amount;
         const amountInUSD = convertToUSD(originalAmount);
+        const txDate = tx.date ? new Date(tx.date) : transactionDate;
         
+        if (tx.type === 'expense') {
         return apiService.addExpense({
           amount: amountInUSD,
           description: tx.description,
-          categoryId: tx.categoryId,
-          date: transactionDate,
+            categoryId: tx.categoryId!,
+            date: txDate,
           originalAmount: originalAmount,
           originalCurrency: currencyCode,
         });
+        } else {
+          // Income transaction
+          return apiService.createIncomeTransaction({
+            amount: amountInUSD,
+            description: tx.description,
+            incomeSourceId: tx.incomeSourceId,
+            date: txDate.toISOString(),
+            originalAmount: originalAmount,
+            originalCurrency: currencyCode,
+          });
+        }
       });
 
       await Promise.all(promises);
@@ -688,17 +703,45 @@ const VoiceTransactionScreen: React.FC = () => {
                   />
                 </View>
                 <View style={styles.transactionDetails}>
+                  <View style={styles.transactionHeader}>
                   <Text style={[styles.transactionDescription, { color: theme.text }]}>
                     {tx.description}
                   </Text>
+                    <View style={[
+                      styles.typeBadge,
+                      { backgroundColor: tx.type === 'income' ? theme.income + '20' : theme.expense + '20' }
+                    ]}>
+                      <Icon
+                        name={tx.type === 'income' ? 'arrow-down' : 'arrow-up'}
+                        size={12}
+                        color={tx.type === 'income' ? theme.income : theme.expense}
+                      />
+                      <Text style={[
+                        styles.typeBadgeText,
+                        { color: tx.type === 'income' ? theme.income : theme.expense }
+                      ]}>
+                        {tx.type === 'income' ? 'Income' : 'Expense'}
+                      </Text>
+                    </View>
+                  </View>
                   <View style={styles.transactionMeta}>
+                    {tx.type === 'expense' && tx.categoryId && (
                     <Text style={[styles.transactionCategory, { color: theme.textSecondary }]}>
-                      Category ID: {tx.categoryId.substring(0, 8)}...
+                        Category: {tx.categoryId.substring(0, 8)}...
                     </Text>
+                    )}
+                    {tx.type === 'income' && tx.incomeSourceId && (
+                      <Text style={[styles.transactionCategory, { color: theme.textSecondary }]}>
+                        Source: {tx.incomeSourceId.substring(0, 8)}...
+                      </Text>
+                    )}
                   </View>
                 </View>
-                <Text style={[styles.transactionAmount, { color: theme.expense }]}>
-                  -{formatCurrency(tx.amount)}
+                <Text style={[
+                  styles.transactionAmount,
+                  { color: tx.type === 'income' ? theme.income : theme.expense }
+                ]}>
+                  {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -1017,10 +1060,30 @@ const styles = StyleSheet.create({
   transactionDetails: {
     flex: 1,
   },
+  transactionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+    gap: spacing.xs,
+  },
   transactionDescription: {
     ...typography.titleSmall,
     fontWeight: '600',
-    marginBottom: 2,
+    flex: 1,
+  },
+  typeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    gap: 4,
+  },
+  typeBadgeText: {
+    ...typography.caption,
+    fontSize: 10,
+    fontWeight: '600',
   },
   transactionCategory: {
     ...typography.bodySmall,

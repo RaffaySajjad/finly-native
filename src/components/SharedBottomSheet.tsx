@@ -75,7 +75,8 @@ const SharedBottomSheet: React.FC = () => {
   const isEditingIncome = !!editingIncome?.id;
 
   // Determine if using translucent background (affects text colors)
-  const usesTranslucentBackground = shouldUseLiquidGlass();
+  // const usesTranslucentBackground = shouldUseLiquidGlass();
+  const usesTranslucentBackground = false;
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
@@ -610,6 +611,71 @@ const SharedBottomSheet: React.FC = () => {
             {isEditingExpense || isEditingIncome ? 'Edit Transaction' : 'Add Transaction'}
           </Text>
 
+          {/* Quick Add Options - Show First for Better UX */}
+          {!isEditingExpense && !isEditingIncome && (
+            <View style={styles.quickAddButtons}>
+              <View style={styles.aiButtonContainer}>
+                <TouchableOpacity
+                  style={[styles.aiButton, { backgroundColor: theme.primary }]}
+                  onPress={() => {
+                    if (requiresUpgrade('voiceEntry')) {
+                      setShowUpgradePrompt(true);
+                      return;
+                    }
+                    bottomSheetRef.current?.close();
+                    setTimeout(() => navigation.navigate('VoiceTransaction'), 300);
+                  }}
+                >
+                  <Icon name="microphone" size={22} color="#FFFFFF" />
+                  <Text style={styles.aiButtonText}>
+                    Speak
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.scanButtonContainer}>
+                <TouchableOpacity
+                  style={[styles.scanButton, { backgroundColor: theme.income }]}
+                  onPress={() => {
+                    bottomSheetRef.current?.close();
+                    setTimeout(() => navigation.navigate('ReceiptUpload'), 300);
+                  }}
+                >
+                  <Icon name="camera-outline" size={22} color="#FFFFFF" />
+                  <Text style={styles.scanButtonText}>
+                    Scan
+                  </Text>
+                  {!isPremium && (() => {
+                    const remaining = getRemainingUsage('receiptScanning');
+                    // Only show badge if remaining is a finite number (not Infinity)
+                    if (remaining !== Infinity && remaining > 0) {
+                      return (
+                        <View style={styles.scanButtonBadge}>
+                          <Text style={styles.scanButtonBadgeText}>
+                            {remaining} left
+                          </Text>
+                        </View>
+                      );
+                    }
+                    return null;
+                  })()}
+                </TouchableOpacity>
+                {isPremium && (
+                  <View style={styles.premiumBadgeOverlay}>
+                    <View style={[
+                      styles.premiumIconBadge,
+                      {
+                        backgroundColor: theme.warning,
+                      }
+                    ]}>
+                      <Icon name="crown" size={12} color="#1A1A1A" />
+                    </View>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
           {/* Transaction Type Toggle - Pill Style */}
           <View
             style={[styles.transactionTypeToggle, { backgroundColor: theme.card, borderColor: theme.border }]}
@@ -682,71 +748,6 @@ const SharedBottomSheet: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Quick Add Options - Only for Expenses */}
-          {transactionType === 'expense' && (
-            <View style={styles.quickAddButtons}>
-              <View style={styles.aiButtonContainer}>
-                <TouchableOpacity
-                  style={[styles.aiButton, { backgroundColor: theme.primary }]}
-                  onPress={() => {
-                    if (requiresUpgrade('voiceEntry')) {
-                      setShowUpgradePrompt(true);
-                      return;
-                    }
-                    bottomSheetRef.current?.close();
-                    setTimeout(() => navigation.navigate('VoiceTransaction'), 300);
-                  }}
-                >
-                  <Icon name="microphone" size={22} color="#FFFFFF" />
-                  <Text style={styles.aiButtonText}>
-                    Speak
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.scanButtonContainer}>
-                <TouchableOpacity
-                  style={[styles.scanButton, { backgroundColor: theme.income }]}
-                  onPress={() => {
-                    bottomSheetRef.current?.close();
-                    setTimeout(() => navigation.navigate('ReceiptUpload'), 300);
-                  }}
-                >
-                  <Icon name="camera-outline" size={22} color="#FFFFFF" />
-                  <Text style={styles.scanButtonText}>
-                    Scan
-                  </Text>
-                  {!isPremium && (() => {
-                    const remaining = getRemainingUsage('receiptScanning');
-                    // Only show badge if remaining is a finite number (not Infinity)
-                    if (remaining !== Infinity && remaining > 0) {
-                      return (
-                        <View style={styles.scanButtonBadge}>
-                          <Text style={styles.scanButtonBadgeText}>
-                            {remaining} left
-                          </Text>
-                        </View>
-                      );
-                    }
-                    return null;
-                  })()}
-                </TouchableOpacity>
-                {isPremium && (
-                  <View style={styles.premiumBadgeOverlay}>
-                    <View style={[
-                      styles.premiumIconBadge,
-                      {
-                        backgroundColor: theme.warning,
-                      }
-                    ]}>
-                      <Icon name="crown" size={12} color="#1A1A1A" />
-                    </View>
-                  </View>
-                )}
-              </View>
-            </View>
-          )}
-
           {/* Income Form */}
           {transactionType === 'income' && (
             <>
@@ -759,7 +760,7 @@ const SharedBottomSheet: React.FC = () => {
                   styles.dividerText,
                   { color: usesTranslucentBackground ? '#FFFFFF' : theme.textSecondary }
                 ]}>
-                  INCOME DETAILS
+                  OR ADD MANUALLY
                 </Text>
                 <View style={[
                   styles.dividerLine,
@@ -861,8 +862,8 @@ const SharedBottomSheet: React.FC = () => {
             </>
           )}
 
-          {/* Expense-only Options */}
-          {transactionType === 'expense' && (
+          {/* Manual Entry Form */}
+          {(transactionType === 'expense' || transactionType === 'income') && (
             <>
               <View style={styles.divider}>
                 <View style={[

@@ -66,9 +66,8 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({
     onCurrencySelect(currencyCode);
   };
 
-  // Get currencies that are in the recently used list (up to 3, excluding current selection)
+  // Get currencies that are in the recently used list (up to 3)
   const recentlyUsedCurrencies = lastUsedCurrencies
-    .filter(code => code !== selectedCurrency)
     .slice(0, 3)
     .map(code => currencies.find(c => c.code === code))
     .filter((curr): curr is Currency => curr !== undefined);
@@ -76,7 +75,7 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({
   // Get all other currencies (excluding recently used ones and current selection)
   const otherCurrencies = currencies.filter(
     curr => !lastUsedCurrencies.includes(curr.code) || curr.code === selectedCurrency
-  );
+  ).filter(curr => curr.code !== selectedCurrency);
 
   const renderCurrencyOption = (curr: Currency) => {
     const isSelected = selectedCurrency === curr.code;

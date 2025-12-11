@@ -10,6 +10,7 @@ export type AuthStackParamList = {
   Signup: undefined;
   ForgotPassword: undefined;
   ResetPassword: { email: string };
+  Verification: { email: string };
 };
 
 export type RootStackParamList = {

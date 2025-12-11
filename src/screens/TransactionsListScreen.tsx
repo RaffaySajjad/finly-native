@@ -314,7 +314,12 @@ const TransactionsListScreen: React.FC = () => {
       if (initialLoad) {
         setTransactions(result.transactions);
       } else {
-        setTransactions((prev) => [...prev, ...result.transactions]);
+        // Deduplicate transactions by ID to prevent duplicate keys
+        setTransactions((prev) => {
+          const existingIds = new Set(prev.map(tx => tx.id));
+          const newTransactions = result.transactions.filter(tx => !existingIds.has(tx.id));
+          return [...prev, ...newTransactions];
+        });
       }
 
       setHasMore(result.pagination.hasMore);
@@ -625,7 +630,7 @@ const TransactionsListScreen: React.FC = () => {
       {renderDateHeader({ item })}
       {item.transactions.map((transaction) => (
         <TransactionCard
-          key={transaction.id}
+          key={`${item.date}-${transaction.id}`}
           transaction={transaction}
           onPress={() => handleTransactionPress(transaction)}
           onLongPress={() => handleTransactionLongPress(transaction)}

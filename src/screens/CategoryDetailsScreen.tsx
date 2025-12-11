@@ -118,10 +118,11 @@ const isCurrentMonth = (dateString: string): boolean => {
  * Get month label for grouping
  */
 const getMonthLabel = (dateString: string, isCurrent: boolean): string => {
-  if (isCurrent) {
-    return "This Month's Transactions";
-  }
   const date = new Date(dateString);
+  if (isCurrent) {
+    const monthName = date.toLocaleDateString('en-US', { month: 'long' });
+    return `${monthName} (This month)`;
+  }
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 };
 
@@ -182,8 +183,10 @@ const groupExpensesByMonthAndDate = (expenses: Expense[]): MonthGroupedExpenses[
 
   // Add current month group if it has expenses
   if (currentMonthExpenses.length > 0) {
+    const currentDate = new Date();
+    const monthName = currentDate.toLocaleDateString('en-US', { month: 'long' });
     result.push({
-      monthLabel: "This Month's Transactions",
+      monthLabel: `${monthName} (This month)`,
       isCurrentMonth: true,
       dateGroups: groupByDate(currentMonthExpenses),
     });
@@ -487,9 +490,18 @@ const CategoryDetailsScreen: React.FC = () => {
           <View>
             {/* Month Header */}
             <View style={[styles.monthHeader, { backgroundColor: theme.background }]}>
-              <Text style={[styles.monthHeaderText, { color: theme.text }]}>
-                {monthGroup.monthLabel}
-              </Text>
+              {monthGroup.isCurrentMonth ? (
+                <Text style={[styles.monthHeaderText, { color: theme.text }]}>
+                  {monthGroup.monthLabel.replace(' (This month)', '')}
+                  <Text style={{ color: theme.textSecondary, fontWeight: '400' }}>
+                    {' (This month)'}
+                  </Text>
+                </Text>
+              ) : (
+                  <Text style={[styles.monthHeaderText, { color: theme.text }]}>
+                    {monthGroup.monthLabel}
+                  </Text>
+              )}
             </View>
 
             {/* Date groups within this month */}

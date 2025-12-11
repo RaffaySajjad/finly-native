@@ -45,7 +45,6 @@ const LoginScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isResendingEmail, setIsResendingEmail] = useState(false);
   
   // Error states
   const [emailError, setEmailError] = useState('');
@@ -174,8 +173,8 @@ const LoginScreen: React.FC = () => {
           `Please check your email (${email}) and click the verification link to activate your account. If you didn't receive the email, please check your spam folder.`,
           [
             {
-              text: 'Resend Email',
-              onPress: () => handleResendVerificationEmail(email),
+              text: 'Verify Email',
+              onPress: () => handleVerifyEmail(email),
               style: 'default',
             },
             {
@@ -226,19 +225,10 @@ const LoginScreen: React.FC = () => {
     }
   };
 
-  const handleResendVerificationEmail = async (emailAddress: string) => {
-    if (isResendingEmail) return;
 
-    setIsResendingEmail(true);
-    setGeneralError('');
-    try {
-      await authService.resendVerificationEmail(emailAddress);
-      // Success is handled by the info dialog
-    } catch (error: any) {
-      setGeneralError(error?.message || 'Failed to resend verification email. Please try again later.');
-    } finally {
-      setIsResendingEmail(false);
-    }
+
+  const handleVerifyEmail = (emailAddress: string) => {
+    navigation.navigate('Verification', { email: emailAddress });
   };
 
   return (

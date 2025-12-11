@@ -94,15 +94,14 @@ class AuthService {
    */
   async resendVerificationEmail(email: string): Promise<{ message: string }> {
     try {
-      const response = await api.post<{ message: string }>(API_ENDPOINTS.AUTH.RESEND_VERIFICATION, { email });
-
+      const response = await api.post<{ message: string }>(
+        API_ENDPOINTS.AUTH.RESEND_VERIFICATION,
+        { email }
+      );
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to resend verification email');
       }
-
-      return {
-        message: response.message || 'Verification email sent successfully',
-      };
+      return { message: response.message || 'Verification email sent successfully' };
     } catch (error: any) {
       console.error('[AuthService] Resend verification email error:', error);
       throw this.handleError(error);
@@ -256,29 +255,29 @@ class AuthService {
 
   /**
    * Verify email with OTP
-   * TODO: Implement backend endpoint for email verification
    */
-  async verifyEmail(payload: { email: string; otp: string }): Promise<{ user: User }> {
+  async verifyEmail(email: string, otp: string): Promise<AuthResponse> {
     try {
-      // Mock implementation - replace with actual API call when backend is ready
-      const response: any = {
-        success: true,
-        data: {
-          user: {
-            id: 'mock-user-id',
-            name: 'Mock User',
-            email: payload.email,
-            emailVerified: true,
-            createdAt: new Date().toISOString(),
-          },
-        },
-      };
+      const response = await api.post<AuthResponse>(API_ENDPOINTS.AUTH.VERIFY_EMAIL, {
+        email,
+        otp,
+      });
 
       if (!response.success) {
-        throw new Error('Email verification failed');
+        throw new Error(response.error?.message || 'Email verification failed');
       }
 
-      return { user: response.data.user };
+      const { user, tokens } = response.data!;
+
+      // Store tokens and user data if tokens are returned
+      if (tokens) {
+        await Promise.all([
+          tokenManager.setTokens(tokens.accessToken, tokens.refreshToken),
+          AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user)),
+        ]);
+      }
+
+      return response.data!;
     } catch (error: any) {
       console.error('[AuthService] Verify email error:', error);
       throw this.handleError(error);
@@ -287,20 +286,9 @@ class AuthService {
 
   /**
    * Resend OTP for email verification
-   * TODO: Implement backend endpoint for resending OTP
    */
   async resendOTP(email: string): Promise<{ message: string }> {
-    try {
-      // Mock implementation - replace with actual API call when backend is ready
-      console.log('[AuthService] Resending OTP to:', email);
-      
-      return {
-        message: 'OTP resent successfully',
-      };
-    } catch (error: any) {
-      console.error('[AuthService] Resend OTP error:', error);
-      throw this.handleError(error);
-    }
+     return this.resendVerificationEmail(email);
   }
 
   /**

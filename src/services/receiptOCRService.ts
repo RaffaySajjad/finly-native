@@ -11,9 +11,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../config/api.config';
 
 export interface ExtractedTransaction {
+  type: 'expense' | 'income';
   amount: number; // Amount in USD (for database storage)
   description: string;
-  categoryId: string;
+  categoryId?: string;
+  incomeSourceId?: string;
   date: string;
   originalAmount: number; // Original amount in user's currency
   originalCurrency: string; // User's currency code

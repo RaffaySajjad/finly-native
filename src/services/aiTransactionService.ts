@@ -8,14 +8,15 @@ import { api } from './apiClient';
 import { Expense, Category } from '../types';
 
 /**
- * Parse natural language input to extract transactions
+ * Parse natural language input to extract transactions (both income and expense)
  * Examples:
  * - "Lunch at Cafe Luna $42.50, Uber $15, Groceries $89.99"
  * - "Coffee $5.50 yesterday, Gas $30 today"
+ * - "Received salary $5000, Freelance payment $2000"
  * - "Starbucks $8.75, Target $67.50, Dinner $45"
  * 
  * @param input - The natural language input string
- * @param categories - Available categories to match against
+ * @param categories - Available categories to match against (kept for compatibility)
  * @param currencySymbol - Optional currency symbol to use in parsing (defaults to $ for backwards compatibility)
  * @param currencyCode - Optional currency code (e.g., 'PKR', 'USD') to provide context to the AI
  */
@@ -24,14 +25,27 @@ export async function parseTransactionInput(
   categories: Category[], // Kept for signature compatibility, but unused as backend handles it
   currencySymbol: string = '$',
   currencyCode?: string
-): Promise<Array<Omit<Expense, 'id' | 'date' | 'category' | 'createdAt' | 'updatedAt'>>> {
+): Promise<
+  Array<{
+    type: 'expense' | 'income';
+    amount: number;
+    description: string;
+    categoryId?: string;
+    incomeSourceId?: string;
+    date: string;
+  }>
+> {
   try {
-    const response = await api.post<Array<{
-      amount: number;
-      description: string;
-      categoryId: string;
-      date: string;
-    }>>('/ai/parse-transactions', { 
+    const response = await api.post<
+      Array<{
+        type: 'expense' | 'income';
+        amount: number;
+        description: string;
+        categoryId?: string;
+        incomeSourceId?: string;
+        date: string;
+      }>
+    >('/ai/parse-transactions', {
       input,
       ...(currencyCode && { currencyCode })
     });
@@ -40,13 +54,7 @@ export async function parseTransactionInput(
       throw new Error('Failed to parse transactions');
     }
 
-    return response.data.map((tx) => ({
-      amount: tx.amount,
-      description: tx.description,
-      categoryId: tx.categoryId,
-      // Date is returned by backend but not used in the return type of this function
-      // The calling component handles the date assignment if needed, or we can update the type
-    }));
+    return response.data;
   } catch (error) {
     console.error('Error parsing transactions:', error);
     throw error;

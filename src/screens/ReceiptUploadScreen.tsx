@@ -214,69 +214,82 @@ const ReceiptUploadScreen: React.FC = () => {
       // Track usage for free tier
       trackUsage('receiptScanning');
 
-      // Combine multiple transactions into one if needed
-      let combinedTransaction;
-      
-      if (extractedTransactions.length > 1) {
-        // Combine multiple transactions into a single transaction
-        const totalAmount = extractedTransactions.reduce((sum, tx) => sum + tx.amount, 0);
-        const totalOriginalAmount = extractedTransactions.reduce(
-          (sum, tx) => sum + (tx.originalAmount || 0), 
-          0
-        );
-        
-        // Get the first transaction's details as base
-        const firstTx = extractedTransactions[0];
-        
-        // Check if all transactions have the same currency
-        const allSameCurrency = extractedTransactions.every(
-          tx => tx.originalCurrency === firstTx.originalCurrency
-        );
-        
-        // Build combined description
-        // Extract merchant name from first transaction (usually before " - " or similar)
-        const merchantName = firstTx.description.split(' - ')[0] || 
-                            firstTx.description.split(' ')[0] || 
-                            'Receipt';
-        
-        // Create description indicating it's a combined transaction
-        const itemCount = extractedTransactions.length;
-        const combinedDescription = `${merchantName} - ${itemCount} items`;
-        
-        combinedTransaction = {
-          amount: totalAmount, // Combined USD amount
-          description: combinedDescription,
-          categoryId: firstTx.categoryId, // Use first transaction's category
-          date: firstTx.date, // Use first transaction's date
-          originalAmount: allSameCurrency && totalOriginalAmount > 0 
-            ? totalOriginalAmount 
-            : firstTx.originalAmount, // Combined original amount if same currency
-          originalCurrency: firstTx.originalCurrency, // Use first transaction's currency
-        };
-      } else {
-        // Single transaction - use as is
-        combinedTransaction = {
-          amount: extractedTransactions[0].amount,
-          description: extractedTransactions[0].description,
-          categoryId: extractedTransactions[0].categoryId,
-          date: extractedTransactions[0].date,
-          originalAmount: extractedTransactions[0].originalAmount,
-          originalCurrency: extractedTransactions[0].originalCurrency,
-        };
+      // Separate expenses and income transactions
+      const expenseTransactions = extractedTransactions.filter(tx => tx.type === 'expense');
+      const incomeTransactions = extractedTransactions.filter(tx => tx.type === 'income');
+
+      // Process expenses and income separately
+      if (expenseTransactions.length > 0) {
+        // Handle expense transactions
+        let combinedExpense;
+
+        if (expenseTransactions.length > 1) {
+          // Combine multiple expense transactions
+          const totalAmount = expenseTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+          const totalOriginalAmount = expenseTransactions.reduce(
+            (sum, tx) => sum + (tx.originalAmount || 0),
+            0
+          );
+
+          const firstTx = expenseTransactions[0];
+          const allSameCurrency = expenseTransactions.every(
+            tx => tx.originalCurrency === firstTx.originalCurrency
+          );
+
+          const merchantName = firstTx.description.split(' - ')[0] ||
+            firstTx.description.split(' ')[0] ||
+            'Receipt';
+
+          combinedExpense = {
+            amount: totalAmount,
+            description: `${merchantName} - ${expenseTransactions.length} items`,
+            categoryId: firstTx.categoryId!,
+            date: firstTx.date,
+            originalAmount: allSameCurrency && totalOriginalAmount > 0
+              ? totalOriginalAmount 
+              : firstTx.originalAmount,
+            originalCurrency: firstTx.originalCurrency,
+          };
+        } else {
+          combinedExpense = {
+            amount: expenseTransactions[0].amount,
+            description: expenseTransactions[0].description,
+            categoryId: expenseTransactions[0].categoryId!,
+            date: expenseTransactions[0].date,
+            originalAmount: expenseTransactions[0].originalAmount,
+            originalCurrency: expenseTransactions[0].originalCurrency,
+          };
+        }
+
+        // Save receipt to gallery (premium feature) - only for expenses
+        if (isPremium) {
+          const merchantName = combinedExpense.description.split(' - ')[0] || combinedExpense.description;
+          await receiptService.saveReceipt({
+            imageUrl: image,
+            extractedData: {
+              merchant: merchantName,
+              date: combinedExpense.date,
+              total: combinedExpense.amount,
+            },
+            categoryId: combinedExpense.categoryId,
+          });
+        }
+
+        // Navigate to Add Expense
+        navigation.navigate('AddExpense', {
+          expense: combinedExpense,
+        });
       }
 
-      // Save receipt to gallery (premium feature)
-      if (isPremium && extractedTransactions.length > 0) {
-        const merchantName = combinedTransaction.description.split(' - ')[0] || combinedTransaction.description;
-        await receiptService.saveReceipt({
-          imageUrl: image,
-          extractedData: {
-            merchant: merchantName,
-            date: combinedTransaction.date,
-            total: combinedTransaction.amount,
-          },
-          categoryId: combinedTransaction.categoryId,
-        });
+      if (incomeTransactions.length > 0) {
+        // Handle income transactions - open bottom sheet with income pre-filled
+        // For now, navigate back and let user manually add via bottom sheet
+        // In future, we can add a navigation param to pre-fill income
+        Alert.alert(
+          'Income Detected',
+          `Found ${incomeTransactions.length} income transaction(s). Please add them manually using the income form.`,
+          [{ text: 'OK' }]
+        );
       }
 
       // Success haptic
@@ -285,11 +298,6 @@ const ReceiptUploadScreen: React.FC = () => {
       }
 
       setScanning(false);
-      
-      // Navigate to Add Expense with combined transaction
-      navigation.navigate('AddExpense', {
-        expense: combinedTransaction,
-      });
     } catch (error: any) {
       setScanning(false);
 

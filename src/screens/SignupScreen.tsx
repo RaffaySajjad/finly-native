@@ -152,22 +152,12 @@ const SignupScreen: React.FC = () => {
       const result = await dispatch(signupAction({ name, email, password })).unwrap();
       console.log('[SignupScreen] Signup successful, result:', result);
       
-      // Show success message
-      showSuccess(
-        'Check Your Email',
-        `We've sent a verification link to ${email}. Please check your inbox and click the link to verify your account. If you didn't receive the email, please check your spam folder.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('Login'),
-          },
-        ]
-      );
-    } catch (error) {
+      // Navigate to verification screen with email
+      navigation.navigate('Verification', { email });
+    } catch (error: any) {
       console.error('[SignupScreen] Signup failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Signup failed. Please try again.';
-      
-      // Try to determine which field has the error
+
       // Show error above the button
       setGeneralError(errorMessage);
       // Clear field errors to avoid confusion

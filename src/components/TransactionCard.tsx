@@ -233,14 +233,14 @@ const TransactionCardComponent: React.FC<TransactionCardProps> = ({ expense, tra
             const originalCurrency = getCurrencyByCode(tx.originalCurrency);
             const currencySymbol = originalCurrency?.symbol || tx.originalCurrency;
             if (hasOriginalAmount) {
-              return (
-                <Text style={[styles.originalAmount, { color: theme.textSecondary }]}>
-                  {currencySymbol}{tx.originalAmount!.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </Text>
-              );
+            return (
+              <Text style={[styles.originalAmount, { color: theme.textSecondary }]}>
+                {currencySymbol}{tx.originalAmount!.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </Text>
+            );
             }
           } else if ((!hasOriginalAmount || !hasOriginalCurrency) && currencyCode.toUpperCase() !== 'USD' && hasValidAmount) {
             // Case 2: Show USD amount when original currency info is missing and active currency is not USD

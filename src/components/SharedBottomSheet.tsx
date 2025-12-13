@@ -52,7 +52,7 @@ const SharedBottomSheet: React.FC = () => {
   const [toggleWidth, setToggleWidth] = useState(0);
   const navigation = useNavigation<SharedBottomSheetNavigationProp>();
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const { setBottomSheetRef, onTransactionAdded, editingExpense, editingIncome, setEditingExpense, setEditingIncome } = useBottomSheet();
+  const { setBottomSheetRef, onTransactionAdded, editingExpense, editingIncome, setEditingExpense, setEditingIncome, onParsedTransactionUpdate } = useBottomSheet();
 
   // Helper function to convert amount from a specific currency to USD
   const convertCurrencyToUSD = async (amount: number, fromCurrency: string): Promise<number> => {
@@ -383,13 +383,37 @@ const SharedBottomSheet: React.FC = () => {
         payload.tags = newExpenseTags;
       }
 
-      if (isEditingExpense && editingExpense?.id) {
-        // Update existing expense
+      // Check if this is a temporary ID (from parsed transactions) or a real expense ID
+      const isTempId = editingExpense?.id?.startsWith('temp-');
+      
+      if (isEditingExpense && editingExpense?.id && !isTempId) {
+        // Update existing expense (real ID from database)
         await apiService.updateExpense(editingExpense.id, payload);
         handleCloseBottomSheet();
         showSuccess('Success', 'Expense updated successfully! 🎉');
+      } else if (isTempId && editingExpense?.id) {
+        // Update parsed transaction preview card instead of creating new transaction
+        const indexMatch = editingExpense.id.match(/temp-expense-(\d+)/);
+        if (indexMatch && onParsedTransactionUpdate) {
+          const index = parseInt(indexMatch[1], 10);
+          onParsedTransactionUpdate({
+            index,
+            type: 'expense',
+            amount: originalAmount,
+            description: newExpenseDescription.trim(),
+            categoryId: newExpenseCategoryId,
+            date: newExpenseDate.toISOString(),
+          });
+          handleCloseBottomSheet();
+          showSuccess('Success', 'Transaction updated!');
+        } else {
+          // Fallback: create new expense if callback not available
+          await apiService.addExpense(payload);
+          handleCloseBottomSheet();
+          showSuccess('Success', 'Expense added successfully! 🎉');
+        }
       } else {
-      // Create new expense
+        // Create new expense (new transaction)
         await apiService.addExpense(payload);
         handleCloseBottomSheet();
         showSuccess('Success', 'Expense added successfully! 🎉');
@@ -455,13 +479,37 @@ const SharedBottomSheet: React.FC = () => {
 
       console.log('[DEBUG FE] Sending income transaction:', payload);
 
-      if (isEditingIncome && editingIncome?.id) {
-        // Update existing income transaction
+      // Check if this is a temporary ID (from parsed transactions) or a real income ID
+      const isTempIncomeId = editingIncome?.id?.startsWith('temp-');
+
+      if (isEditingIncome && editingIncome?.id && !isTempIncomeId) {
+        // Update existing income transaction (real ID from database)
         await apiService.updateIncomeTransaction(editingIncome.id, payload);
         handleCloseBottomSheet();
         showSuccess('Success', 'Income updated successfully! 💰');
+      } else if (isTempIncomeId && editingIncome?.id) {
+        // Update parsed transaction preview card instead of creating new transaction
+        const indexMatch = editingIncome.id.match(/temp-income-(\d+)/);
+        if (indexMatch && onParsedTransactionUpdate) {
+          const index = parseInt(indexMatch[1], 10);
+          onParsedTransactionUpdate({
+            index,
+            type: 'income',
+            amount: originalAmount,
+            description: newIncomeDescription.trim(),
+            incomeSourceId: newIncomeSourceId,
+            date: newIncomeDate.toISOString(),
+          });
+          handleCloseBottomSheet();
+          showSuccess('Success', 'Transaction updated!');
+        } else {
+          // Fallback: create new income if callback not available
+          await apiService.createIncomeTransaction(payload);
+          handleCloseBottomSheet();
+          showSuccess('Success', 'Income recorded successfully! 💰');
+        }
       } else {
-      // Create new income transaction
+        // Create new income transaction (new transaction)
         await apiService.createIncomeTransaction(payload);
         handleCloseBottomSheet();
         showSuccess('Success', 'Income recorded successfully! 💰');
@@ -862,8 +910,8 @@ const SharedBottomSheet: React.FC = () => {
             </>
           )}
 
-          {/* Manual Entry Form */}
-          {(transactionType === 'expense' || transactionType === 'income') && (
+          {/* Manual Entry Form - Only show for expenses (income has its own form above) */}
+          {transactionType === 'expense' && (
             <>
               <View style={styles.divider}>
                 <View style={[

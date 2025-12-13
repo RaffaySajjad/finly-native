@@ -12,6 +12,7 @@ export * from './ExpenseOptionsSheet';
 export * from './SkeletonLoader';
 export * from './ConfettiCelebration';
 export * from './BottomSheetBackground';
+export * from './BottomSheetBackdrop';
 export * from './PremiumBadge';
 export * from './UpgradePrompt';
 export * from './platform/PlatformCard';

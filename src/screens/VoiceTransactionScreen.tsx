@@ -30,11 +30,13 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
 import { useVoiceRecording } from '../hooks/useVoiceRecording';
+import { useBottomSheet, ParsedTransactionUpdate } from '../contexts/BottomSheetContext';
 import { UpgradePrompt, DatePickerInput, ToggleSelector } from '../components';
 import { parseTransactionInput } from '../services/aiTransactionService';
 import { transcribeAudio } from '../services/voiceTranscriptionService';
 import { apiService } from '../services/api';
 import { RootStackParamList } from '../navigation/types';
+import { Expense, IncomeTransaction } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
@@ -46,6 +48,7 @@ const VoiceTransactionScreen: React.FC = () => {
   const { formatCurrency, getCurrencySymbol, currencyCode, convertToUSD } = useCurrency();
   const navigation = useNavigation<NavigationProp>();
   const { isPremium, requiresUpgrade } = useSubscription();
+  const { openBottomSheet, setOnParsedTransactionUpdate } = useBottomSheet();
   const {
     state: recordingState,
     startRecording,
@@ -380,12 +383,89 @@ const VoiceTransactionScreen: React.FC = () => {
     );
   };
 
+  // Handle editing a parsed transaction
+  const handleEditTransaction = (index: number) => {
+    const tx = parsedTransactions[index];
+    if (!tx) return;
+
+    const txDate = tx.date ? new Date(tx.date) : transactionDate;
+
+    if (tx.type === 'expense') {
+      // Create a temporary Expense object for editing
+      // Note: tx.amount is already in display currency from parsing
+      const expense: Expense = {
+        id: `temp-expense-${index}`, // Temporary ID to identify this as a parsed transaction
+        amount: convertToUSD(tx.amount),
+        categoryId: tx.categoryId || '',
+        category: {
+          id: tx.categoryId || '',
+          name: '',
+          icon: '',
+          color: '',
+        },
+        description: tx.description,
+        date: txDate.toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        originalAmount: tx.amount,
+        originalCurrency: currencyCode,
+      };
+      // Open bottom sheet directly without navigating away
+      openBottomSheet(expense);
+    } else {
+      // Create a temporary IncomeTransaction object for editing
+      // Note: tx.amount is already in display currency from parsing
+      const income: IncomeTransaction = {
+        id: `temp-income-${index}`, // Temporary ID to identify this as a parsed transaction
+        userId: '', // Will be set by the API
+        incomeSourceId: tx.incomeSourceId,
+        amount: convertToUSD(tx.amount),
+        date: txDate.toISOString(),
+        description: tx.description,
+        autoAdded: false,
+        createdAt: new Date().toISOString(),
+        originalAmount: tx.amount,
+        originalCurrency: currencyCode,
+      };
+      // Open bottom sheet directly without navigating away
+      openBottomSheet(undefined, income);
+    }
+  };
+
   const toggleSelectAll = () => {
     const allSelected = parsedTransactions.every(tx => tx.selected);
     setParsedTransactions(prev =>
       prev.map(tx => ({ ...tx, selected: !allSelected }))
     );
   };
+
+  // Register callback to update parsed transactions when edited from bottom sheet
+  useEffect(() => {
+    const updateCallback = (update: ParsedTransactionUpdate) => {
+      setParsedTransactions(prev => {
+        const updated = [...prev];
+        if (updated[update.index]) {
+          updated[update.index] = {
+            ...updated[update.index],
+            type: update.type,
+            amount: update.amount,
+            description: update.description,
+            categoryId: update.categoryId,
+            incomeSourceId: update.incomeSourceId,
+            date: update.date,
+            selected: updated[update.index].selected, // Preserve selection state
+          };
+        }
+        return updated;
+      });
+    };
+
+    setOnParsedTransactionUpdate(updateCallback);
+
+    return () => {
+      setOnParsedTransactionUpdate(null);
+    };
+  }, [setOnParsedTransactionUpdate]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -680,7 +760,7 @@ const VoiceTransactionScreen: React.FC = () => {
                   },
                   elevation.sm,
                 ]}
-                onPress={() => toggleTransactionSelection(index)}
+                onPress={() => handleEditTransaction(index)}
                 activeOpacity={0.7}
               >
                 <TouchableOpacity
@@ -691,7 +771,10 @@ const VoiceTransactionScreen: React.FC = () => {
                       borderColor: tx.selected ? theme.primary : theme.border,
                     }
                   ]}
-                  onPress={() => toggleTransactionSelection(index)}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    toggleTransactionSelection(index);
+                  }}
                 >
                   {tx.selected && <Icon name="check" size={16} color="#FFFFFF" />}
                 </TouchableOpacity>
@@ -741,7 +824,7 @@ const VoiceTransactionScreen: React.FC = () => {
                   styles.transactionAmount,
                   { color: tx.type === 'income' ? theme.income : theme.expense }
                 ]}>
-                  {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
+                  {tx.type === 'income' ? '+' : '-'}{formatCurrency(convertToUSD(tx.amount))}
                 </Text>
               </TouchableOpacity>
             ))}

@@ -1331,6 +1331,89 @@ export const apiService = {
       console.error('[API] Delete all data error:', error);
       throw error;
     }
+  },
+
+  /**
+   * Get user preferences
+   */
+  async getPreferences(): Promise<{ notificationsEnabled: boolean }> {
+    try {
+      const response = await api.get<{ notificationsEnabled: boolean }>(
+        '/auth/preferences'
+      );
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to get preferences');
+      }
+      return response.data || { notificationsEnabled: true };
+    } catch (error) {
+      console.error('[API] Get preferences error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update user preferences
+   */
+  async updatePreferences(preferences: {
+    notificationsEnabled: boolean;
+  }): Promise<{ notificationsEnabled: boolean }> {
+    try {
+      const response = await api.put<{ notificationsEnabled: boolean }>(
+        '/auth/preferences',
+        preferences
+      );
+      if (!response.success) {
+        throw new Error(
+          response.error?.message || 'Failed to update preferences'
+        );
+      }
+      return response.data || preferences;
+    } catch (error) {
+      console.error('[API] Update preferences error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Register push notification token
+   */
+  async registerPushToken(
+    token: string,
+    platform: 'ios' | 'android',
+    deviceId?: string
+  ): Promise<void> {
+    try {
+      const response = await api.post('/auth/push-token', {
+        token,
+        platform,
+        deviceId
+      });
+      if (!response.success) {
+        throw new Error(
+          response.error?.message || 'Failed to register push token'
+        );
+      }
+    } catch (error) {
+      console.error('[API] Register push token error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Remove push notification token
+   */
+  async removePushToken(token: string): Promise<void> {
+    try {
+      const response = await api.delete(`/auth/push-token/${token}`);
+      if (!response.success) {
+        throw new Error(
+          response.error?.message || 'Failed to remove push token'
+        );
+      }
+    } catch (error) {
+      console.error('[API] Remove push token error:', error);
+      throw error;
+    }
   }
 };
 

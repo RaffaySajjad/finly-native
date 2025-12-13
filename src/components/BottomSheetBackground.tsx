@@ -55,6 +55,15 @@ export const BottomSheetBackground: React.FC<BottomSheetBackgroundProps> = ({ st
         StyleSheet.absoluteFill,
         {
           backgroundColor: theme.card,
+          // Add shadow/elevation to top of bottom sheet for better visual separation
+          shadowColor: '#000000',
+          shadowOffset: {
+            width: 0,
+            height: -4, // Negative height creates shadow above
+          },
+          shadowOpacity: 0.15,
+          shadowRadius: 8,
+          elevation: 8, // Android elevation
         },
         style,
       ]}

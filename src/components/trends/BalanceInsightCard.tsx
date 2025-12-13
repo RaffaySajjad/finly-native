@@ -1,9 +1,39 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useCurrency } from '../../contexts/CurrencyContext';
 import { typography, spacing, borderRadius } from '../../theme';
+
+/**
+ * Convert USD amounts in text to user's active currency
+ * @param text - Text containing USD amounts (e.g., "$150", "$1,234.56")
+ * @param formatCurrency - Function to format currency amounts (already converts from USD internally)
+ * @returns Text with converted amounts
+ */
+const convertCurrencyAmountsInText = (
+    text: string,
+    formatCurrency: (amount: number) => string
+): string => {
+    // Regex to match USD amounts: $123, $1,234.56, $123.45, etc.
+    const usdAmountRegex = /\$([\d,]+(?:\.\d{1,2})?)/g;
+
+    return text.replace(usdAmountRegex, (match, amountStr) => {
+        try {
+            const usdAmount = parseFloat(amountStr.replace(/,/g, ''));
+            if (isNaN(usdAmount)) {
+                return match;
+            }
+            // formatCurrency already converts from USD to user's currency internally
+            // So we just pass the USD amount directly
+            return formatCurrency(usdAmount);
+        } catch (error) {
+            console.warn('[BalanceInsightCard] Error converting currency amount:', error);
+            return match;
+        }
+    });
+};
 
 interface Insight {
     id: string;
@@ -19,6 +49,7 @@ interface BalanceInsightCardProps {
 
 export const BalanceInsightCard: React.FC<BalanceInsightCardProps> = ({ insights }) => {
     const { theme } = useTheme();
+    const { formatCurrency } = useCurrency();
 
     if (!insights || insights.length === 0) return null;
 
@@ -51,9 +82,11 @@ export const BalanceInsightCard: React.FC<BalanceInsightCardProps> = ({ insights
                             <Icon name={insight.icon as any} size={24} color={iconColor} />
                         </View>
                         <View style={styles.content}>
-                            <Text style={[styles.title, { color: theme.text }]}>{insight.title}</Text>
+                            <Text style={[styles.title, { color: theme.text }]}>
+                                {convertCurrencyAmountsInText(insight.title, formatCurrency)}
+                            </Text>
                             <Text style={[styles.description, { color: theme.textSecondary }]}>
-                                {insight.description}
+                                {convertCurrencyAmountsInText(insight.description, formatCurrency)}
                             </Text>
                         </View>
                     </View>

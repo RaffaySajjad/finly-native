@@ -7,6 +7,16 @@ import React, { createContext, useContext, useRef, useCallback, ReactNode, useSt
 import BottomSheet from '@gorhom/bottom-sheet';
 import { Expense, IncomeTransaction } from '../types';
 
+export interface ParsedTransactionUpdate {
+  index: number;
+  type: 'expense' | 'income';
+  amount: number;
+  description: string;
+  categoryId?: string;
+  incomeSourceId?: string;
+  date?: string;
+}
+
 interface BottomSheetContextType {
   setHandler: (handler: (() => void) | null) => void;
   openBottomSheet: (editingExpense?: Expense, editingIncome?: IncomeTransaction) => void;
@@ -17,6 +27,8 @@ interface BottomSheetContextType {
   editingIncome: IncomeTransaction | null;
   setEditingExpense: (expense: Expense | null) => void;
   setEditingIncome: (income: IncomeTransaction | null) => void;
+  onParsedTransactionUpdate: ((update: ParsedTransactionUpdate) => void) | null;
+  setOnParsedTransactionUpdate: (callback: ((update: ParsedTransactionUpdate) => void) | null) => void;
 }
 
 const BottomSheetContext = createContext<BottomSheetContextType | undefined>(undefined);
@@ -25,6 +37,7 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
   const handlerRef = useRef<(() => void) | null>(null);
   const bottomSheetRefRef = useRef<BottomSheet | null>(null);
   const onTransactionAddedRef = useRef<(() => void) | null>(null);
+  const onParsedTransactionUpdateRef = useRef<((update: ParsedTransactionUpdate) => void) | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editingIncome, setEditingIncome] = useState<IncomeTransaction | null>(null);
 
@@ -43,6 +56,16 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
   const onTransactionAdded = useCallback(() => {
     if (onTransactionAddedRef.current) {
       onTransactionAddedRef.current();
+    }
+  }, []);
+
+  const setOnParsedTransactionUpdate = useCallback((callback: ((update: ParsedTransactionUpdate) => void) | null) => {
+    onParsedTransactionUpdateRef.current = callback;
+  }, []);
+
+  const onParsedTransactionUpdate = useCallback((update: ParsedTransactionUpdate) => {
+    if (onParsedTransactionUpdateRef.current) {
+      onParsedTransactionUpdateRef.current(update);
     }
   }, []);
 
@@ -86,6 +109,8 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
       editingIncome,
       setEditingExpense,
       setEditingIncome,
+      onParsedTransactionUpdate,
+      setOnParsedTransactionUpdate,
     }}>
       {children}
     </BottomSheetContext.Provider>

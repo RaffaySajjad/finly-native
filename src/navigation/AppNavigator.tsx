@@ -57,6 +57,8 @@ import SignupScreen from '../screens/SignupScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import VerificationScreen from '../screens/VerificationScreen';
+import { notificationService } from '../services/notificationService';
+import * as Notifications from 'expo-notifications';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
@@ -305,6 +307,39 @@ const AppNavigator: React.FC = () => {
 
     return () => {
       subscription.remove();
+    };
+  }, [isAuthenticated, onboardingComplete]);
+
+  // Setup notification handlers
+  useEffect(() => {
+    if (!isAuthenticated || !onboardingComplete) {
+      return;
+    }
+
+    // Setup notification handlers
+    notificationService.setupNotificationHandlers(
+      // Notification received (foreground)
+      (notification) => {
+        console.log('[AppNavigator] Notification received:', notification);
+        // Notification will be shown automatically by expo-notifications
+      },
+      // Notification tapped
+      (response) => {
+        console.log('[AppNavigator] Notification tapped:', response);
+        const data = notificationService.getNotificationData(response);
+
+        // Navigate to InsightsScreen when notification is tapped
+        if (navigationRef.current) {
+          navigationRef.current.navigate('MainTabs', {
+            screen: 'Insights',
+          });
+        }
+      }
+    );
+
+    // Cleanup on unmount
+    return () => {
+      notificationService.removeNotificationHandlers();
     };
   }, [isAuthenticated, onboardingComplete]);
 

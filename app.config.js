@@ -89,7 +89,7 @@ module.exports = ({ config }) => {
       extra: {
         ...existingExpo.extra,
         env,
-        apiUrl,
+        apiUrl
       },
       ios: {
         ...existingIOS,
@@ -97,17 +97,35 @@ module.exports = ({ config }) => {
           ...existingInfoPlist,
           NSAppTransportSecurity: {
             NSAllowsLocalNetworking: true,
-            NSExceptionDomains: iosATSDomains,
-          },
+            NSExceptionDomains: iosATSDomains
+          }
         },
-        bundleIdentifier,
+        bundleIdentifier
       },
       scheme: 'finly',
       android: {
         ...existingExpo.android,
-        package: 'com.raffay.finly',
+        package: 'com.raffay.finly'
       },
-    },
+      plugins: [
+        ...(existingExpo.plugins || []),
+        [
+          'expo-notifications',
+          {
+            icon: './assets/icon.png',
+            color: '#6366F1',
+            sounds: ['default'],
+            mode: 'production'
+          }
+        ]
+      ],
+      notification: {
+        icon: './assets/icon.png',
+        color: '#6366F1',
+        androidMode: 'default',
+        androidCollapsedTitle: 'New insight'
+      }
+    }
   };
 };
 

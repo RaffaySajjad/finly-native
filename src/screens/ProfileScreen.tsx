@@ -48,6 +48,8 @@ import {
   disableBiometricLogin,
 } from '../services/biometricService';
 import { usePreferences } from '../contexts/PreferencesContext';
+import { apiService } from '../services/api';
+import { notificationService } from '../services/notificationService';
 
 /**
  * ProfileScreen - User settings and preferences
@@ -66,6 +68,7 @@ const ProfileScreen: React.FC = () => {
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [currency, setCurrency] = useState('USD');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricSupported, setBiometricSupported] = useState(false);
 
@@ -85,6 +88,7 @@ const ProfileScreen: React.FC = () => {
       setEditEmail(user.email);
     }
     loadCurrency();
+    loadNotificationsPreference();
     dispatch(loadDevSettings());
     checkBiometricSupport();
   }, [user]);
@@ -125,6 +129,61 @@ const ProfileScreen: React.FC = () => {
       setCurrency(savedCurrency);
     } catch (error) {
       console.error('Error loading currency:', error);
+    }
+  };
+
+  const loadNotificationsPreference = async () => {
+    try {
+      const preferences = await apiService.getPreferences();
+      setNotificationsEnabled(preferences.notificationsEnabled);
+    } catch (error) {
+      console.error('Error loading notifications preference:', error);
+      // Default to true if API fails
+      setNotificationsEnabled(true);
+    }
+  };
+
+  const handleToggleNotifications = async (value: boolean) => {
+    setLoadingNotifications(true);
+    try {
+      if (value) {
+        // Request permissions when enabling
+        const hasPermission = await notificationService.requestPermissions();
+        if (!hasPermission) {
+          Alert.alert(
+            'Permission Required',
+            'Please enable notifications in your device settings to receive insights.',
+            [{ text: 'OK' }]
+          );
+          setLoadingNotifications(false);
+          return;
+        }
+
+        // Register for push notifications
+        const registered = await notificationService.registerForPushNotifications();
+        if (!registered) {
+          Alert.alert(
+            'Registration Failed',
+            'Failed to register for push notifications. Please try again.',
+            [{ text: 'OK' }]
+          );
+          setLoadingNotifications(false);
+          return;
+        }
+      }
+
+      // Update preference on backend
+      await apiService.updatePreferences({ notificationsEnabled: value });
+      setNotificationsEnabled(value);
+
+      if (Platform.OS === 'ios') {
+        Haptics.selectionAsync();
+      }
+    } catch (error) {
+      console.error('Error updating notifications preference:', error);
+      Alert.alert('Error', 'Failed to update notification settings. Please try again.');
+    } finally {
+      setLoadingNotifications(false);
     }
   };
 
@@ -412,12 +471,17 @@ const ProfileScreen: React.FC = () => {
             title="Notifications"
             subtitle={notificationsEnabled ? 'Enabled' : 'Disabled'}
             rightComponent={
-              <Switch
-                value={notificationsEnabled}
-                onValueChange={setNotificationsEnabled}
-                trackColor={{ false: theme.border, true: theme.primary + '60' }}
-                thumbColor={notificationsEnabled ? theme.primary : theme.surface}
-              />
+              loadingNotifications ? (
+                <ActivityIndicator size="small" color={theme.primary} />
+              ) : (
+                  <Switch
+                    value={notificationsEnabled}
+                    onValueChange={handleToggleNotifications}
+                    trackColor={{ false: theme.border, true: theme.primary + '60' }}
+                    thumbColor={notificationsEnabled ? theme.primary : theme.surface}
+                    disabled={loadingNotifications}
+                  />
+                )
             }
           />
         </View>

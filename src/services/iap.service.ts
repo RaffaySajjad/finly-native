@@ -80,7 +80,7 @@ class IAPService {
     }
 
     if (this.mockEnabled) {
-      console.log('[IAP Mock] Initialized in mock mode');
+      logger.debug('[IAP Mock] Initialized in mock mode');
       this.initialized = true;
       return;
     }
@@ -170,7 +170,7 @@ class IAPService {
       return;
     }
     this.mockScenario = scenario;
-    console.log(`[IAP Mock] Scenario set to: ${scenario || 'default (success)'}`);
+    logger.debug(`[IAP Mock] Scenario set to: ${scenario || 'default (success)'}`);
   }
 
   /**
@@ -181,7 +181,7 @@ class IAPService {
     this.mockEnabled = enabled;
     // Re-initialize if switching modes
     this.initialized = false;
-    console.log(`[IAP] Mock mode set to: ${enabled}`);
+    logger.debug(`[IAP] Mock mode set to: ${enabled}`);
   }
 
   /**
@@ -252,7 +252,7 @@ class IAPService {
       // Ensure products are loaded/fetched first
       await this.getProducts();
 
-      console.log(`[IAP] Requesting purchase for sku: ${productId} on ${Platform.OS}`);
+      logger.debug(`[IAP] Requesting purchase for sku: ${productId} on ${Platform.OS}`);
       
       // v14 uses platform-specific parameters wrapped in a request object
       const purchase = await requestPurchase({
@@ -434,7 +434,7 @@ class IAPService {
    * Mock purchase for testing all scenarios
    */
   private async mockPurchase(productId: string): Promise<PurchaseResult> {
-    console.log(`[IAP Mock] Simulating purchase for: ${productId}`);
+    logger.debug(`[IAP Mock] Simulating purchase for: ${productId}`);
     
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, IAP_CONFIG.MOCK_DELAYS.NORMAL));
@@ -548,7 +548,7 @@ class IAPService {
    * Mock restore for testing
    */
   private async mockRestore(): Promise<PurchaseResult[]> {
-    console.log('[IAP Mock] Simulating restore purchases');
+    logger.debug('[IAP Mock] Simulating restore purchases');
     
     await new Promise(resolve => setTimeout(resolve, IAP_CONFIG.MOCK_DELAYS.QUICK));
 

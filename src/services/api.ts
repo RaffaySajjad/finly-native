@@ -3,6 +3,7 @@
 */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '../utils/logger';
 
 import {
   Expense,
@@ -224,14 +225,12 @@ export const apiService = {
       if (options?.limit) params.limit = options.limit.toString();
       if (options?.cursor) params.cursor = options.cursor;
 
-      if (__DEV__) {
-        console.log('[API] getExpensesPaginated called with:', {
-          categoryId: options?.categoryId,
-          limit: options?.limit,
-          cursor: options?.cursor,
-          params
-        });
-      }
+      logger.debug('[API] getExpensesPaginated called with:', {
+        categoryId: options?.categoryId,
+        limit: options?.limit,
+        cursor: options?.cursor,
+        params
+      });
 
       // Skip cache for category-specific requests to ensure fresh data
       // Cache key might not properly differentiate categoryId in some cases
@@ -258,14 +257,12 @@ export const apiService = {
         throw new Error('Failed to fetch expenses');
       }
 
-      if (__DEV__) {
-        console.log('[API] getExpensesPaginated parsed:', {
-          expensesCount: backendResponse.data?.length || 0,
-          pagination: backendResponse.pagination,
-          hasData: !!backendResponse.data,
-          hasPagination: !!backendResponse.pagination
-        });
-      }
+      logger.debug('[API] getExpensesPaginated parsed:', {
+        expensesCount: backendResponse.data?.length || 0,
+        pagination: backendResponse.pagination,
+        hasData: !!backendResponse.data,
+        hasPagination: !!backendResponse.pagination
+      });
 
       return {
         expenses: backendResponse.data || [],
@@ -1100,16 +1097,14 @@ export const apiService = {
       if (options?.limit) params.limit = options.limit.toString();
       if (options?.cursor) params.cursor = options.cursor;
 
-      if (__DEV__) {
-        console.log('[API] getUnifiedTransactionsPaginated called with:', {
-          startDate: options?.startDate,
-          endDate: options?.endDate,
-          type: options?.type,
-          limit: options?.limit,
-          cursor: options?.cursor,
-          params
-        });
-      }
+      logger.debug('[API] getUnifiedTransactionsPaginated called with:', {
+        startDate: options?.startDate,
+        endDate: options?.endDate,
+        type: options?.type,
+        limit: options?.limit,
+        cursor: options?.cursor,
+        params
+      });
 
       // Use apiClient directly to bypass the api.get wrapper and get the full response
       // This ensures we get pagination metadata even when cached data might be an array
@@ -1130,14 +1125,12 @@ export const apiService = {
         throw new Error('Failed to fetch unified transactions');
       }
 
-      if (__DEV__) {
-        console.log('[API] getUnifiedTransactionsPaginated parsed:', {
-          transactionsCount: backendResponse.data?.length || 0,
-          pagination: backendResponse.pagination,
-          hasData: !!backendResponse.data,
-          hasPagination: !!backendResponse.pagination
-        });
-      }
+      logger.debug('[API] getUnifiedTransactionsPaginated parsed:', {
+        transactionsCount: backendResponse.data?.length || 0,
+        pagination: backendResponse.pagination,
+        hasData: !!backendResponse.data,
+        hasPagination: !!backendResponse.pagination
+      });
 
       return {
         transactions: backendResponse.data || [],
@@ -1223,10 +1216,8 @@ export const apiService = {
       }
 
       // Log the exchange rate clearly for debugging
-      console.log(
-        `[API] ✅ Exchange rate fetched: 1 USD = ${rate} ${toCurrency}`
-      );
-      console.log(`[API] Response structure:`, {
+      logger.debug(`[API] ✅ Exchange rate fetched: 1 USD = ${rate} ${toCurrency}`);
+      logger.debug(`[API] Response structure:`, {
         success: response.success,
         data: response.data,
         rate: rate,
@@ -1264,7 +1255,7 @@ export const apiService = {
           const isExpired = Date.now() - timestamp > CACHE_DURATION;
 
           if (!isExpired) {
-            console.log('[API] Returning cached forecast');
+            logger.debug('[API] Returning cached forecast');
             return data;
           }
         }
@@ -1311,7 +1302,7 @@ export const apiService = {
       try {
         const cached = await AsyncStorage.getItem(CACHE_KEY);
         if (cached) {
-          console.warn('[API] Using expired cache due to API error');
+          logger.warn('[API] Using expired cache due to API error');
           return JSON.parse(cached).data;
         }
       } catch (e) {

@@ -111,7 +111,7 @@ const SharedBottomSheet: React.FC = () => {
   // Reload categories when category picker opens to ensure fresh data
   useEffect(() => {
     if (showCategoryPicker && categories.length === 0) {
-      console.log('[SharedBottomSheet] Category picker opened but no categories, reloading...');
+      if (__DEV__) console.log('[SharedBottomSheet] Category picker opened but no categories, reloading...');
       loadCategoriesAndTags();
     }
   }, [showCategoryPicker]);
@@ -478,7 +478,7 @@ const SharedBottomSheet: React.FC = () => {
         payload.incomeSourceId = newIncomeSourceId;
       }
 
-      console.log('[DEBUG FE] Sending income transaction:', payload);
+      if (__DEV__) console.log('[SharedBottomSheet] Sending income transaction:', payload);
 
       // Check if this is a temporary ID (from parsed transactions) or a real income ID
       const isTempIncomeId = editingIncome?.id?.startsWith('temp-');
@@ -615,10 +615,10 @@ const SharedBottomSheet: React.FC = () => {
         ref={(ref) => {
           bottomSheetRef.current = ref;
           if (ref) {
-            console.log('[SharedBottomSheet] Ref attached, setting to context');
+            if (__DEV__) console.log('[SharedBottomSheet] Ref attached, setting to context');
             setBottomSheetRef(ref);
           } else {
-            console.log('[SharedBottomSheet] Ref detached');
+            if (__DEV__) console.log('[SharedBottomSheet] Ref detached');
           }
         }}
         index={-1}
@@ -976,7 +976,7 @@ const SharedBottomSheet: React.FC = () => {
                     },
                   ]}
                   onPress={() => {
-                    console.log('[SharedBottomSheet] Opening category picker, categories count:', categories.length);
+                    if (__DEV__) console.log('[SharedBottomSheet] Opening category picker, categories count:', categories.length);
                     setShowCategoryPicker(true);
                     if (expenseCategoryError) setExpenseCategoryError('');
                   }}
@@ -1156,7 +1156,7 @@ const SharedBottomSheet: React.FC = () => {
         categories={categories || []}
         selectedCategoryId={newExpenseCategoryId}
         onSelect={(categoryId) => {
-          console.log('[SharedBottomSheet] Category selected:', categoryId);
+          if (__DEV__) console.log('[SharedBottomSheet] Category selected:', categoryId);
           setNewExpenseCategoryId(categoryId);
         }}
         onClose={() => setShowCategoryPicker(false)}

@@ -3,7 +3,7 @@
  * Purpose: Control CreateCategoryModal from anywhere in the app, similar to BottomSheetContext
  */
 
-import React, { createContext, useContext, useRef, useCallback, ReactNode, useState } from 'react';
+import React, { createContext, useContext, useMemo, useRef, useCallback, ReactNode, useState } from 'react';
 import BottomSheet from '@gorhom/bottom-sheet';
 
 interface CreateCategoryModalConfig {
@@ -31,18 +31,21 @@ export const CreateCategoryModalProvider: React.FC<{ children: ReactNode }> = ({
   const [config, setConfig] = useState<CreateCategoryModalConfig | null>(null);
 
   const setBottomSheetRef = useCallback((ref: BottomSheet | null) => {
-    console.log('[CreateCategoryModalContext] setBottomSheetRef', !!ref);
+    if (__DEV__) console.log('[CreateCategoryModalContext] setBottomSheetRef', !!ref);
     bottomSheetRefRef.current = ref;
   }, []);
 
   const openCreateCategoryModal = useCallback((newConfig: CreateCategoryModalConfig) => {
-    console.log('[CreateCategoryModalContext] openCreateCategoryModal', {
-      hasRef: !!bottomSheetRefRef.current,
-      config: newConfig
-    });
+    if (__DEV__) {
+      console.log('[CreateCategoryModalContext] openCreateCategoryModal', {
+        hasRef: !!bottomSheetRefRef.current,
+        isPremium: newConfig.isPremium,
+        existingNamesCount: newConfig.existingCategoryNames?.length ?? 0,
+      });
+    }
     setConfig(newConfig);
     if (bottomSheetRefRef.current) {
-      console.log('[CreateCategoryModalContext] snapping to index 0');
+      if (__DEV__) console.log('[CreateCategoryModalContext] snapping to index 0');
       bottomSheetRefRef.current.snapToIndex(0);
     } else {
       console.warn('[CreateCategoryModalContext] No ref available!');
@@ -59,15 +62,18 @@ export const CreateCategoryModalProvider: React.FC<{ children: ReactNode }> = ({
     }, 300);
   }, []);
 
-  return (
-    <CreateCategoryModalContext.Provider value={{ 
-      openCreateCategoryModal, 
-      closeCreateCategoryModal, 
+  const value = useMemo<CreateCategoryModalContextType>(
+    () => ({
+      openCreateCategoryModal,
+      closeCreateCategoryModal,
       setBottomSheetRef,
       config,
-    }}>
-      {children}
-    </CreateCategoryModalContext.Provider>
+    }),
+    [openCreateCategoryModal, closeCreateCategoryModal, setBottomSheetRef, config]
+  );
+
+  return (
+    <CreateCategoryModalContext.Provider value={value}>{children}</CreateCategoryModalContext.Provider>
   );
 };
 

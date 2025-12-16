@@ -315,7 +315,7 @@ const DashboardScreen: React.FC = () => {
   // Register callback to refresh when transaction is added
   useEffect(() => {
     setOnTransactionAdded(() => {
-      console.log('[DashboardScreen] Transaction added, refreshing data...');
+      if (__DEV__) console.log('[DashboardScreen] Transaction added, refreshing data...');
         loadData(true); // Skip cache when transaction is added to show latest data
       });
 

@@ -224,12 +224,14 @@ export const apiService = {
       if (options?.limit) params.limit = options.limit.toString();
       if (options?.cursor) params.cursor = options.cursor;
 
-      console.log('[API] getExpensesPaginated called with:', {
-        categoryId: options?.categoryId,
-        limit: options?.limit,
-        cursor: options?.cursor,
-        params
-      });
+      if (__DEV__) {
+        console.log('[API] getExpensesPaginated called with:', {
+          categoryId: options?.categoryId,
+          limit: options?.limit,
+          cursor: options?.cursor,
+          params
+        });
+      }
 
       // Skip cache for category-specific requests to ensure fresh data
       // Cache key might not properly differentiate categoryId in some cases
@@ -256,12 +258,14 @@ export const apiService = {
         throw new Error('Failed to fetch expenses');
       }
 
-      console.log('[API] getExpensesPaginated parsed:', {
-        expensesCount: backendResponse.data?.length || 0,
-        pagination: backendResponse.pagination,
-        hasData: !!backendResponse.data,
-        hasPagination: !!backendResponse.pagination
-      });
+      if (__DEV__) {
+        console.log('[API] getExpensesPaginated parsed:', {
+          expensesCount: backendResponse.data?.length || 0,
+          pagination: backendResponse.pagination,
+          hasData: !!backendResponse.data,
+          hasPagination: !!backendResponse.pagination
+        });
+      }
 
       return {
         expenses: backendResponse.data || [],
@@ -1096,14 +1100,16 @@ export const apiService = {
       if (options?.limit) params.limit = options.limit.toString();
       if (options?.cursor) params.cursor = options.cursor;
 
-      console.log('[API] getUnifiedTransactionsPaginated called with:', {
-        startDate: options?.startDate,
-        endDate: options?.endDate,
-        type: options?.type,
-        limit: options?.limit,
-        cursor: options?.cursor,
-        params
-      });
+      if (__DEV__) {
+        console.log('[API] getUnifiedTransactionsPaginated called with:', {
+          startDate: options?.startDate,
+          endDate: options?.endDate,
+          type: options?.type,
+          limit: options?.limit,
+          cursor: options?.cursor,
+          params
+        });
+      }
 
       // Use apiClient directly to bypass the api.get wrapper and get the full response
       // This ensures we get pagination metadata even when cached data might be an array
@@ -1124,12 +1130,14 @@ export const apiService = {
         throw new Error('Failed to fetch unified transactions');
       }
 
-      console.log('[API] getUnifiedTransactionsPaginated parsed:', {
-        transactionsCount: backendResponse.data?.length || 0,
-        pagination: backendResponse.pagination,
-        hasData: !!backendResponse.data,
-        hasPagination: !!backendResponse.pagination
-      });
+      if (__DEV__) {
+        console.log('[API] getUnifiedTransactionsPaginated parsed:', {
+          transactionsCount: backendResponse.data?.length || 0,
+          pagination: backendResponse.pagination,
+          hasData: !!backendResponse.data,
+          hasPagination: !!backendResponse.pagination
+        });
+      }
 
       return {
         transactions: backendResponse.data || [],

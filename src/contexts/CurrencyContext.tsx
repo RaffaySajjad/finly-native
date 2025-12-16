@@ -4,7 +4,7 @@
  * Features: Currency selection, symbol formatting, currency change notifications
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import React, { createContext, useContext, useMemo, useCallback, useState, useEffect, ReactNode, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getUserCurrency,
@@ -183,24 +183,34 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
         if (cache.currency === toCurrency && cacheAge < EXCHANGE_RATE_CACHE_TTL) {
           // If cached rate is 1 for non-USD currency, it's likely stale/invalid - force refresh
           if (cache.rate === 1 && toCurrency.toUpperCase() !== 'USD') {
-            console.log(`[CurrencyContext] ⚠️ Cached rate is 1 for ${toCurrency}, forcing refresh...`);
+            if (__DEV__) {
+              console.log(`[CurrencyContext] ⚠️ Cached rate is 1 for ${toCurrency}, forcing refresh...`);
+            }
             // Fall through to fetch fresh rate
           } else {
-            console.log(`[CurrencyContext] ✅ Using cached exchange rate for ${toCurrency}: ${cache.rate} (age: ${Math.round(cacheAge / 1000 / 60)} minutes)`);
+            if (__DEV__) {
+              console.log(
+                `[CurrencyContext] ✅ Using cached exchange rate for ${toCurrency}: ${cache.rate} (age: ${Math.round(cacheAge / 1000 / 60)} minutes)`
+              );
+            }
             setExchangeRate(cache.rate);
             exchangeRateRef.current = cache.rate;
             setIsLoadingRate(false);
             return;
           }
         } else {
-          console.log(`[CurrencyContext] Cache expired for ${toCurrency} (age: ${Math.round(cacheAge / 1000 / 60)} minutes), fetching fresh rate...`);
+          if (__DEV__) {
+            console.log(
+              `[CurrencyContext] Cache expired for ${toCurrency} (age: ${Math.round(cacheAge / 1000 / 60)} minutes), fetching fresh rate...`
+            );
+          }
         }
       }
 
       // Fetch fresh rate from API
-      console.log(`[CurrencyContext] Fetching exchange rate for ${toCurrency}...`);
+      if (__DEV__) console.log(`[CurrencyContext] Fetching exchange rate for ${toCurrency}...`);
       const rate = await apiService.getExchangeRate(toCurrency);
-      console.log(`[CurrencyContext] Exchange rate received: ${rate} for ${toCurrency}`);
+      if (__DEV__) console.log(`[CurrencyContext] Exchange rate received: ${rate} for ${toCurrency}`);
       if (rate === 1 && toCurrency.toUpperCase() !== 'USD') {
         console.warn(`[CurrencyContext] WARNING: Exchange rate is 1 for non-USD currency ${toCurrency}. This may indicate an API error.`);
       }
@@ -231,7 +241,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
     }
   };
 
-  const setCurrency = async (code: string) => {
+  const setCurrency = useCallback(async (code: string) => {
     try {
       const currencyData = getCurrencyByCode(code) || DEFAULT_CURRENCY;
       setCurrencyState(currencyData);
@@ -247,23 +257,23 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
       // Still update currency code even if rate loading fails
       setCurrencyCode(code);
     }
-  };
+  }, []);
 
-  const setShowDecimals = async (show: boolean) => {
+  const setShowDecimals = useCallback(async (show: boolean) => {
     try {
       setShowDecimalsState(show);
       await AsyncStorage.setItem(DECIMAL_TOGGLE_KEY, show.toString());
     } catch (error) {
       console.error('Error saving decimal preference:', error);
     }
-  };
+  }, []);
 
   /**
    * Format currency amount
    * IMPORTANT: Amounts are stored in USD in the database
    * This function converts from USD to display currency before formatting
    */
-  const formatCurrency = (amount: number, options?: { disableAbbreviations?: boolean }): string => {
+  const formatCurrency = useCallback((amount: number, options?: { disableAbbreviations?: boolean }): string => {
     // Ensure we have a valid exchange rate (use ref for immediate access)
     const rate = exchangeRateRef.current ?? exchangeRate ?? 1;
     const convertedAmount = amount * rate;
@@ -285,11 +295,9 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
     }).format(convertedAmount);
     
     return `${currency.symbol}${formatted}`;
-  };
+  }, [currency.symbol, currencyCode, exchangeRate, showDecimals]);
 
-  const getCurrencySymbol = (): string => {
-    return currency.symbol;
-  };
+  const getCurrencySymbol = useCallback((): string => currency.symbol, [currency.symbol]);
 
   /**
    * Convert amount from display currency to USD (base currency)
@@ -297,7 +305,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
    * @param amount - Amount in display currency
    * @returns Amount in USD
    */
-  const convertToUSD = (amount: number): number => {
+  const convertToUSD = useCallback((amount: number): number => {
     const rate = exchangeRateRef.current || exchangeRate || 1;
     // If USD, no conversion needed
     if (currencyCode.toUpperCase() === 'USD') {
@@ -305,7 +313,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
     }
     // Convert from display currency to USD (divide by rate)
     return amount / rate;
-  };
+  }, [currencyCode, exchangeRate]);
 
   /**
    * Convert amount from USD (base currency) to display currency
@@ -313,7 +321,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
    * @param amount - Amount in USD
    * @returns Amount in display currency
    */
-  const convertFromUSD = (amount: number): number => {
+  const convertFromUSD = useCallback((amount: number): number => {
     const rate = exchangeRateRef.current || exchangeRate || 1;
     // If USD, no conversion needed
     if (currencyCode.toUpperCase() === 'USD') {
@@ -321,7 +329,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
     }
     // Convert from USD to display currency (multiply by rate)
     return amount * rate;
-  };
+  }, [currencyCode, exchangeRate]);
 
   /**
    * Get the display amount for a transaction, preferring originalAmount if available
@@ -330,7 +338,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
    * @param originalCurrency - Original currency code (if available)
    * @returns Amount to display (prefers originalAmount if currency matches, otherwise converts from USD)
    */
-  const getTransactionDisplayAmount = (
+  const getTransactionDisplayAmount = useCallback((
     amount: number,
     originalAmount?: number,
     originalCurrency?: string
@@ -355,13 +363,13 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
 
     // Fallback to converting from USD
     return convertFromUSD(amount);
-  };
+  }, [convertFromUSD, currencyCode]);
 
   /**
    * Format a transaction amount, using original currency if available and matching
    * Prefers originalAmount when originalCurrency matches current currency
    */
-  const formatTransactionAmount = (amount: number, originalAmount?: number, originalCurrency?: string): string => {
+  const formatTransactionAmount = useCallback((amount: number, originalAmount?: number, originalCurrency?: string): string => {
     // Validate amount is a valid number
     if (amount === undefined || amount === null || isNaN(amount)) {
       console.warn('[CurrencyContext] Invalid amount provided to formatTransactionAmount:', amount);
@@ -394,28 +402,41 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
     }).format(displayAmount);
 
     return `${currency.symbol}${formatted}`;
-  };
+  }, [currency.symbol, currencyCode, getTransactionDisplayAmount, showDecimals]);
 
-  return (
-    <CurrencyContext.Provider
-      value={{
-        currency,
-        currencyCode,
-        setCurrency,
-        formatCurrency,
-        getCurrencySymbol,
-        showDecimals,
-        setShowDecimals,
-        exchangeRate,
-        convertToUSD,
-        convertFromUSD,
-        getTransactionDisplayAmount,
-        formatTransactionAmount,
-      }}
-    >
-      {children}
-    </CurrencyContext.Provider>
+  // Context value is memoized so unrelated state (e.g. isLoadingRate) doesn't rerender consumers.
+  const value = useMemo<CurrencyContextType>(
+    () => ({
+      currency,
+      currencyCode,
+      setCurrency,
+      formatCurrency,
+      getCurrencySymbol,
+      showDecimals,
+      setShowDecimals,
+      exchangeRate,
+      convertToUSD,
+      convertFromUSD,
+      getTransactionDisplayAmount,
+      formatTransactionAmount,
+    }),
+    [
+      currency,
+      currencyCode,
+      setCurrency,
+      formatCurrency,
+      getCurrencySymbol,
+      showDecimals,
+      setShowDecimals,
+      exchangeRate,
+      convertToUSD,
+      convertFromUSD,
+      getTransactionDisplayAmount,
+      formatTransactionAmount,
+    ]
   );
+
+  return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;
 };
 
 export const useCurrency = (): CurrencyContextType => {

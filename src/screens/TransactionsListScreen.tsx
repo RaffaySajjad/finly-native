@@ -273,13 +273,15 @@ const TransactionsListScreen: React.FC = () => {
         endDate = customEndDate.toISOString();
       }
 
-      console.log('[TransactionsListScreen] Loading transactions:', {
-        initialLoad,
-        cursor: cursorToUse,
-        startDate,
-        endDate,
-        type: selectedTransactionType === 'all' ? undefined : selectedTransactionType,
-      });
+      if (__DEV__) {
+        console.log('[TransactionsListScreen] Loading transactions:', {
+          initialLoad,
+          cursor: cursorToUse,
+          startDate,
+          endDate,
+          type: selectedTransactionType === 'all' ? undefined : selectedTransactionType,
+        });
+      }
 
       const result = await apiService.getUnifiedTransactionsPaginated({
         startDate,
@@ -289,12 +291,14 @@ const TransactionsListScreen: React.FC = () => {
         cursor: cursorToUse,
       });
 
-      console.log('[TransactionsListScreen] Received transactions:', {
-        count: result.transactions.length,
-        total: result.pagination.total,
-        hasMore: result.pagination.hasMore,
-        nextCursor: result.pagination.nextCursor,
-      });
+      if (__DEV__) {
+        console.log('[TransactionsListScreen] Received transactions:', {
+          count: result.transactions.length,
+          total: result.pagination.total,
+          hasMore: result.pagination.hasMore,
+          nextCursor: result.pagination.nextCursor,
+        });
+      }
 
       if (initialLoad) {
         setTransactions(result.transactions);
@@ -321,12 +325,14 @@ const TransactionsListScreen: React.FC = () => {
    * Load more transactions (pagination)
    */
   const loadMore = useCallback(() => {
-    console.log('[TransactionsListScreen] loadMore called:', {
-      loadingMore,
-      hasMore,
-      nextCursor,
-      canLoad: !loadingMore && hasMore && nextCursor,
-    });
+    if (__DEV__) {
+      console.log('[TransactionsListScreen] loadMore called:', {
+        loadingMore,
+        hasMore,
+        nextCursor,
+        canLoad: !loadingMore && hasMore && nextCursor,
+      });
+    }
 
     if (!loadingMore && hasMore && nextCursor) {
       loadTransactions(false, nextCursor);

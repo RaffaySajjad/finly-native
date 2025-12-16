@@ -35,7 +35,7 @@ const CustomTabBar: React.FC<CustomTabBarProps> = ({ state, descriptors, navigat
 
   // Handle FAB press
   const handleFABPress = () => {
-    console.log('[CustomTabBar] FAB pressed');
+    if (__DEV__) console.log('[CustomTabBar] FAB pressed');
     openBottomSheet();
     if (onFabPress) {
       onFabPress();

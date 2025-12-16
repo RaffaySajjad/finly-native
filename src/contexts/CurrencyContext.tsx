@@ -13,6 +13,7 @@ import {
   Currency,
 } from '../services/currencyService';
 import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
 
 const DECIMAL_TOGGLE_KEY = '@finly_decimal_enabled';
 const EXCHANGE_RATE_CACHE_KEY = '@finly_exchange_rate_cache';
@@ -183,36 +184,30 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
         if (cache.currency === toCurrency && cacheAge < EXCHANGE_RATE_CACHE_TTL) {
           // If cached rate is 1 for non-USD currency, it's likely stale/invalid - force refresh
           if (cache.rate === 1 && toCurrency.toUpperCase() !== 'USD') {
-            if (__DEV__) {
-              console.log(`[CurrencyContext] ⚠️ Cached rate is 1 for ${toCurrency}, forcing refresh...`);
-            }
+            logger.debug(`[CurrencyContext] ⚠️ Cached rate is 1 for ${toCurrency}, forcing refresh...`);
             // Fall through to fetch fresh rate
           } else {
-            if (__DEV__) {
-              console.log(
-                `[CurrencyContext] ✅ Using cached exchange rate for ${toCurrency}: ${cache.rate} (age: ${Math.round(cacheAge / 1000 / 60)} minutes)`
-              );
-            }
+            logger.debug(
+              `[CurrencyContext] ✅ Using cached exchange rate for ${toCurrency}: ${cache.rate} (age: ${Math.round(cacheAge / 1000 / 60)} minutes)`
+            );
             setExchangeRate(cache.rate);
             exchangeRateRef.current = cache.rate;
             setIsLoadingRate(false);
             return;
           }
         } else {
-          if (__DEV__) {
-            console.log(
-              `[CurrencyContext] Cache expired for ${toCurrency} (age: ${Math.round(cacheAge / 1000 / 60)} minutes), fetching fresh rate...`
-            );
-          }
+          logger.debug(
+            `[CurrencyContext] Cache expired for ${toCurrency} (age: ${Math.round(cacheAge / 1000 / 60)} minutes), fetching fresh rate...`
+          );
         }
       }
 
       // Fetch fresh rate from API
-      if (__DEV__) console.log(`[CurrencyContext] Fetching exchange rate for ${toCurrency}...`);
+      logger.debug(`[CurrencyContext] Fetching exchange rate for ${toCurrency}...`);
       const rate = await apiService.getExchangeRate(toCurrency);
-      if (__DEV__) console.log(`[CurrencyContext] Exchange rate received: ${rate} for ${toCurrency}`);
+      logger.debug(`[CurrencyContext] Exchange rate received: ${rate} for ${toCurrency}`);
       if (rate === 1 && toCurrency.toUpperCase() !== 'USD') {
-        console.warn(`[CurrencyContext] WARNING: Exchange rate is 1 for non-USD currency ${toCurrency}. This may indicate an API error.`);
+        logger.warn(`[CurrencyContext] WARNING: Exchange rate is 1 for non-USD currency ${toCurrency}. This may indicate an API error.`);
       }
       setExchangeRate(rate);
       exchangeRateRef.current = rate;
@@ -345,7 +340,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
   ): number => {
     // Validate amount is a valid number
     if (amount === undefined || amount === null || isNaN(amount)) {
-      console.warn('[CurrencyContext] Invalid amount provided to getTransactionDisplayAmount:', amount);
+      logger.warn('[CurrencyContext] Invalid amount provided to getTransactionDisplayAmount:', amount);
       return 0;
     }
 
@@ -372,7 +367,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
   const formatTransactionAmount = useCallback((amount: number, originalAmount?: number, originalCurrency?: string): string => {
     // Validate amount is a valid number
     if (amount === undefined || amount === null || isNaN(amount)) {
-      console.warn('[CurrencyContext] Invalid amount provided to formatTransactionAmount:', amount);
+      logger.warn('[CurrencyContext] Invalid amount provided to formatTransactionAmount:', amount);
       return `${currency.symbol}0${showDecimals ? '.00' : ''}`;
     }
 
@@ -381,7 +376,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
 
     // Validate displayAmount is a valid number
     if (displayAmount === undefined || displayAmount === null || isNaN(displayAmount)) {
-      console.warn('[CurrencyContext] Invalid displayAmount calculated:', displayAmount);
+      logger.warn('[CurrencyContext] Invalid displayAmount calculated:', displayAmount);
       return `${currency.symbol}0${showDecimals ? '.00' : ''}`;
     }
 

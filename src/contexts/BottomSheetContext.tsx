@@ -6,6 +6,7 @@
 import React, { createContext, useContext, useMemo, useRef, useCallback, ReactNode, useState } from 'react';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { Expense, IncomeTransaction } from '../types';
+import { logger } from '../utils/logger';
 
 export interface ParsedTransactionUpdate {
   index: number;
@@ -74,12 +75,10 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
   }, []);
 
   const openBottomSheet = useCallback((editingExpenseParam?: Expense, editingIncomeParam?: IncomeTransaction) => {
-    if (__DEV__) {
-      console.log('[BottomSheetContext] openBottomSheet called', {
-        editingExpense: !!editingExpenseParam,
-        editingIncome: !!editingIncomeParam,
-      });
-    }
+    logger.debug('[BottomSheetContext] openBottomSheet called', {
+      editingExpense: !!editingExpenseParam,
+      editingIncome: !!editingIncomeParam,
+    });
 
     // Set editing data if provided
     if (editingExpenseParam) {
@@ -94,18 +93,18 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
       setEditingIncome(null);
     }
 
-    if (__DEV__) {
-      console.log('[BottomSheetContext] bottomSheetRefRef.current:', !!bottomSheetRefRef.current);
-      console.log('[BottomSheetContext] handlerRef.current:', !!handlerRef.current);
-    }
+    logger.debug('[BottomSheetContext] refs status', {
+      hasBottomSheetRef: !!bottomSheetRefRef.current,
+      hasHandler: !!handlerRef.current,
+    });
     if (bottomSheetRefRef.current) {
-      if (__DEV__) console.log('[BottomSheetContext] Opening via ref');
+      logger.debug('[BottomSheetContext] Opening via ref');
       bottomSheetRefRef.current.snapToIndex(0);
     } else if (handlerRef.current) {
-      if (__DEV__) console.log('[BottomSheetContext] Opening via handler');
+      logger.debug('[BottomSheetContext] Opening via handler');
       handlerRef.current();
     } else {
-      console.warn('[BottomSheetContext] No handler or bottomSheetRef registered yet');
+      logger.warn('[BottomSheetContext] No handler or bottomSheetRef registered yet');
     }
   }, []);
 

@@ -5,6 +5,7 @@
 
 import React, { createContext, useContext, useMemo, useRef, useCallback, ReactNode, useState } from 'react';
 import BottomSheet from '@gorhom/bottom-sheet';
+import { logger } from '../utils/logger';
 
 interface CreateCategoryModalConfig {
   onCreate: (data: {
@@ -31,24 +32,22 @@ export const CreateCategoryModalProvider: React.FC<{ children: ReactNode }> = ({
   const [config, setConfig] = useState<CreateCategoryModalConfig | null>(null);
 
   const setBottomSheetRef = useCallback((ref: BottomSheet | null) => {
-    if (__DEV__) console.log('[CreateCategoryModalContext] setBottomSheetRef', !!ref);
+    logger.debug('[CreateCategoryModalContext] setBottomSheetRef', !!ref);
     bottomSheetRefRef.current = ref;
   }, []);
 
   const openCreateCategoryModal = useCallback((newConfig: CreateCategoryModalConfig) => {
-    if (__DEV__) {
-      console.log('[CreateCategoryModalContext] openCreateCategoryModal', {
-        hasRef: !!bottomSheetRefRef.current,
-        isPremium: newConfig.isPremium,
-        existingNamesCount: newConfig.existingCategoryNames?.length ?? 0,
-      });
-    }
+    logger.debug('[CreateCategoryModalContext] openCreateCategoryModal', {
+      hasRef: !!bottomSheetRefRef.current,
+      isPremium: newConfig.isPremium,
+      existingNamesCount: newConfig.existingCategoryNames?.length ?? 0,
+    });
     setConfig(newConfig);
     if (bottomSheetRefRef.current) {
-      if (__DEV__) console.log('[CreateCategoryModalContext] snapping to index 0');
+      logger.debug('[CreateCategoryModalContext] snapping to index 0');
       bottomSheetRefRef.current.snapToIndex(0);
     } else {
-      console.warn('[CreateCategoryModalContext] No ref available!');
+      logger.warn('[CreateCategoryModalContext] No ref available!');
     }
   }, []);
 

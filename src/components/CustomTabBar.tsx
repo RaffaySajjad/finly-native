@@ -10,6 +10,7 @@ import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { logger } from '../utils/logger';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -35,7 +36,7 @@ const CustomTabBar: React.FC<CustomTabBarProps> = ({ state, descriptors, navigat
 
   // Handle FAB press
   const handleFABPress = () => {
-    if (__DEV__) console.log('[CustomTabBar] FAB pressed');
+    logger.debug('[CustomTabBar] FAB pressed');
     openBottomSheet();
     if (onFabPress) {
       onFabPress();

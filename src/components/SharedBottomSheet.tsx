@@ -23,6 +23,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
+import { logger } from '../utils/logger';
 import { useBottomSheetActions, useBottomSheetEditState } from '../contexts/BottomSheetContext';
 import { BottomSheetBackground, PremiumBadge, UpgradePrompt, CurrencyInput, DatePickerInput, CategoryPickerModal, InputGroup } from '../components';
 import { useAlert } from '../hooks/useAlert';
@@ -111,7 +112,7 @@ const SharedBottomSheet: React.FC = () => {
   // Reload categories when category picker opens to ensure fresh data
   useEffect(() => {
     if (showCategoryPicker && categories.length === 0) {
-      if (__DEV__) console.log('[SharedBottomSheet] Category picker opened but no categories, reloading...');
+      logger.debug('[SharedBottomSheet] Category picker opened but no categories, reloading...');
       loadCategoriesAndTags();
     }
   }, [showCategoryPicker]);
@@ -478,7 +479,7 @@ const SharedBottomSheet: React.FC = () => {
         payload.incomeSourceId = newIncomeSourceId;
       }
 
-      if (__DEV__) console.log('[SharedBottomSheet] Sending income transaction:', payload);
+      logger.debug('[SharedBottomSheet] Sending income transaction:', payload);
 
       // Check if this is a temporary ID (from parsed transactions) or a real income ID
       const isTempIncomeId = editingIncome?.id?.startsWith('temp-');
@@ -615,10 +616,10 @@ const SharedBottomSheet: React.FC = () => {
         ref={(ref) => {
           bottomSheetRef.current = ref;
           if (ref) {
-            if (__DEV__) console.log('[SharedBottomSheet] Ref attached, setting to context');
+            logger.debug('[SharedBottomSheet] Ref attached, setting to context');
             setBottomSheetRef(ref);
           } else {
-            if (__DEV__) console.log('[SharedBottomSheet] Ref detached');
+            logger.debug('[SharedBottomSheet] Ref detached');
           }
         }}
         index={-1}
@@ -976,7 +977,7 @@ const SharedBottomSheet: React.FC = () => {
                     },
                   ]}
                   onPress={() => {
-                    if (__DEV__) console.log('[SharedBottomSheet] Opening category picker, categories count:', categories.length);
+                    logger.debug('[SharedBottomSheet] Opening category picker, categories count:', categories.length);
                     setShowCategoryPicker(true);
                     if (expenseCategoryError) setExpenseCategoryError('');
                   }}
@@ -1156,7 +1157,7 @@ const SharedBottomSheet: React.FC = () => {
         categories={categories || []}
         selectedCategoryId={newExpenseCategoryId}
         onSelect={(categoryId) => {
-          if (__DEV__) console.log('[SharedBottomSheet] Category selected:', categoryId);
+          logger.debug('[SharedBottomSheet] Category selected:', categoryId);
           setNewExpenseCategoryId(categoryId);
         }}
         onClose={() => setShowCategoryPicker(false)}

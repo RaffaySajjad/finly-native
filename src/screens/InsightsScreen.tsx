@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../hooks/useSubscription';
+import { logger } from '../utils/logger';
 import { InsightCard, PremiumBadge, UpgradePrompt, AIAssistantFAB } from '../components';
 import { apiService } from '../services/api';
 import { Insight } from '../types';
@@ -211,18 +212,16 @@ const InsightsScreen: React.FC = () => {
       const isRefreshing = forceRefreshParam === true;
       const shouldCallAPI = isFirstTime || isRefreshing;
 
-      if (__DEV__) {
-        console.log('[InsightsScreen] Loading insights:', {
-          initialLoad,
-          refreshing,
-          forceRefresh: shouldCallAPI,
-          forceRefreshParam,
-          isFirstLoad,
-          isFirstTime,
-          isRefreshing,
-          shouldCallAPI
-        });
-      }
+      logger.debug('[InsightsScreen] Loading insights:', {
+        initialLoad,
+        refreshing,
+        forceRefresh: shouldCallAPI,
+        forceRefreshParam,
+        isFirstLoad,
+        isFirstTime,
+        isRefreshing,
+        shouldCallAPI
+      });
 
       // Call API only on first load or pull-to-refresh
       // Otherwise, rely on cache (which will be checked by apiClient)
@@ -233,13 +232,11 @@ const InsightsScreen: React.FC = () => {
         forceRefresh: shouldCallAPI, // true on first load or pull-to-refresh only
       });
 
-      if (__DEV__) {
-        console.log('[InsightsScreen] Insights loaded:', {
-          count: result.insights.length,
-          total: result.pagination.total,
-          hasMore: result.pagination.hasMore
-        });
-      }
+      logger.debug('[InsightsScreen] Insights loaded:', {
+        count: result.insights.length,
+        total: result.pagination.total,
+        hasMore: result.pagination.hasMore
+      });
 
       if (initialLoad) {
         setInsights(result.insights);
@@ -273,7 +270,7 @@ const InsightsScreen: React.FC = () => {
    * Handles pull-to-refresh
    */
   const onRefresh = (): void => {
-    if (__DEV__) console.log('[InsightsScreen] Pull to refresh triggered');
+    logger.debug('[InsightsScreen] Pull to refresh triggered');
     setRefreshing(true);
     setNextCursor(null);
     // Pass true for forceRefresh explicitly since refreshing state hasn't updated yet

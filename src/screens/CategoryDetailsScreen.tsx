@@ -27,6 +27,7 @@ import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
 import { TransactionCard, BottomSheetBackground, CurrencyInput } from '../components';
 import { Expense, Category, UnifiedTransaction } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -259,7 +260,7 @@ const CategoryDetailsScreen: React.FC = () => {
 
   useFocusEffect(
     React.useCallback(() => {
-      if (__DEV__) console.log('[CategoryDetailsScreen] useFocusEffect - categoryId:', categoryId);
+      logger.debug('[CategoryDetailsScreen] useFocusEffect - categoryId:', categoryId);
       loadData(true);
     }, [categoryId])
   );
@@ -327,13 +328,11 @@ const CategoryDetailsScreen: React.FC = () => {
 
       const cursorToUse = initialLoad ? undefined : (cursor || undefined);
 
-      if (__DEV__) {
-        console.log('[CategoryDetailsScreen] Loading expenses:', {
-          categoryId,
-          initialLoad,
-          cursor: cursorToUse,
-        });
-      }
+      logger.debug('[CategoryDetailsScreen] Loading expenses:', {
+        categoryId,
+        initialLoad,
+        cursor: cursorToUse,
+      });
 
       const result = await apiService.getExpensesPaginated({
         categoryId,
@@ -341,16 +340,14 @@ const CategoryDetailsScreen: React.FC = () => {
         cursor: cursorToUse,
       });
 
-      if (__DEV__) {
-        console.log('[CategoryDetailsScreen] Received expenses:', {
-          count: result.expenses.length,
-          total: result.pagination.total,
-          hasMore: result.pagination.hasMore,
-          nextCursor: result.pagination.nextCursor,
-          firstExpenseDate: result.expenses[0]?.date,
-          lastExpenseDate: result.expenses[result.expenses.length - 1]?.date,
-        });
-      }
+      logger.debug('[CategoryDetailsScreen] Received expenses:', {
+        count: result.expenses.length,
+        total: result.pagination.total,
+        hasMore: result.pagination.hasMore,
+        nextCursor: result.pagination.nextCursor,
+        firstExpenseDate: result.expenses[0]?.date,
+        lastExpenseDate: result.expenses[result.expenses.length - 1]?.date,
+      });
 
       if (initialLoad) {
         setExpenses(result.expenses);
@@ -372,14 +369,12 @@ const CategoryDetailsScreen: React.FC = () => {
    * Load more expenses (pagination)
    */
   const loadMore = useCallback(() => {
-    if (__DEV__) {
-      console.log('[CategoryDetailsScreen] loadMore called:', {
-        loadingMore,
-        hasMore,
-        nextCursor,
-        canLoad: !loadingMore && hasMore && nextCursor,
-      });
-    }
+    logger.debug('[CategoryDetailsScreen] loadMore called:', {
+      loadingMore,
+      hasMore,
+      nextCursor,
+      canLoad: !loadingMore && hasMore && nextCursor,
+    });
 
     if (!loadingMore && hasMore && nextCursor) {
       loadExpenses(false, nextCursor);

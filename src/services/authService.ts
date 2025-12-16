@@ -69,10 +69,10 @@ class AuthService {
    */
   async signup(payload: SignupPayload): Promise<{ user: User; message: string }> {
     try {
-      console.log('[AuthService] Signup request:', { ...payload, password: '[HIDDEN]' });
+      logger.debug('[AuthService] Signup request:', { ...payload, password: '[HIDDEN]' });
       const response = await api.post<{ user: User }>(API_ENDPOINTS.AUTH.SIGNUP, payload);
 
-      console.log('[AuthService] Signup response:', response);
+      logger.debug('[AuthService] Signup response:', response);
 
       if (!response.success) {
         throw new Error(response.error?.message || 'Signup failed');
@@ -116,10 +116,10 @@ class AuthService {
       const response = await api.post<AuthResponse>(API_ENDPOINTS.AUTH.LOGIN, payload);
 
       if (!response.success) {
-        console.log('[AuthService] Login failed response:', response);
+        logger.debug('[AuthService] Login failed response:', response);
         const error = response.error;
         if (error) {
-          console.log('[AuthService] Error details:', error);
+          logger.debug('[AuthService] Error details:', error);
           // Create error with code preserved for frontend handling
           const err: any = new Error(error.message || 'Login failed');
           err.code = error.code; // Preserve error code
@@ -151,7 +151,7 @@ class AuthService {
       // If error already has a code from API response (EMAIL_NOT_VERIFIED, etc.), preserve it
       if (error.code && error.code !== 'ERR_NETWORK' && error.code !== 'ERR_BAD_REQUEST' && error.code !== 'ECONNREFUSED' && error.code !== 'ENOTFOUND') {
         // Error already processed from API response, just rethrow with code preserved
-        console.log('[AuthService] Preserving error code:', error.code);
+        logger.debug('[AuthService] Preserving error code:', error.code);
         throw error;
       }
       
@@ -161,7 +161,7 @@ class AuthService {
       if (error.code && !handledError.code) {
         handledError.code = error.code;
       }
-      console.log('[AuthService] Final error code:', handledError.code);
+      logger.debug('[AuthService] Final error code:', handledError.code);
       throw handledError;
     }
   }
@@ -191,7 +191,7 @@ class AuthService {
    */
   async deleteAccount(feedback?: { reasonForDeletion?: string; feedback?: string }): Promise<void> {
     try {
-      console.log('[AuthService] Deleting account...', feedback ? 'with feedback' : 'without feedback');
+      logger.debug('[AuthService] Deleting account...', feedback ? 'with feedback' : 'without feedback');
       const response = await api.delete(API_ENDPOINTS.AUTH.DELETE_ACCOUNT, {
         data: feedback || {},
       });
@@ -200,7 +200,7 @@ class AuthService {
         throw new Error(response.error?.message || 'Failed to delete account');
       }
 
-      console.log('[AuthService] Account deleted successfully');
+      logger.debug('[AuthService] Account deleted successfully');
 
       // Clear local data after successful deletion
       await tokenManager.clearTokens();

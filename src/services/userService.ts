@@ -31,14 +31,12 @@ export const getStartingBalance = async (): Promise<number> => {
   try {
     const userId = await getCurrentUserId();
     if (!userId) {
-      console.log('[getStartingBalance] No user ID found');
       return 0;
     }
 
     const key = `${STARTING_BALANCE_KEY}_${userId}`;
     const balance = await AsyncStorage.getItem(key);
     const balanceValue = balance ? parseFloat(balance) : 0;
-    console.log(`[getStartingBalance] User ID: ${userId}, Key: ${key}, Balance: ${balanceValue}`);
     return balanceValue;
   } catch (error) {
     console.error('Error getting starting balance:', error);

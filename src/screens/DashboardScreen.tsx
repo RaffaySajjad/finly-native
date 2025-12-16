@@ -33,7 +33,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { useBottomSheet } from '../contexts/BottomSheetContext';
+import { useBottomSheetActions } from '../contexts/BottomSheetContext';
 import { usePreferences } from '../contexts/PreferencesContext';
 import {
   TransactionCard,
@@ -171,7 +171,7 @@ const DashboardScreen: React.FC = () => {
   const navigation = useNavigation<DashboardNavigationProp>();
   const insets = useSafeAreaInsets();
   const { isPremium, getRemainingUsage } = useSubscription();
-  const { openBottomSheet, setOnTransactionAdded } = useBottomSheet();
+  const { openBottomSheet, setOnTransactionAdded } = useBottomSheetActions();
   const optionsSheetRef = useRef<BottomSheet>(null);
   const balanceAdjustSheetRef = useRef<BottomSheet>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -315,7 +315,7 @@ const DashboardScreen: React.FC = () => {
   // Register callback to refresh when transaction is added
   useEffect(() => {
     setOnTransactionAdded(() => {
-      console.log('[DashboardScreen] Transaction added, refreshing data...');
+      logger.debug('[DashboardScreen] Transaction added, refreshing data...');
         loadData(true); // Skip cache when transaction is added to show latest data
       });
 
@@ -664,7 +664,7 @@ const DashboardScreen: React.FC = () => {
         const shouldShow = scrollPosition > threshold;
         
         if (shouldShow !== showBalancePill) {
-          console.log('[BalancePill] Visibility change:', {
+          logger.debug('[BalancePill] Visibility change:', {
             scrollPosition,
             threshold,
             cardY: balanceCardY.current,
@@ -697,7 +697,7 @@ const DashboardScreen: React.FC = () => {
     const { y, height } = event.nativeEvent.layout;
     balanceCardY.current = y;
     balanceCardHeight.current = height;
-    console.log('[BalancePill] Card measured:', { y, height, threshold: y + height - 60 });
+    logger.debug('[BalancePill] Card measured:', { y, height, threshold: y + height - 60 });
   };
 
   // Scroll back to balance card when pill is tapped

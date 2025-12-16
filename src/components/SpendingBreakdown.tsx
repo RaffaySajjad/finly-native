@@ -4,7 +4,7 @@
  * Features: Slice highlighting, budget comparison, mobile-friendly tooltips
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,6 @@ import {
   TouchableOpacity,
   Animated,
   Platform,
-  Dimensions,
   ScrollView,
 } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -86,25 +85,27 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
   const [selectedSlice, setSelectedSlice] = useState<SelectedSlice | null>(null);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const tooltipAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  // Calculate total spending
-  const totalSpent = categories.reduce((sum, cat) => sum + (cat.totalSpent || 0), 0);
+  // Memoize sorted/filtered categories - avoids re-sorting on every render
+  const sortedCategories = useMemo(
+    () =>
+      [...categories]
+        .filter(cat => (cat.totalSpent || 0) > 0)
+        .sort((a, b) => (b.totalSpent || 0) - (a.totalSpent || 0)),
+    [categories]
+  );
 
-  // Sort categories by spending (descending)
-  const sortedCategories = [...categories]
-    .filter(cat => (cat.totalSpent || 0) > 0)
-    .sort((a, b) => (b.totalSpent || 0) - (a.totalSpent || 0));
+  const totalSpent = useMemo(
+    () => categories.reduce((sum, cat) => sum + (cat.totalSpent || 0), 0),
+    [categories]
+  );
 
-  // Limit legend to top 12 categories initially, show all if toggled
   const displayedCategories = showAllCategories
     ? sortedCategories
     : sortedCategories.slice(0, SORTED_CATEGORIES_LIMIT);
 
-  /**
-   * Handle slice selection - show tooltip with details
-   */
-  const handleSlicePress = (index: number) => {
+  // Memoized because it's passed to chartData which creates objects for PieChart
+  const handleSlicePress = useCallback((index: number) => {
     if (Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -115,53 +116,60 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
     const categorySpent = category.totalSpent || 0;
     const percentage = totalSpent > 0 ? (categorySpent / totalSpent) * 100 : 0;
 
-    // If clicking the same slice, deselect it
-    if (selectedSlice?.index === index) {
-      setSelectedSlice(null);
-      Animated.spring(tooltipAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 50,
-        friction: 7,
-      }).start();
-    } else {
-      // Select new slice
-      setSelectedSlice({ category, percentage, index });
-      Animated.spring(tooltipAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 50,
-        friction: 7,
-      }).start();
-    }
-  };
+    setSelectedSlice((prevSelected) => {
+      if (prevSelected?.index === index) {
+        Animated.spring(tooltipAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }).start();
+        return null;
+      } else {
+        Animated.spring(tooltipAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }).start();
+        return { category, percentage, index };
+      }
+    });
+  }, [sortedCategories, totalSpent, tooltipAnim]);
 
-  /**
-   * Handle tooltip navigation to category details
-   */
   const handleNavigateToCategory = () => {
     if (!selectedSlice) return;
-    
     if (Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    
     navigation.navigate('CategoryDetails', { categoryId: selectedSlice.category.id });
   };
 
-  // Prepare chart data with highlighting for selected slice
-  const chartData = sortedCategories.map((cat, index) => {
-    const isSelected = selectedSlice?.index === index;
-    const categoryColor = getCategoryColor(cat, theme);
-    
-    return {
-      value: cat.totalSpent || 0,
-      color: categoryColor,
-      text: cat.name.charAt(0).toUpperCase() + cat.name.slice(1),
-      focused: isSelected,
-      onPress: () => handleSlicePress(index),
-    };
-  });
+  const handleCloseTooltip = () => {
+    setSelectedSlice(null);
+    Animated.spring(tooltipAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  // Memoize chartData - PieChart receives new data on every render otherwise
+  const chartData = useMemo(
+    () =>
+      sortedCategories.map((cat, index) => {
+        const isSelected = selectedSlice?.index === index;
+        const categoryColor = getCategoryColor(cat, theme);
+
+        return {
+          value: cat.totalSpent || 0,
+          color: categoryColor,
+          text: cat.name.charAt(0).toUpperCase() + cat.name.slice(1),
+          focused: isSelected,
+          onPress: () => handleSlicePress(index),
+        };
+      }),
+    [sortedCategories, selectedSlice?.index, theme, handleSlicePress]
+  );
 
   // Empty state
   if (sortedCategories.length === 0) {
@@ -261,7 +269,7 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
           {sortedCategories.length > SORTED_CATEGORIES_LIMIT && (
             <TouchableOpacity
               style={styles.showMoreButton}
-              onPress={() => setShowAllCategories(!showAllCategories)}
+              onPress={() => setShowAllCategories(prev => !prev)}
               activeOpacity={0.7}
             >
               <Text style={[styles.showMoreText, { color: theme.primary }]}>
@@ -320,13 +328,7 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
                 </View>
               </View>
               <TouchableOpacity
-                onPress={() => {
-                  setSelectedSlice(null);
-                  Animated.spring(tooltipAnim, {
-                    toValue: 0,
-                    useNativeDriver: true,
-                  }).start();
-                }}
+                onPress={handleCloseTooltip}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Icon name="close" size={20} color={theme.textTertiary} />
@@ -561,5 +563,6 @@ const styles = StyleSheet.create({
 });
 
 export default SpendingBreakdown;
+
 
 

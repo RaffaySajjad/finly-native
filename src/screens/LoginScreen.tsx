@@ -26,6 +26,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useAppDispatch, useAppSelector } from '../store';
 import { login as loginAction } from '../store/slices/authSlice';
 import { useTheme } from '../contexts/ThemeContext';
+import { logger } from '../utils/logger';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { AuthStackParamList } from '../navigation/types';
 import authService from '../services/authService';
@@ -84,7 +85,7 @@ const LoginScreen: React.FC = () => {
 
   // Debug: Log when error states change
   useEffect(() => {
-    console.log('[LoginScreen] Error states changed:', { emailError, passwordError, generalError, isMounted: isMountedRef.current });
+    logger.debug('[LoginScreen] Error states changed:', { emailError, passwordError, generalError, isMounted: isMountedRef.current });
   }, [emailError, passwordError, generalError]);
 
   const handleLogin = async () => {
@@ -125,9 +126,9 @@ const LoginScreen: React.FC = () => {
       await dispatch(loginAction({ email, password })).unwrap();
       // Navigation handled by root navigator after auth state changes
     } catch (error: any) {
-      console.log('[LoginScreen] Login error caught:', error);
-      console.log('[LoginScreen] Error type:', typeof error);
-      console.log('[LoginScreen] Error structure:', JSON.stringify(error, null, 2));
+      logger.debug('[LoginScreen] Login error caught:', error);
+      logger.debug('[LoginScreen] Error type:', typeof error);
+      logger.debug('[LoginScreen] Error structure:', JSON.stringify(error, null, 2));
       
       // Extract error information - handle both object and string errors
       let errorMessage: string = 'Invalid email or password. Please try again.';
@@ -152,8 +153,8 @@ const LoginScreen: React.FC = () => {
         // Keep default errorMessage
       }
 
-      console.log('[LoginScreen] Extracted errorMessage:', errorMessage);
-      console.log('[LoginScreen] Extracted errorCode:', errorCode);
+      logger.debug('[LoginScreen] Extracted errorMessage:', errorMessage);
+      logger.debug('[LoginScreen] Extracted errorCode:', errorCode);
       
       // Ensure we always have an error message
       if (!errorMessage || errorMessage.trim() === '') {
@@ -189,7 +190,7 @@ const LoginScreen: React.FC = () => {
         const isAuthError = errorCode === 'AUTHENTICATION_ERROR' || errorLower.includes('authentication_error');
         const isValidationError = errorCode === 'VALIDATION_ERROR';
         
-        console.log('[LoginScreen] Setting error display:', { errorMessage, errorCode, errorLower, isAuthError, isValidationError });
+        logger.debug('[LoginScreen] Setting error display:', { errorMessage, errorCode, errorLower, isAuthError, isValidationError });
         
         // Use a function to set errors to ensure they're set even if component re-renders
         const setErrors = () => {
@@ -208,7 +209,7 @@ const LoginScreen: React.FC = () => {
 
           // Set the general error message to be displayed above the button
           setGeneralError(errorMessage);
-          console.log('[LoginScreen] Set general error (API):', errorMessage);
+          logger.debug('[LoginScreen] Set general error (API):', errorMessage);
         };
         
         // Set errors immediately
@@ -218,7 +219,7 @@ const LoginScreen: React.FC = () => {
         setTimeout(() => {
           if (isMountedRef.current) {
             setErrors();
-            console.log('[LoginScreen] Re-applied error states after delay');
+            logger.debug('[LoginScreen] Re-applied error states after delay');
           }
         }, 100);
       }

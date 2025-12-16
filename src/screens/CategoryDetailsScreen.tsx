@@ -27,6 +27,7 @@ import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
 import { TransactionCard, BottomSheetBackground, CurrencyInput } from '../components';
 import { Expense, Category, UnifiedTransaction } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -259,7 +260,7 @@ const CategoryDetailsScreen: React.FC = () => {
 
   useFocusEffect(
     React.useCallback(() => {
-      console.log('[CategoryDetailsScreen] useFocusEffect - categoryId:', categoryId);
+      logger.debug('[CategoryDetailsScreen] useFocusEffect - categoryId:', categoryId);
       loadData(true);
     }, [categoryId])
   );
@@ -327,7 +328,7 @@ const CategoryDetailsScreen: React.FC = () => {
 
       const cursorToUse = initialLoad ? undefined : (cursor || undefined);
 
-      console.log('[CategoryDetailsScreen] Loading expenses:', {
+      logger.debug('[CategoryDetailsScreen] Loading expenses:', {
         categoryId,
         initialLoad,
         cursor: cursorToUse,
@@ -339,7 +340,7 @@ const CategoryDetailsScreen: React.FC = () => {
         cursor: cursorToUse,
       });
 
-      console.log('[CategoryDetailsScreen] Received expenses:', {
+      logger.debug('[CategoryDetailsScreen] Received expenses:', {
         count: result.expenses.length,
         total: result.pagination.total,
         hasMore: result.pagination.hasMore,
@@ -368,7 +369,7 @@ const CategoryDetailsScreen: React.FC = () => {
    * Load more expenses (pagination)
    */
   const loadMore = useCallback(() => {
-    console.log('[CategoryDetailsScreen] loadMore called:', {
+    logger.debug('[CategoryDetailsScreen] loadMore called:', {
       loadingMore,
       hasMore,
       nextCursor,
@@ -641,6 +642,10 @@ const CategoryDetailsScreen: React.FC = () => {
         }
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        initialNumToRender={10}
       />
 
       {/* Budget Edit Bottom Sheet */}

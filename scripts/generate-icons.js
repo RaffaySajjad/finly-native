@@ -66,14 +66,11 @@ async function generateIcons() {
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  console.log('🎨 Generating app icons...\n');
-
   // Generate iOS icons
-  console.log('📱 Generating iOS icons...');
   for (const { size, scale, name } of iconSizes.ios) {
     const actualSize = size * scale;
     const outputPath = path.join(outputDir, 'ios', name);
-    
+
     if (!fs.existsSync(path.dirname(outputPath))) {
       fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     }
@@ -82,39 +79,26 @@ async function generateIcons() {
       .resize(actualSize, actualSize)
       .png()
       .toFile(outputPath);
-
-    console.log(`  ✓ Generated ${name} (${actualSize}x${actualSize})`);
   }
 
   // Generate Android icons
-  console.log('\n🤖 Generating Android icons...');
   for (const { size, density, name } of iconSizes.android) {
-    const outputPath = path.join(outputDir, 'android', `mipmap-${density}`, name);
-    
+    const outputPath = path.join(
+      outputDir,
+      'android',
+      `mipmap-${density}`,
+      name
+    );
+
     if (!fs.existsSync(path.dirname(outputPath))) {
       fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     }
 
-    await sharp(svgPath)
-      .resize(size, size)
-      .png()
-      .toFile(outputPath);
-
-    console.log(`  ✓ Generated ${name} for ${density} (${size}x${size})`);
+    await sharp(svgPath).resize(size, size).png().toFile(outputPath);
   }
 
-  console.log('\n✅ Icon generation complete!');
-  console.log(`📁 Icons saved to: ${outputDir}`);
-  
   // Automatically copy icons to correct locations
-  console.log('\n📦 Copying icons to iOS and Android folders...');
-  
-  await copyIconsToDestinations(outputDir);
-  
-  console.log('\n🎉 All done! Icons have been generated and installed.');
-  console.log('💡 Rebuild your app to see the new icons:');
-  console.log('   - iOS: npm run ios');
-  console.log('   - Android: npm run android');
+  sawait copyIconsToDestinations(outputDir);
 }
 
 /**
@@ -139,7 +123,6 @@ async function copyIconsToDestinations(outputDir) {
   }
   
   // Copy iOS icons
-  console.log('  📱 Copying iOS icons...');
   const iosSourceDir = path.join(outputDir, 'ios');
   if (fs.existsSync(iosSourceDir)) {
     const iosFiles = await readdir(iosSourceDir);
@@ -151,13 +134,11 @@ async function copyIconsToDestinations(outputDir) {
       const stats = await stat(sourcePath);
       if (stats.isFile()) {
         await copyFile(sourcePath, destPath);
-        console.log(`    ✓ Copied ${file}`);
       }
     }
   }
   
   // Copy Android icons
-  console.log('  🤖 Copying Android icons...');
   const androidSourceDir = path.join(outputDir, 'android');
   if (fs.existsSync(androidSourceDir)) {
     const mipmapDirs = await readdir(androidSourceDir);
@@ -183,14 +164,11 @@ async function copyIconsToDestinations(outputDir) {
           const fileStats = await stat(sourcePath);
           if (fileStats.isFile()) {
             await copyFile(sourcePath, destPath);
-            console.log(`    ✓ Copied ${file} to ${mipmapDir}/`);
           }
         }
       }
     }
   }
-  
-  console.log('  ✅ All icons copied successfully!');
 }
 
 generateIcons().catch((error) => {

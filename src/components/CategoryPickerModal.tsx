@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { logger } from '../utils/logger';
 import { Category } from '../types';
 import { typography, spacing, borderRadius } from '../theme';
 
@@ -51,14 +52,14 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
     const categoriesList = Array.isArray(categories) ? categories : [];
     
     // Debug log
-    console.log('[CategoryPickerModal] Categories received:', {
+    logger.debug('[CategoryPickerModal] Categories received:', {
       isArray: Array.isArray(categories),
       length: categoriesList.length,
       categories: categoriesList.slice(0, 3).map(c => ({ id: c?.id, name: c?.name, isSystemCategory: c?.isSystemCategory }))
     });
 
     if (categoriesList.length === 0) {
-      console.warn('[CategoryPickerModal] No categories provided!', { 
+      logger.warn('[CategoryPickerModal] No categories provided!', { 
         categories, 
         categoriesLength: categories?.length,
         categoriesType: typeof categories 
@@ -79,7 +80,7 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
     const systemCategories = filtered.filter(cat => cat.isSystemCategory === true);
     const customCategories = filtered.filter(cat => cat.isSystemCategory !== true); // This includes false, undefined, and null
 
-    console.log('[CategoryPickerModal] Filtered categories:', {
+    logger.debug('[CategoryPickerModal] Filtered categories:', {
       total: categoriesList.length,
       valid: filtered.length,
       system: systemCategories.length,
@@ -104,8 +105,8 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
   // Debug: Log when modal opens and categories are available
   useEffect(() => {
     if (visible) {
-      console.log('[CategoryPickerModal] Modal opened with categories:', categories?.length || 0);
-      console.log('[CategoryPickerModal] Filtered - System:', filteredCategories.systemCategories.length, 'Custom:', filteredCategories.customCategories.length);
+      logger.debug('[CategoryPickerModal] Modal opened with categories:', categories?.length || 0);
+      logger.debug('[CategoryPickerModal] Filtered - System:', filteredCategories.systemCategories.length, 'Custom:', filteredCategories.customCategories.length);
     }
   }, [visible, categories, filteredCategories]);
 
@@ -219,7 +220,7 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
                 <View style={styles.categoryGridModal}>
                   {filteredCategories.systemCategories.map((cat, index) => {
                     if (index === 0) {
-                      console.log('[CategoryPickerModal] Rendering system category:', cat.name, cat.id);
+                      logger.debug('[CategoryPickerModal] Rendering system category:', cat.name, cat.id);
                     }
                     const isSelected = selectedCategoryId === cat.id;
                     const categoryColor = cat.color || theme.primary;
@@ -269,7 +270,7 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
                 <View style={styles.categoryGridModal}>
                   {filteredCategories.customCategories.map((cat, index) => {
                     if (index === 0) {
-                      console.log('[CategoryPickerModal] Rendering custom category:', cat.name, cat.id);
+                      logger.debug('[CategoryPickerModal] Rendering custom category:', cat.name, cat.id);
                     }
                     const isSelected = selectedCategoryId === cat.id;
                     const categoryColor = cat.color || theme.primary;

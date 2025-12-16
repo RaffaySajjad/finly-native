@@ -5,6 +5,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '../utils/logger';
 import { Expense, Category, MonthlyStats } from '../types';
 
 const STORAGE_KEYS = {
@@ -33,7 +34,7 @@ export async function exportDataAsJSON(): Promise<string> {
 
     return JSON.stringify(data, null, 2);
   } catch (error) {
-    console.error('Error exporting data:', error);
+    logger.error('Error exporting data:', error);
     throw new Error('Failed to export data');
   }
 }
@@ -79,11 +80,9 @@ export async function deleteAllData(): Promise<void> {
     // Step 1: Call backend API to delete all data from database
     // This deletes: expenses, income, categories, receipts, tags, AI queries
     await apiService.deleteAllData();
-    console.log('[DataExport] Backend data deleted successfully');
 
     // Step 1.5: Clear API cache
     await apiCacheService.clear();
-    console.log('[DataExport] API cache cleared');
 
     // Step 2: Get all AsyncStorage keys
     const allKeys = await AsyncStorage.getAllKeys();
@@ -109,12 +108,6 @@ export async function deleteAllData(): Promise<void> {
     // Step 6: Clear all keys
     if (allKeysToRemove.length > 0) {
       await AsyncStorage.multiRemove(allKeysToRemove);
-      console.log(
-        `[DataExport] Cleared ${allKeysToRemove.length} AsyncStorage keys:`,
-        allKeysToRemove
-      );
-    } else {
-      console.log('[DataExport] No AsyncStorage keys to clear');
     }
 
     // Step 7: Verify category-related keys are cleared
@@ -134,14 +127,8 @@ export async function deleteAllData(): Promise<void> {
       const existingKeys = stillExists.filter(Boolean) as string[];
       if (existingKeys.length > 0) {
         await AsyncStorage.multiRemove(existingKeys);
-        console.log(
-          `[DataExport] Removed remaining category keys:`,
-          existingKeys
-        );
       }
     }
-
-    console.log('[DataExport] All data deletion completed successfully');
   } catch (error) {
     console.error('[DataExport] Error deleting data:', error);
     throw new Error('Failed to delete data');

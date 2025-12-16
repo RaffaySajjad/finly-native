@@ -23,6 +23,7 @@ import * as Haptics from 'expo-haptics';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { logger } from '../utils/logger';
 import { useAppDispatch, useAppSelector } from '../store';
 import { logout as logoutAction, updateProfile as updateProfileAction, deleteAccount as deleteAccountAction } from '../store/slices/authSlice';
 import { toggleMockIAP, loadDevSettings } from '../store/slices/devSettingsSlice';
@@ -139,7 +140,7 @@ const ProfileScreen: React.FC = () => {
   const checkNotificationStatus = async () => {
     try {
       const enabled = await notificationService.areNotificationsEnabled();
-      console.log('[ProfileScreen] Notification permission status:', enabled);
+      logger.debug('[ProfileScreen] Notification permission status:', enabled);
       setNotificationsEnabled(enabled);
     } catch (error) {
       console.error('Error checking notification status:', error);

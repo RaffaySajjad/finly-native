@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../hooks/useSubscription';
+import { logger } from '../utils/logger';
 import { InsightCard, PremiumBadge, UpgradePrompt, AIAssistantFAB } from '../components';
 import { apiService } from '../services/api';
 import { Insight } from '../types';
@@ -211,7 +212,7 @@ const InsightsScreen: React.FC = () => {
       const isRefreshing = forceRefreshParam === true;
       const shouldCallAPI = isFirstTime || isRefreshing;
 
-      console.log('[InsightsScreen] Loading insights:', {
+      logger.debug('[InsightsScreen] Loading insights:', {
         initialLoad,
         refreshing,
         forceRefresh: shouldCallAPI,
@@ -231,7 +232,7 @@ const InsightsScreen: React.FC = () => {
         forceRefresh: shouldCallAPI, // true on first load or pull-to-refresh only
       });
 
-      console.log('[InsightsScreen] Insights loaded:', {
+      logger.debug('[InsightsScreen] Insights loaded:', {
         count: result.insights.length,
         total: result.pagination.total,
         hasMore: result.pagination.hasMore
@@ -269,7 +270,7 @@ const InsightsScreen: React.FC = () => {
    * Handles pull-to-refresh
    */
   const onRefresh = (): void => {
-    console.log('[InsightsScreen] Pull to refresh triggered');
+    logger.debug('[InsightsScreen] Pull to refresh triggered');
     setRefreshing(true);
     setNextCursor(null);
     // Pass true for forceRefresh explicitly since refreshing state hasn't updated yet
@@ -407,13 +408,17 @@ const InsightsScreen: React.FC = () => {
           keyExtractor={(item) => item.date}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
-            }
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
+          }
           onEndReached={loadMore}
           onEndReachedThreshold={0.5}
           ListFooterComponent={renderFooter}
           ListEmptyComponent={renderEmpty}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          initialNumToRender={10}
         />
       )}
 

@@ -3,6 +3,7 @@
     "name": "Finly",
     "slug": "Finly",
     "version": "1.0.0",
+    "jsEngine": "hermes",
     "orientation": "portrait",
     "android": {
       "package": "com.raffay.finly",

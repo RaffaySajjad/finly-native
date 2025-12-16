@@ -29,8 +29,9 @@ import { Audio } from 'expo-av';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
+import { logger } from '../utils/logger';
 import { useVoiceRecording } from '../hooks/useVoiceRecording';
-import { useBottomSheet, ParsedTransactionUpdate } from '../contexts/BottomSheetContext';
+import { useBottomSheetActions, ParsedTransactionUpdate } from '../contexts/BottomSheetContext';
 import { UpgradePrompt, DatePickerInput, ToggleSelector } from '../components';
 import { parseTransactionInput } from '../services/aiTransactionService';
 import { transcribeAudio } from '../services/voiceTranscriptionService';
@@ -48,7 +49,7 @@ const VoiceTransactionScreen: React.FC = () => {
   const { formatCurrency, getCurrencySymbol, currencyCode, convertToUSD } = useCurrency();
   const navigation = useNavigation<NavigationProp>();
   const { isPremium, requiresUpgrade } = useSubscription();
-  const { openBottomSheet, setOnParsedTransactionUpdate } = useBottomSheet();
+  const { openBottomSheet, setOnParsedTransactionUpdate } = useBottomSheetActions();
   const {
     state: recordingState,
     startRecording,
@@ -143,7 +144,7 @@ const VoiceTransactionScreen: React.FC = () => {
 
       // Recording is complete - transcription will happen when user clicks "Process with AI"
       if (uri) {
-        console.log('[VoiceTransaction] Recording saved:', uri);
+        logger.debug('[VoiceTransaction] Recording saved:', uri);
       }
     } catch (error) {
       Alert.alert('Recording Error', 'Failed to stop recording.');
@@ -226,7 +227,7 @@ const VoiceTransactionScreen: React.FC = () => {
       if (!textToProcess && recordingUri) {
         setIsTranscribing(true);
         try {
-          console.log('[VoiceTransaction] Transcribing recording:', recordingUri);
+          logger.debug('[VoiceTransaction] Transcribing recording:', recordingUri);
           const transcribedText = await transcribeAudio(recordingUri);
 
           if (!transcribedText || transcribedText.trim().length === 0) {
@@ -242,7 +243,7 @@ const VoiceTransactionScreen: React.FC = () => {
           // Set the transcribed text and use it for processing
           textToProcess = transcribedText.trim();
           setInput(textToProcess);
-          console.log('[VoiceTransaction] Transcription successful:', textToProcess);
+          logger.debug('[VoiceTransaction] Transcription successful:', textToProcess);
         } catch (transcriptionError: any) {
           console.error('[VoiceTransaction] Transcription error:', transcriptionError);
           Alert.alert(

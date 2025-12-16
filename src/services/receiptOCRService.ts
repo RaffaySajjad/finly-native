@@ -32,84 +32,91 @@ export async function extractReceiptTransactions(
   currencyCode?: string
 ): Promise<ExtractedTransaction[]> {
   try {
-    console.log('[ReceiptOCR] Starting extraction for:', imageUri);
-
     // Extract filename from URI
     const uriWithoutQuery = imageUri.split('?')[0];
     const filename = uriWithoutQuery.split('/').pop() || 'receipt.jpg';
     const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
-    
+
     // Determine MIME type
-    const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' 
-      : ext === 'png' ? 'image/png' 
-      : ext === 'gif' ? 'image/gif' 
-      : ext === 'webp' ? 'image/webp'
-      : 'image/jpeg';
+    const mimeType =
+      ext === 'jpg' || ext === 'jpeg'
+        ? 'image/jpeg'
+        : ext === 'png'
+        ? 'image/png'
+        : ext === 'gif'
+        ? 'image/gif'
+        : ext === 'webp'
+        ? 'image/webp'
+        : 'image/jpeg';
 
     // Create FormData for multipart upload
     const formData = new FormData();
-    
+
     // In React Native, FormData accepts objects with uri, type, and name
-    const fileUri = Platform.OS === 'ios' 
-      ? imageUri // Keep full URI including file://
-      : imageUri;
+    const fileUri =
+      Platform.OS === 'ios'
+        ? imageUri // Keep full URI including file://
+        : imageUri;
 
     formData.append('image', {
       uri: fileUri,
       type: mimeType,
-      name: filename,
+      name: filename
     } as any);
 
     // Build query params
-    const queryParams = currencyCode ? `?currencyCode=${encodeURIComponent(currencyCode)}` : '';
-
-    console.log('[ReceiptOCR] Uploading receipt image:', filename);
+    const queryParams = currencyCode
+      ? `?currencyCode=${encodeURIComponent(currencyCode)}`
+      : '';
 
     // Make request with FormData
-    const response = await apiClient.post<{ 
-      success: boolean; 
+    const response = await apiClient.post<{
+      success: boolean;
       data?: ExtractedTransaction[];
       error?: { message: string; code: string; statusCode: number };
-    }>(
-      `/ai/extract-receipt${queryParams}`,
-      formData,
-      {
-        timeout: 60000, // 60 seconds timeout for OCR
-      }
-    );
+    }>(`/ai/extract-receipt${queryParams}`, formData, {
+      timeout: 60000 // 60 seconds timeout for OCR
+    });
 
     // Check if response indicates an error
     if (response.data?.success === false) {
-      const errorMessage = response.data?.error?.message || 'Failed to extract receipt data. Please try again.';
+      const errorMessage =
+        response.data?.error?.message ||
+        'Failed to extract receipt data. Please try again.';
       throw new Error(errorMessage);
     }
 
     if (response.data?.success && response.data?.data) {
       const transactions = response.data.data;
-      console.log('[ReceiptOCR] Extraction successful:', transactions.length, 'transactions found');
       return transactions;
     }
 
     console.warn('[ReceiptOCR] Unexpected response format:', response.data);
-    throw new Error('Unexpected response format from server. Please try again.');
+    throw new Error(
+      'Unexpected response format from server. Please try again.'
+    );
   } catch (error: any) {
     console.error('[ReceiptOCR] Extraction error:', error);
-    
+
     // Extract error message from backend response
     // Backend returns: { success: false, error: { message, code, statusCode } }
-    const errorMessage = error.response?.data?.error?.message 
-      || error.response?.data?.message 
-      || error.message 
-      || 'Failed to extract receipt data. Please try again.';
-    
+    const errorMessage =
+      error.response?.data?.error?.message ||
+      error.response?.data?.message ||
+      error.message ||
+      'Failed to extract receipt data. Please try again.';
+
     // Provide user-friendly error messages based on status code
     if (error.response?.status === 413) {
       throw new Error('Image file is too large. Maximum size is 20MB.');
     }
-    
+
     if (error.response?.status === 400) {
       // Use the backend error message if available, otherwise provide generic message
-      throw new Error(errorMessage || 'Could not extract transaction data from the receipt. Please try again with a clearer image.');
+      throw new Error(
+        errorMessage ||
+          'Could not extract transaction data from the receipt. Please try again with a clearer image.'
+      );
     }
 
     if (error.response?.status === 401) {
@@ -122,7 +129,9 @@ export async function extractReceiptTransactions(
 
     // Network or timeout errors
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-      throw new Error('Request timed out. Please check your connection and try again.');
+      throw new Error(
+        'Request timed out. Please check your connection and try again.'
+      );
     }
 
     throw new Error(errorMessage);

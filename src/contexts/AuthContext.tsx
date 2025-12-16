@@ -4,7 +4,7 @@
  * Integrates with finly-core backend API for real authentication
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import authService, { User } from '../services/authService';
 
 interface AuthContextType {
@@ -74,7 +74,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
    * Login with email and password
    * Calls finly-core backend API
    */
-  const login = async (email: string, password: string): Promise<void> => {
+  const login = useCallback(async (email: string, password: string): Promise<void> => {
     try {
       if (!email || !password) {
         throw new Error('Email and password are required');
@@ -87,13 +87,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Login error:', error);
       throw error;
     }
-  };
+  }, []);
 
   /**
    * Sign up a new user
    * Returns indication if email verification is required
    */
-  const signup = async (
+  const signup = useCallback(async (
     name: string,
     email: string,
     password: string
@@ -113,13 +113,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Signup error:', error);
       throw error;
     }
-  };
+  }, []);
 
   /**
    * Verify email with OTP
    * Completes the signup process
    */
-  const verifyEmail = async (email: string, otp: string): Promise<void> => {
+  const verifyEmail = useCallback(async (email: string, otp: string): Promise<void> => {
     try {
       const response = await authService.verifyEmail({ email, otp });
       setUser(response.user);
@@ -128,25 +128,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Verify email error:', error);
       throw error;
     }
-  };
+  }, []);
 
   /**
    * Resend OTP for email verification
    */
-  const resendOTP = async (email: string): Promise<void> => {
+  const resendOTP = useCallback(async (email: string): Promise<void> => {
     try {
       await authService.resendOTP(email);
     } catch (error: any) {
       console.error('Resend OTP error:', error);
       throw error;
     }
-  };
+  }, []);
 
   /**
    * Logout function
    * Clears all user data and tokens
    */
-  const logout = async (): Promise<void> => {
+  const logout = useCallback(async (): Promise<void> => {
     try {
       await authService.logout();
       setUser(null);
@@ -157,24 +157,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(null);
       setPendingVerificationEmail(null);
     }
-  };
+  }, []);
 
   /**
    * Request password reset OTP
    */
-  const forgotPassword = async (email: string): Promise<void> => {
+  const forgotPassword = useCallback(async (email: string): Promise<void> => {
     try {
       await authService.forgotPassword(email);
     } catch (error: any) {
       console.error('Forgot password error:', error);
       throw error;
     }
-  };
+  }, []);
 
   /**
    * Reset password with OTP
    */
-  const resetPassword = async (
+  const resetPassword = useCallback(async (
     email: string,
     otp: string,
     newPassword: string
@@ -185,12 +185,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Reset password error:', error);
       throw error;
     }
-  };
+  }, []);
 
   /**
    * Refresh user data from backend
    */
-  const refreshUser = async (): Promise<void> => {
+  const refreshUser = useCallback(async (): Promise<void> => {
     try {
       const freshUser = await authService.getCurrentUser();
       setUser(freshUser);
@@ -198,27 +198,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Error refreshing user:', error);
       throw error;
     }
-  };
+  }, []);
+
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      isAuthenticated: !!user,
+      isLoading,
+      pendingVerificationEmail,
+      login,
+      signup,
+      verifyEmail,
+      resendOTP,
+      logout,
+      forgotPassword,
+      resetPassword,
+      refreshUser,
+    }),
+    [
+      user,
+      isLoading,
+      pendingVerificationEmail,
+      login,
+      signup,
+      verifyEmail,
+      resendOTP,
+      logout,
+      forgotPassword,
+      resetPassword,
+      refreshUser,
+    ]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user,
-        isLoading,
-        pendingVerificationEmail,
-        login,
-        signup,
-        verifyEmail,
-        resendOTP,
-        logout,
-        forgotPassword,
-        resetPassword,
-        refreshUser,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
   );
 };
 

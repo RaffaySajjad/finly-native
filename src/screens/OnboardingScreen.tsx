@@ -32,6 +32,8 @@ import {
   getUserCurrency,
 } from '../services/currencyService';
 import { useEffect } from 'react';
+import { useAppFlow } from '../contexts/AppFlowContext';
+import { IMPORT_SHOWN_KEY, ONBOARDING_STORAGE_KEY } from '../constants/storageKeys';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -46,11 +48,9 @@ interface OnboardingSlide {
   type?: 'currency' | 'import' | 'standard';
 }
 
-const ONBOARDING_STORAGE_KEY = '@finly_onboarding_completed';
-const IMPORT_SHOWN_KEY = '@finly_import_shown';
-
 const OnboardingScreen: React.FC = () => {
   const { getCurrencySymbol } = useCurrency();
+  const { markOnboardingComplete } = useAppFlow();
 
   const onboardingSlides: OnboardingSlide[] = [
     {
@@ -117,14 +117,13 @@ const OnboardingScreen: React.FC = () => {
   useEffect(() => {
     const checkExistingTransactions = async () => {
       try {
-        // Check for expenses or income transactions
-        const [expenses, incomeTransactions] = await Promise.all([
-          apiService.getExpenses({ limit: 1 }).catch(() => []),
-          apiService.getIncomeTransactions({ limit: 1 }).catch(() => []),
-        ]);
+        // Check if user has any transactions (single request, minimal payload).
+        const result = await apiService.getUnifiedTransactionsPaginated({ limit: 1 }).catch(() => ({
+          transactions: [],
+          pagination: { hasMore: false, nextCursor: null, total: 0 },
+        }));
 
-        const hasAnyTransactions = (expenses && expenses.length > 0) ||
-          (incomeTransactions && incomeTransactions.length > 0);
+        const hasAnyTransactions = result.transactions.length > 0;
 
         setHasTransactions(hasAnyTransactions);
 
@@ -219,15 +218,11 @@ const OnboardingScreen: React.FC = () => {
   };
 
   const handleSkip = async () => {
-    await AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, 'true');
-    // AppNavigator will detect the change and re-render
-    // No need to navigate manually
+    await markOnboardingComplete();
   };
 
   const handleComplete = async () => {
-    await AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, 'true');
-    // AppNavigator will detect the change and re-render
-    // No need to navigate manually
+    await markOnboardingComplete();
   };
 
   const handleScroll = Animated.event(

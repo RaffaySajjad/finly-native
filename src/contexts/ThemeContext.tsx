@@ -4,7 +4,7 @@
  * Persists user preference using AsyncStorage
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useMemo, useState, useEffect, ReactNode, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeMode } from '../types';
 import { lightColors, darkColors, ColorScheme } from '../theme/colors';
@@ -50,22 +50,27 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
    * Toggles between light and dark theme
    * Persists the choice to AsyncStorage
    */
-  const toggleTheme = async (): Promise<void> => {
-    const newMode: ThemeMode = mode === 'light' ? 'dark' : 'light';
-    setMode(newMode);
-    
-    try {
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, newMode);
-    } catch (error) {
-      console.error('Error saving theme preference:', error);
-    }
-  };
+  const toggleTheme = useCallback((): void => {
+    // Persist using best-effort async write; keep UI responsive.
+    setMode((prevMode) => {
+      const nextMode: ThemeMode = prevMode === 'light' ? 'dark' : 'light';
+      AsyncStorage.setItem(THEME_STORAGE_KEY, nextMode).catch((error) => {
+        console.error('Error saving theme preference:', error);
+      });
+      return nextMode;
+    });
+  }, []);
 
-  const theme = mode === 'light' ? lightColors : darkColors;
+  const theme = useMemo(() => (mode === 'light' ? lightColors : darkColors), [mode]);
   const isDark = mode === 'dark';
 
+  const value = useMemo<ThemeContextType>(
+    () => ({ theme, mode, toggleTheme, isDark }),
+    [theme, mode, toggleTheme, isDark]
+  );
+
   return (
-    <ThemeContext.Provider value={{ theme, mode, toggleTheme, isDark }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

@@ -3,7 +3,7 @@
  * Purpose: Share bottom sheet handler between DashboardScreen and CustomTabBar
  */
 
-import React, { createContext, useContext, useRef, useCallback, ReactNode, useState } from 'react';
+import React, { createContext, useContext, useMemo, useRef, useCallback, ReactNode, useState } from 'react';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { Expense, IncomeTransaction } from '../types';
 
@@ -17,21 +17,25 @@ export interface ParsedTransactionUpdate {
   date?: string;
 }
 
-interface BottomSheetContextType {
+interface BottomSheetActionsContextType {
   setHandler: (handler: (() => void) | null) => void;
   openBottomSheet: (editingExpense?: Expense, editingIncome?: IncomeTransaction) => void;
   setBottomSheetRef: (ref: BottomSheet | null) => void;
   onTransactionAdded: () => void;
   setOnTransactionAdded: (callback: (() => void) | null) => void;
-  editingExpense: Expense | null;
-  editingIncome: IncomeTransaction | null;
-  setEditingExpense: (expense: Expense | null) => void;
-  setEditingIncome: (income: IncomeTransaction | null) => void;
   onParsedTransactionUpdate: ((update: ParsedTransactionUpdate) => void) | null;
   setOnParsedTransactionUpdate: (callback: ((update: ParsedTransactionUpdate) => void) | null) => void;
 }
 
-const BottomSheetContext = createContext<BottomSheetContextType | undefined>(undefined);
+interface BottomSheetEditStateContextType {
+  editingExpense: Expense | null;
+  editingIncome: IncomeTransaction | null;
+  setEditingExpense: (expense: Expense | null) => void;
+  setEditingIncome: (income: IncomeTransaction | null) => void;
+}
+
+const BottomSheetActionsContext = createContext<BottomSheetActionsContextType | undefined>(undefined);
+const BottomSheetEditStateContext = createContext<BottomSheetEditStateContextType | undefined>(undefined);
 
 export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const handlerRef = useRef<(() => void) | null>(null);
@@ -70,7 +74,12 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
   }, []);
 
   const openBottomSheet = useCallback((editingExpenseParam?: Expense, editingIncomeParam?: IncomeTransaction) => {
-    console.log('[BottomSheetContext] openBottomSheet called', { editingExpense: !!editingExpenseParam, editingIncome: !!editingIncomeParam });
+    if (__DEV__) {
+      console.log('[BottomSheetContext] openBottomSheet called', {
+        editingExpense: !!editingExpenseParam,
+        editingIncome: !!editingIncomeParam,
+      });
+    }
 
     // Set editing data if provided
     if (editingExpenseParam) {
@@ -85,43 +94,83 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
       setEditingIncome(null);
     }
 
-    console.log('[BottomSheetContext] bottomSheetRefRef.current:', !!bottomSheetRefRef.current);
-    console.log('[BottomSheetContext] handlerRef.current:', !!handlerRef.current);
+    if (__DEV__) {
+      console.log('[BottomSheetContext] bottomSheetRefRef.current:', !!bottomSheetRefRef.current);
+      console.log('[BottomSheetContext] handlerRef.current:', !!handlerRef.current);
+    }
     if (bottomSheetRefRef.current) {
-      console.log('[BottomSheetContext] Opening via ref');
+      if (__DEV__) console.log('[BottomSheetContext] Opening via ref');
       bottomSheetRefRef.current.snapToIndex(0);
     } else if (handlerRef.current) {
-      console.log('[BottomSheetContext] Opening via handler');
+      if (__DEV__) console.log('[BottomSheetContext] Opening via handler');
       handlerRef.current();
     } else {
       console.warn('[BottomSheetContext] No handler or bottomSheetRef registered yet');
     }
   }, []);
 
-  return (
-    <BottomSheetContext.Provider value={{
+  // Keep action values stable even when editing state changes.
+  const actionsValue = useMemo<BottomSheetActionsContextType>(
+    () => ({
       setHandler,
       openBottomSheet,
       setBottomSheetRef,
       onTransactionAdded,
       setOnTransactionAdded,
+      onParsedTransactionUpdate,
+      setOnParsedTransactionUpdate,
+    }),
+    [
+      setHandler,
+      openBottomSheet,
+      setBottomSheetRef,
+      onTransactionAdded,
+      setOnTransactionAdded,
+      onParsedTransactionUpdate,
+      setOnParsedTransactionUpdate,
+    ]
+  );
+
+  const editStateValue = useMemo<BottomSheetEditStateContextType>(
+    () => ({
       editingExpense,
       editingIncome,
       setEditingExpense,
       setEditingIncome,
-      onParsedTransactionUpdate,
-      setOnParsedTransactionUpdate,
-    }}>
-      {children}
-    </BottomSheetContext.Provider>
+    }),
+    [editingExpense, editingIncome]
+  );
+
+  return (
+    <BottomSheetActionsContext.Provider value={actionsValue}>
+      <BottomSheetEditStateContext.Provider value={editStateValue}>
+        {children}
+      </BottomSheetEditStateContext.Provider>
+    </BottomSheetActionsContext.Provider>
   );
 };
 
-export const useBottomSheet = () => {
-  const context = useContext(BottomSheetContext);
+export const useBottomSheetActions = (): BottomSheetActionsContextType => {
+  const context = useContext(BottomSheetActionsContext);
   if (!context) {
-    throw new Error('useBottomSheet must be used within BottomSheetProvider');
+    throw new Error('useBottomSheetActions must be used within BottomSheetProvider');
   }
   return context;
+};
+
+export const useBottomSheetEditState = (): BottomSheetEditStateContextType => {
+  const context = useContext(BottomSheetEditStateContext);
+  if (!context) {
+    throw new Error('useBottomSheetEditState must be used within BottomSheetProvider');
+  }
+  return context;
+};
+
+// Backwards-compatible hook (kept for existing imports).
+// Prefer `useBottomSheetActions` for most consumers to avoid rerenders on edit state changes.
+export const useBottomSheet = (): BottomSheetActionsContextType & BottomSheetEditStateContextType => {
+  const actions = useBottomSheetActions();
+  const edit = useBottomSheetEditState();
+  return { ...actions, ...edit };
 };
 

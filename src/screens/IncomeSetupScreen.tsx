@@ -40,10 +40,10 @@ import {
 } from '../services/currencyService';
 import { apiService } from '../services/api';
 import { getIncomeSources as getLocalIncomeSources } from '../services/incomeService';
+import { useAppFlow } from '../contexts/AppFlowContext';
+import { INCOME_SETUP_COMPLETED_KEY } from '../constants/storageKeys';
 
 type IncomeSetupNavigationProp = StackNavigationProp<RootStackParamList>;
-
-const INCOME_SETUP_COMPLETED_KEY = '@finly_income_setup_completed';
 
 const FREQUENCY_OPTIONS: Array<{ value: IncomeFrequency; label: string; icon: string; description: string }> = [
   { value: 'WEEKLY', label: 'Weekly', icon: 'calendar-week', description: 'Every week' },
@@ -58,6 +58,7 @@ const IncomeSetupScreen: React.FC = () => {
   const { theme } = useTheme();
   const { getCurrencySymbol, setCurrency: setCurrencyGlobal, convertToUSD } = useCurrency();
   const navigation = useNavigation<IncomeSetupNavigationProp>();
+  const { markIncomeSetupComplete } = useAppFlow();
   
   // Step management
   const [currentStep, setCurrentStep] = useState<SetupStep>(0); // Start with currency selection
@@ -94,14 +95,15 @@ const IncomeSetupScreen: React.FC = () => {
 
         // Check if currency is explicitly saved (not just default)
         // If user has transactions, they've already been using the app, so skip currency step
-        const [expenses, incomeTransactions, savedCurrencyRaw] = await Promise.all([
-          apiService.getExpenses({ limit: 1 }).catch(() => []),
-          apiService.getIncomeTransactions({ limit: 1 }).catch(() => []),
+        const [unified, savedCurrencyRaw] = await Promise.all([
+          apiService.getUnifiedTransactionsPaginated({ limit: 1 }).catch(() => ({
+            transactions: [],
+            pagination: { hasMore: false, nextCursor: null, total: 0 },
+          })),
           AsyncStorage.getItem('@finly_currency').catch(() => null),
         ]);
 
-        const hasTransactions = (expenses && expenses.length > 0) ||
-          (incomeTransactions && incomeTransactions.length > 0);
+        const hasTransactions = unified.transactions.length > 0;
         // Currency was explicitly saved (not just default)
         const hasCurrencyExplicitlySet = savedCurrencyRaw !== null && savedCurrencyRaw !== '';
 
@@ -170,7 +172,7 @@ const IncomeSetupScreen: React.FC = () => {
         // Skip the entire income setup screen
         if (hasIncomeSources) {
           console.log('[IncomeSetup] ✅ User already has income sources, skipping entire income setup');
-          await AsyncStorage.setItem(INCOME_SETUP_COMPLETED_KEY, 'true');
+          await markIncomeSetupComplete();
           setIsCheckingSetup(false);
           setShouldShowSetup(false);
           // AppNavigator will detect the change and navigate away
@@ -293,7 +295,7 @@ const IncomeSetupScreen: React.FC = () => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     // Mark income setup as complete, user skipped setup
-    await AsyncStorage.setItem(INCOME_SETUP_COMPLETED_KEY, 'true');
+    await markIncomeSetupComplete();
   };
 
   const handleNext = () => {
@@ -409,7 +411,7 @@ const IncomeSetupScreen: React.FC = () => {
       console.log(`[IncomeSetupScreen] Verified saved balance: ${savedBalance}`);
       
       // Mark income setup as complete
-      await AsyncStorage.setItem(INCOME_SETUP_COMPLETED_KEY, 'true');
+      await markIncomeSetupComplete();
       
       if (Platform.OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

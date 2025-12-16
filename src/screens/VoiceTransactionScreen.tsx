@@ -30,7 +30,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
 import { useVoiceRecording } from '../hooks/useVoiceRecording';
-import { useBottomSheet, ParsedTransactionUpdate } from '../contexts/BottomSheetContext';
+import { useBottomSheetActions, ParsedTransactionUpdate } from '../contexts/BottomSheetContext';
 import { UpgradePrompt, DatePickerInput, ToggleSelector } from '../components';
 import { parseTransactionInput } from '../services/aiTransactionService';
 import { transcribeAudio } from '../services/voiceTranscriptionService';
@@ -48,7 +48,7 @@ const VoiceTransactionScreen: React.FC = () => {
   const { formatCurrency, getCurrencySymbol, currencyCode, convertToUSD } = useCurrency();
   const navigation = useNavigation<NavigationProp>();
   const { isPremium, requiresUpgrade } = useSubscription();
-  const { openBottomSheet, setOnParsedTransactionUpdate } = useBottomSheet();
+  const { openBottomSheet, setOnParsedTransactionUpdate } = useBottomSheetActions();
   const {
     state: recordingState,
     startRecording,

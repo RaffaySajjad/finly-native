@@ -4,16 +4,16 @@
  * Implements smooth transitions, premium navigation UI, and authentication flow
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import { Platform, ActivityIndicator, View, Linking } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createNativeBottomTabNavigator } from '@bottom-tabs/react-navigation';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef, Theme as NavigationTheme } from '@react-navigation/native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
-import { useBottomSheet } from '../contexts/BottomSheetContext';
+import { useBottomSheetActions } from '../contexts/BottomSheetContext';
+import { useAppFlow } from '../contexts/AppFlowContext';
 import { useAppDispatch, useAppSelector } from '../store';
 import { checkAuthStatus } from '../store/slices/authSlice';
 import { checkSubscriptionStatus } from '../store/slices/subscriptionSlice';
@@ -49,8 +49,8 @@ import AIAssistantScreen from '../screens/AIAssistantScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import DevMenuScreen from '../screens/DevMenuScreen';
 
-import IncomeSetupScreen, { hasCompletedIncomeSetup } from '../screens/IncomeSetupScreen';
-import OnboardingScreen, { hasCompletedOnboarding } from '../screens/OnboardingScreen';
+import IncomeSetupScreen from '../screens/IncomeSetupScreen';
+import OnboardingScreen from '../screens/OnboardingScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
@@ -96,8 +96,7 @@ const AuthNavigator: React.FC = () => {
  */
 const MainTabs: React.FC = () => {
   const { theme } = useTheme();
-  const insets = useSafeAreaInsets();
-  const { openBottomSheet } = useBottomSheet();
+  const { openBottomSheet } = useBottomSheetActions();
 
   const handleFabPress = React.useCallback(() => {
     openBottomSheet();
@@ -216,28 +215,13 @@ const AppNavigator: React.FC = () => {
   const { theme, isDark } = useTheme();
   const dispatch = useAppDispatch();
   const { isAuthenticated, isRestoringAuth } = useAppSelector((state) => state.auth);
-  const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
-  const [incomeSetupComplete, setIncomeSetupComplete] = useState<boolean | null>(null);
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
+  const { onboardingComplete, incomeSetupComplete, refreshFlowState } = useAppFlow();
 
-  // Check onboarding status
-  const checkOnboarding = useCallback(async () => {
-    const completed = await hasCompletedOnboarding();
-    setOnboardingComplete(completed);
-  }, []);
-
-  // Check income setup status
-  const checkIncomeSetup = useCallback(async () => {
-    const completed = await hasCompletedIncomeSetup();
-    setIncomeSetupComplete(completed);
-  }, []);
-
-  // Check auth status on mount
   // Check auth status on mount
   useEffect(() => {
     dispatch(checkAuthStatus());
-    checkOnboarding();
-  }, [dispatch, checkOnboarding]);
+  }, [dispatch]);
 
   // Re-check onboarding status when user logs in
   // This ensures that after account deletion and re-login, onboarding is shown again
@@ -245,43 +229,13 @@ const AppNavigator: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated) {
       dispatch(checkSubscriptionStatus());
-      // Re-check from AsyncStorage when user logs in
-      // If account was deleted, AsyncStorage was cleared and onboarding will show
-      // If user just logged out/in, flags remain and onboarding won't show
-      checkOnboarding();
-      checkIncomeSetup();
+      // Refresh completion flags once per login (no storage polling).
+      refreshFlowState();
     }
-  }, [isAuthenticated, dispatch, checkOnboarding, checkIncomeSetup]);
-
-  // Check income setup after onboarding completes
-  useEffect(() => {
-    if (onboardingComplete) {
-      checkIncomeSetup();
-    }
-  }, [onboardingComplete, checkIncomeSetup]);
-
-  // Re-check onboarding and income setup periodically to catch completion
-  useEffect(() => {
-    // Check immediately first
-    if (!onboardingComplete) {
-      checkOnboarding();
-    } else if (!incomeSetupComplete) {
-      checkIncomeSetup();
-    }
-
-    const interval = setInterval(() => {
-      if (!onboardingComplete) {
-        checkOnboarding();
-      } else if (!incomeSetupComplete) {
-        checkIncomeSetup();
-      }
-    }, 200); // Check every 200ms for faster response
-
-    return () => clearInterval(interval);
-  }, [checkOnboarding, checkIncomeSetup, onboardingComplete, incomeSetupComplete]);
+  }, [isAuthenticated, dispatch, refreshFlowState]);
 
   // Handle deep linking from widgets
-  const { openBottomSheet } = useBottomSheet();
+  const { openBottomSheet } = useBottomSheetActions();
 
   useEffect(() => {
     const handleDeepLink = (url: string) => {
@@ -321,8 +275,44 @@ const AppNavigator: React.FC = () => {
   }, [isAuthenticated, onboardingComplete, openBottomSheet]);
 
 
-  // Show loading screen while checking auth state and onboarding
-  if (isRestoringAuth || onboardingComplete === null || (onboardingComplete && incomeSetupComplete === null)) {
+  const navigationTheme = useMemo<NavigationTheme>(
+    () => ({
+      dark: isDark,
+      colors: {
+        primary: theme.primary,
+        background: theme.background,
+        card: theme.surface,
+        text: theme.text,
+        border: theme.border,
+        notification: theme.primary,
+      },
+      fonts: {
+        regular: {
+          fontFamily: 'System',
+          fontWeight: '400',
+        },
+        medium: {
+          fontFamily: 'System',
+          fontWeight: '500',
+        },
+        bold: {
+          fontFamily: 'System',
+          fontWeight: '700',
+        },
+        heavy: {
+          fontFamily: 'System',
+          fontWeight: '900',
+        },
+      },
+    }),
+    [isDark, theme]
+  );
+
+  // Show loading screen while restoring auth and/or loading flow flags for an authenticated user.
+  if (
+    isRestoringAuth ||
+    (isAuthenticated && (onboardingComplete === null || (onboardingComplete && incomeSetupComplete === null)))
+  ) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
         <ActivityIndicator size="large" color={theme.primary} />
@@ -333,35 +323,7 @@ const AppNavigator: React.FC = () => {
   return (
     <NavigationContainer
       ref={navigationRef}
-      theme={{
-        dark: isDark,
-        colors: {
-          primary: theme.primary,
-          background: theme.background,
-          card: theme.surface,
-          text: theme.text,
-          border: theme.border,
-          notification: theme.primary,
-        },
-        fonts: {
-          regular: {
-            fontFamily: 'System',
-            fontWeight: '400',
-          },
-          medium: {
-            fontFamily: 'System',
-            fontWeight: '500',
-          },
-          bold: {
-            fontFamily: 'System',
-            fontWeight: '700',
-          },
-          heavy: {
-            fontFamily: 'System',
-            fontWeight: '900',
-          },
-        },
-      }}
+      theme={navigationTheme}
     >
       <CreateCategoryModalProvider>
         <Stack.Navigator

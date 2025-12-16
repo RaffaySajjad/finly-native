@@ -27,7 +27,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../hooks/useSubscription';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { useBottomSheet } from '../contexts/BottomSheetContext';
+import { useBottomSheetActions } from '../contexts/BottomSheetContext';
 import { UpgradePrompt, PremiumBadge } from '../components';
 import { apiService } from '../services/api';
 import receiptService from '../services/receiptService';
@@ -46,7 +46,7 @@ const ReceiptUploadScreen: React.FC = () => {
   const navigation = useNavigation<ReceiptUploadNavigationProp>();
   const { isPremium, requiresUpgrade, trackUsage, getRemainingUsage } = useSubscription();
   const { currencyCode } = useCurrency();
-  const { openBottomSheet } = useBottomSheet();
+  const { openBottomSheet } = useBottomSheetActions();
 
   const [image, setImage] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -263,6 +263,25 @@ const ReceiptUploadScreen: React.FC = () => {
           };
         }
 
+        // Build a temp Expense object so SharedBottomSheet can prefill fields immediately.
+        // We mark it with a temp id so save logic creates a new expense (not "update").
+        const nowIso = new Date().toISOString();
+        const categoryFallback = categories.find((c) => c.id === combinedExpense.categoryId) || categories[0];
+        const prefillExpense = {
+          id: `temp-expense-receipt-${Date.now()}`,
+          amount: combinedExpense.amount,
+          categoryId: combinedExpense.categoryId || categoryFallback?.id,
+          category: categoryFallback
+            ? { id: categoryFallback.id, name: categoryFallback.name, icon: categoryFallback.icon, color: categoryFallback.color }
+            : { id: combinedExpense.categoryId, name: 'Uncategorized', icon: 'help-circle-outline', color: '#9CA3AF' },
+          description: combinedExpense.description,
+          date: combinedExpense.date,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          originalAmount: combinedExpense.originalAmount,
+          originalCurrency: combinedExpense.originalCurrency,
+        };
+
         // Save receipt to gallery (premium feature) - only for expenses
         if (isPremium) {
           const merchantName = combinedExpense.description.split(' - ')[0] || combinedExpense.description;
@@ -273,12 +292,12 @@ const ReceiptUploadScreen: React.FC = () => {
               date: combinedExpense.date,
               total: combinedExpense.amount,
             },
-            categoryId: combinedExpense.categoryId,
+            categoryId: prefillExpense.categoryId,
           });
         }
 
         // Open SharedBottomSheet with pre-filled expense data
-        openBottomSheet(combinedExpense);
+        openBottomSheet(prefillExpense);
       }
 
       if (incomeTransactions.length > 0) {

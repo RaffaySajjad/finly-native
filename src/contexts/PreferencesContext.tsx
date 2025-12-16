@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface PreferencesContextType {
@@ -30,17 +30,22 @@ export const PreferencesProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   };
 
-  const setAnimateBalancePill = async (value: boolean) => {
+  const setAnimateBalancePill = useCallback(async (value: boolean) => {
     setAnimateBalancePillState(value);
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.ANIMATE_BALANCE_PILL, JSON.stringify(value));
     } catch (error) {
       console.error('Failed to save preference:', error);
     }
-  };
+  }, []);
+
+  const value = useMemo<PreferencesContextType>(
+    () => ({ animateBalancePill, setAnimateBalancePill }),
+    [animateBalancePill, setAnimateBalancePill]
+  );
 
   return (
-    <PreferencesContext.Provider value={{ animateBalancePill, setAnimateBalancePill }}>
+    <PreferencesContext.Provider value={value}>
       {children}
     </PreferencesContext.Provider>
   );

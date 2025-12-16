@@ -16,7 +16,8 @@ import {
   Alert,
   Platform,
   Modal,
-  FlatList,
+  RefreshControl,
+  SectionList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -25,8 +26,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '../contexts/ThemeContext';
-import { useBottomSheet } from '../contexts/BottomSheetContext';
-import { TransactionCard, ExpenseOptionsSheet, PullToRefreshFlatList } from '../components';
+import { useBottomSheetActions } from '../contexts/BottomSheetContext';
+import { TransactionCard, ExpenseOptionsSheet } from '../components';
 import { apiService } from '../services/api';
 import tagsService from '../services/tagsService';
 import { Expense, PaymentMethod, Tag, UnifiedTransaction, Category, IncomeTransaction } from '../types';
@@ -40,6 +41,17 @@ interface GroupedTransactions {
   dateLabel: string;
   transactions: UnifiedTransaction[];
 }
+
+// Payment method display configuration (stable reference; avoids re-allocations every render)
+const PAYMENT_METHOD_DISPLAY: Record<PaymentMethod, { name: string; icon: string }> = {
+  CREDIT_CARD: { name: 'Credit Card', icon: 'credit-card' },
+  DEBIT_CARD: { name: 'Debit Card', icon: 'card' },
+  CASH: { name: 'Cash', icon: 'cash' },
+  CHECK: { name: 'Check', icon: 'receipt' },
+  BANK_TRANSFER: { name: 'Bank Transfer', icon: 'bank-transfer' },
+  DIGITAL_WALLET: { name: 'Digital Wallet', icon: 'wallet' },
+  OTHER: { name: 'Other', icon: 'dots-horizontal' },
+};
 
 /**
  * Format date for display (same as InsightsScreen and DashboardScreen)
@@ -96,7 +108,9 @@ const groupTransactionsByDate = (
   sortBy: 'date' | 'amount',
   sortOrder: 'asc' | 'desc'
 ): GroupedTransactions[] => {
-  // Preserve the order of transactions (they're already sorted)
+  // Preserve the order of transactions (they're already sorted).
+  // Important: do NOT re-sort within each date group; that defeats the point of passing sorted input
+  // and adds avoidable CPU work on large histories.
   const grouped: Record<string, UnifiedTransaction[]> = {};
 
   transactions.forEach((transaction) => {
@@ -113,28 +127,12 @@ const groupTransactionsByDate = (
     grouped[dateKey].push(transaction);
   });
 
-  // Sort transactions within each group based on user's sort preference
-  const sortTransactions = (txs: UnifiedTransaction[]) => {
-    if (sortBy === 'date') {
-      return [...txs].sort((a, b) => {
-        const dateA = new Date(a.date).getTime();
-        const dateB = new Date(b.date).getTime();
-        return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-      });
-    } else {
-      // Sort by amount
-      return [...txs].sort((a, b) => {
-        return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
-      });
-    }
-  };
-
   // Convert to array and sort groups based on user's sort preference
   const groupedArray = Object.entries(grouped)
     .map(([date, txs]) => ({
       date,
       dateLabel: formatDateLabel(txs[0].date),
-      transactions: sortTransactions(txs),
+      transactions: txs,
     }));
 
   // Sort groups based on sort preference
@@ -164,10 +162,9 @@ const groupTransactionsByDate = (
 const TransactionsListScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<TransactionsListNavigationProp>();
-  const { openBottomSheet } = useBottomSheet();
+  const { openBottomSheet } = useBottomSheetActions();
 
   const [transactions, setTransactions] = useState<UnifiedTransaction[]>([]);
-  const [filteredTransactions, setFilteredTransactions] = useState<UnifiedTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -186,20 +183,8 @@ const TransactionsListScreen: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [tags, setTags] = useState<Tag[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [groupedTransactions, setGroupedTransactions] = useState<GroupedTransactions[]>([]);
   const [selectedTransaction, setSelectedTransaction] = useState<UnifiedTransaction | null>(null);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
-
-  // Payment method display configuration
-  const PAYMENT_METHOD_DISPLAY: Record<PaymentMethod, { name: string; icon: string }> = {
-    CREDIT_CARD: { name: 'Credit Card', icon: 'credit-card' },
-    DEBIT_CARD: { name: 'Debit Card', icon: 'card' },
-    CASH: { name: 'Cash', icon: 'cash' },
-    CHECK: { name: 'Check', icon: 'receipt' },
-    BANK_TRANSFER: { name: 'Bank Transfer', icon: 'bank-transfer' },
-    DIGITAL_WALLET: { name: 'Digital Wallet', icon: 'wallet' },
-    OTHER: { name: 'Other', icon: 'dots-horizontal' },
-  };
 
   useFocusEffect(
     React.useCallback(() => {
@@ -401,9 +386,9 @@ const TransactionsListScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDateRange, customStartDate, customEndDate, selectedTransactionType]);
 
-  // Filter and sort transactions, then group by date
-  useEffect(() => {
-    let filtered = [...transactions];
+  // Derived list data (avoid extra state + renders).
+  const filteredTransactions = useMemo(() => {
+    let filtered = transactions;
 
     // Transaction type filter
     if (selectedTransactionType !== 'all') {
@@ -412,126 +397,117 @@ const TransactionsListScreen: React.FC = () => {
 
     // Search filter - searches description, category, payment methods, and tags
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+      const query = searchQuery.trim().toLowerCase();
       filtered = filtered.filter((tx) => {
-        // Search in description
-        if (tx.description.toLowerCase().includes(query)) {
-          return true;
-        }
-
-        // Search in category (for expenses)
-        if (tx.type === 'expense' && tx.category?.name.toLowerCase().includes(query)) {
-          return true;
-        }
-
-        // Search in income source (for income)
-        if (tx.type === 'income' && tx.incomeSource?.name.toLowerCase().includes(query)) {
-          return true;
-        }
-
-        // Search in payment method (for expenses)
+        if (tx.description.toLowerCase().includes(query)) return true;
+        if (tx.type === 'expense' && tx.category?.name.toLowerCase().includes(query)) return true;
+        if (tx.type === 'income' && tx.incomeSource?.name.toLowerCase().includes(query)) return true;
         if (tx.type === 'expense' && tx.paymentMethod) {
           const paymentMethodDisplay = PAYMENT_METHOD_DISPLAY[tx.paymentMethod];
-          if (paymentMethodDisplay?.name.toLowerCase().includes(query)) {
-            return true;
-          }
+          if (paymentMethodDisplay?.name.toLowerCase().includes(query)) return true;
         }
-
-        // Search in tags (for expenses)
-        if (tx.type === 'expense' && tx.tags && tx.tags.length > 0) {
-          const matchesTag = tx.tags.some((tag) => tag.name.toLowerCase().includes(query));
-          if (matchesTag) {
-            return true;
-          }
+        if (tx.type === 'expense' && tx.tags?.length) {
+          return tx.tags.some((tag) => tag.name.toLowerCase().includes(query));
         }
-
         return false;
       });
     }
 
     // Category filter (only for expenses)
     if (selectedCategories.length > 0) {
-      filtered = filtered.filter(
-        (tx) => tx.type === 'expense' && tx.category && selectedCategories.includes(tx.category.id)
-      );
+      const selected = new Set(selectedCategories);
+      filtered = filtered.filter((tx) => tx.type === 'expense' && !!tx.category && selected.has(tx.category.id));
     }
 
     // Payment method filter (only for expenses)
     if (selectedPaymentMethods.length > 0) {
-      filtered = filtered.filter(
-        (tx) => tx.type === 'expense' && tx.paymentMethod && selectedPaymentMethods.includes(tx.paymentMethod)
-      );
+      const selected = new Set(selectedPaymentMethods);
+      filtered = filtered.filter((tx) => tx.type === 'expense' && !!tx.paymentMethod && selected.has(tx.paymentMethod));
     }
 
     // Tag filter (only for expenses)
     if (selectedTags.length > 0) {
-      filtered = filtered.filter(
-        (tx) => tx.type === 'expense' && tx.tags && tx.tags.some(tag => selectedTags.includes(tag.id))
-      );
+      const selected = new Set(selectedTags);
+      filtered = filtered.filter((tx) => tx.type === 'expense' && !!tx.tags?.some((tag) => selected.has(tag.id)));
     }
 
     // Date range filter
     if (selectedDateRange !== 'all') {
       const now = new Date();
-      let startDate: Date;
 
-      switch (selectedDateRange) {
-        case 'today':
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          break;
-        case 'week':
-          startDate = new Date(now);
-          startDate.setDate(startDate.getDate() - 7);
-          break;
-        case 'month':
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-          break;
-        case '3months':
-          startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-          break;
-        case '6months':
-          startDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
-          break;
-        case 'year':
-          startDate = new Date(now.getFullYear(), 0, 1);
-          break;
-        case 'custom':
-          if (customStartDate && customEndDate) {
-            filtered = filtered.filter((tx) => {
-              const txDate = new Date(tx.date);
-              return txDate >= customStartDate && txDate <= customEndDate;
-            });
-          }
-          break;
-        default:
-          break;
-      }
+      if (selectedDateRange === 'custom') {
+        if (customStartDate && customEndDate) {
+          filtered = filtered.filter((tx) => {
+            const txDate = new Date(tx.date);
+            return txDate >= customStartDate && txDate <= customEndDate;
+          });
+        }
+      } else {
+        let start: Date | null = null;
+        switch (selectedDateRange) {
+          case 'today':
+            start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            break;
+          case 'week':
+            start = new Date(now);
+            start.setDate(start.getDate() - 7);
+            break;
+          case 'month':
+            start = new Date(now.getFullYear(), now.getMonth(), 1);
+            break;
+          case '3months':
+            start = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+            break;
+          case '6months':
+            start = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+            break;
+          case 'year':
+            start = new Date(now.getFullYear(), 0, 1);
+            break;
+          default:
+            start = null;
+        }
 
-      if (selectedDateRange !== 'custom') {
-        filtered = filtered.filter((tx) => {
-          const txDate = new Date(tx.date);
-          return txDate >= startDate!;
-        });
+        if (start) {
+          filtered = filtered.filter((tx) => new Date(tx.date) >= start);
+        }
       }
     }
 
-    // Sort
-    filtered.sort((a, b) => {
+    // Sort (cheap compared to rendering; keep stable ordering for grouping)
+    const sorted = [...filtered].sort((a, b) => {
       if (sortBy === 'date') {
         const dateA = new Date(a.date).getTime();
         const dateB = new Date(b.date).getTime();
         return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-      } else {
-        return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
       }
+      return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
     });
 
-    setFilteredTransactions(filtered);
+    return sorted;
+  }, [
+    transactions,
+    selectedTransactionType,
+    searchQuery,
+    selectedCategories,
+    selectedPaymentMethods,
+    selectedTags,
+    selectedDateRange,
+    customStartDate,
+    customEndDate,
+    sortBy,
+    sortOrder,
+  ]);
 
-    // Group filtered transactions by date (preserving sort order)
-    const grouped = groupTransactionsByDate(filtered, sortBy, sortOrder);
-    setGroupedTransactions(grouped);
-  }, [transactions, searchQuery, selectedCategories, selectedPaymentMethods, selectedTags, selectedTransactionType, selectedDateRange, customStartDate, customEndDate, sortBy, sortOrder]);
+  const sections = useMemo(
+    () =>
+      groupTransactionsByDate(filteredTransactions, sortBy, sortOrder).map((group) => ({
+        date: group.date,
+        title: group.dateLabel,
+        data: group.transactions,
+      })),
+    [filteredTransactions, sortBy, sortOrder]
+  );
 
   const handleTransactionLongPress = useCallback((transaction: UnifiedTransaction) => {
     setSelectedTransaction(transaction);
@@ -607,12 +583,10 @@ const TransactionsListScreen: React.FC = () => {
 
   const hasActiveFilters = selectedCategories.length > 0 || selectedPaymentMethods.length > 0 || selectedTags.length > 0 || selectedTransactionType !== 'all' || selectedDateRange !== 'all' || searchQuery.trim();
 
-  // Render functions for FlatList
-  const renderDateHeader = useCallback(({ item }: { item: GroupedTransactions }) => (
+  // Render functions for SectionList (keeps per-transaction virtualization)
+  const renderSectionHeader = useCallback(({ section }: { section: { title: string } }) => (
     <View style={[styles.dateHeader, { backgroundColor: theme.background }]}>
-      <Text style={[styles.dateHeaderText, { color: theme.textSecondary }]}>
-        {item.dateLabel}
-      </Text>
+      <Text style={[styles.dateHeaderText, { color: theme.textSecondary }]}>{section.title}</Text>
       <View style={[styles.dateHeaderLine, { backgroundColor: theme.border }]} />
     </View>
   ), [theme]);
@@ -625,21 +599,7 @@ const TransactionsListScreen: React.FC = () => {
     />
   ), [handleTransactionPress, handleTransactionLongPress]);
 
-  const renderSection = useCallback(({ item }: { item: GroupedTransactions }) => (
-    <View>
-      {renderDateHeader({ item })}
-      {item.transactions.map((transaction) => (
-        <TransactionCard
-          key={`${item.date}-${transaction.id}`}
-          transaction={transaction}
-          onPress={() => handleTransactionPress(transaction)}
-          onLongPress={() => handleTransactionLongPress(transaction)}
-        />
-      ))}
-    </View>
-  ), [renderDateHeader, handleTransactionPress, handleTransactionLongPress]);
-
-  const keyExtractor = useCallback((item: GroupedTransactions) => item.date, []);
+  const keyExtractor = useCallback((item: UnifiedTransaction) => item.id, []);
 
   const renderEmptyState = useCallback(() => (
     <View style={styles.emptyState}>
@@ -942,15 +902,16 @@ const TransactionsListScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Transactions List - Using FlatList for virtualization */}
+      {/* Transactions List - SectionList keeps per-row virtualization */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : (
-        <PullToRefreshFlatList
-            data={groupedTransactions}
-            renderItem={renderSection}
+        <SectionList
+          sections={sections}
+          renderSectionHeader={renderSectionHeader}
+          renderItem={renderTransactionItem}
           keyExtractor={keyExtractor}
           ListEmptyComponent={renderEmptyState}
           ListFooterComponent={
@@ -964,17 +925,17 @@ const TransactionsListScreen: React.FC = () => {
           }
           contentContainerStyle={[
             styles.scrollContent,
-            groupedTransactions.length === 0 && styles.emptyContentContainer,
+            sections.length === 0 && styles.emptyContentContainer,
           ]}
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
           removeClippedSubviews={true}
           maxToRenderPerBatch={10}
           updateCellsBatchingPeriod={50}
           windowSize={10}
           initialNumToRender={15}
-          onRefresh={handleRefresh}
-          refreshing={refreshing}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
           onEndReached={loadMore}
           onEndReachedThreshold={0.5}
         />

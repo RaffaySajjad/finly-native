@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { typography, spacing, borderRadius, elevation } from '../theme';
-import { useBottomSheet } from '../contexts/BottomSheetContext';
+import { useBottomSheetActions } from '../contexts/BottomSheetContext';
 import { RootStackParamList } from '../navigation/types';
 import FABQuickActions from './FABQuickActions';
 import * as Haptics from 'expo-haptics';
@@ -27,7 +27,7 @@ type NavigationProp = StackNavigationProp<RootStackParamList>;
 const CustomTabBar: React.FC<CustomTabBarProps> = ({ state, descriptors, navigation, onFabPress }) => {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { openBottomSheet } = useBottomSheet();
+  const { openBottomSheet } = useBottomSheetActions();
   const stackNavigation = useNavigation<NavigationProp>();
   const [showQuickActions, setShowQuickActions] = useState(false);
   const fabRef = useRef<View>(null);

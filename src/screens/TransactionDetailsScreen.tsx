@@ -22,7 +22,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { useBottomSheet } from '../contexts/BottomSheetContext';
+import { useBottomSheetActions } from '../contexts/BottomSheetContext';
 import { apiService } from '../services/api';
 import tagsService from '../services/tagsService';
 import { PaymentMethod, Tag, UnifiedTransaction, Expense, IncomeTransaction } from '../types';
@@ -42,7 +42,7 @@ const TransactionDetailsScreen: React.FC = () => {
   const navigation = useNavigation<TransactionDetailsNavigationProp>();
   const route = useRoute<TransactionDetailsRouteProp>();
   const { showError, showInfo, AlertComponent } = useAlert();
-  const { openBottomSheet } = useBottomSheet();
+  const { openBottomSheet } = useBottomSheetActions();
 
   const { transaction } = route.params;
   const [tags, setTags] = useState<Tag[]>([]);

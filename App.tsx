@@ -12,11 +12,18 @@ import { ThemeProvider } from './src/contexts/ThemeContext';
 import { PreferencesProvider } from './src/contexts/PreferencesContext';
 import { CurrencyProvider } from './src/contexts/CurrencyContext';
 import { BottomSheetProvider } from './src/contexts/BottomSheetContext';
+import { AppFlowProvider } from './src/contexts/AppFlowContext';
 import { store } from './src/store';
 import AppNavigator from './src/navigation/AppNavigator';
 import { ErrorBoundary } from './src/components';
 import { BiometricLockScreen } from './src/screens/BiometricLockScreen';
 import { isBiometricLoginEnabled } from './src/services/biometricService';
+
+// React Navigation / screens perf: native screen primitives + freezing offscreen screens.
+// This reduces memory + unnecessary renders on complex tab/stack setups.
+import { enableFreeze, enableScreens } from 'react-native-screens';
+enableScreens(true);
+enableFreeze(true);
 
 // Expose AsyncStorage globally for debugging (development only)
 if (__DEV__) {
@@ -117,10 +124,12 @@ export default function App(): React.ReactElement {
           <ErrorBoundary>
             <CurrencyProvider>
               <BottomSheetProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <AppContent />
-                  <StatusBar style="auto" />
-                </GestureHandlerRootView>
+                <AppFlowProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <AppContent />
+                    <StatusBar style="auto" />
+                  </GestureHandlerRootView>
+                </AppFlowProvider>
               </BottomSheetProvider>
             </CurrencyProvider>
           </ErrorBoundary>

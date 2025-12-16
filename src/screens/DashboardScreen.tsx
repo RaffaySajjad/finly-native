@@ -33,7 +33,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { useBottomSheet } from '../contexts/BottomSheetContext';
+import { useBottomSheetActions } from '../contexts/BottomSheetContext';
 import { usePreferences } from '../contexts/PreferencesContext';
 import {
   TransactionCard,
@@ -171,7 +171,7 @@ const DashboardScreen: React.FC = () => {
   const navigation = useNavigation<DashboardNavigationProp>();
   const insets = useSafeAreaInsets();
   const { isPremium, getRemainingUsage } = useSubscription();
-  const { openBottomSheet, setOnTransactionAdded } = useBottomSheet();
+  const { openBottomSheet, setOnTransactionAdded } = useBottomSheetActions();
   const optionsSheetRef = useRef<BottomSheet>(null);
   const balanceAdjustSheetRef = useRef<BottomSheet>(null);
   const scrollViewRef = useRef<ScrollView>(null);

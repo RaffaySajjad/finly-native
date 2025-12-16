@@ -23,7 +23,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
-import { useBottomSheet } from '../contexts/BottomSheetContext';
+import { useBottomSheetActions, useBottomSheetEditState } from '../contexts/BottomSheetContext';
 import { BottomSheetBackground, PremiumBadge, UpgradePrompt, CurrencyInput, DatePickerInput, CategoryPickerModal, InputGroup } from '../components';
 import { useAlert } from '../hooks/useAlert';
 import { shouldUseLiquidGlass } from './BottomSheetBackground';
@@ -52,7 +52,8 @@ const SharedBottomSheet: React.FC = () => {
   const [toggleWidth, setToggleWidth] = useState(0);
   const navigation = useNavigation<SharedBottomSheetNavigationProp>();
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const { setBottomSheetRef, onTransactionAdded, editingExpense, editingIncome, setEditingExpense, setEditingIncome, onParsedTransactionUpdate } = useBottomSheet();
+  const { setBottomSheetRef, onTransactionAdded, onParsedTransactionUpdate } = useBottomSheetActions();
+  const { editingExpense, editingIncome, setEditingExpense, setEditingIncome } = useBottomSheetEditState();
 
   // Helper function to convert amount from a specific currency to USD
   const convertCurrencyToUSD = async (amount: number, fromCurrency: string): Promise<number> => {

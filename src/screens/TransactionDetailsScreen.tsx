@@ -138,6 +138,8 @@ const TransactionDetailsScreen: React.FC = () => {
         tags: transaction.tags,
         createdAt: transaction.createdAt,
         updatedAt: transaction.updatedAt || transaction.createdAt,
+        originalAmount: transaction.originalAmount,
+        originalCurrency: transaction.originalCurrency,
       };
       navigation.goBack(); // Close details screen first
       setTimeout(() => openBottomSheet(expense), 300); // Open bottom sheet after navigation completes

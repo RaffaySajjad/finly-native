@@ -536,6 +536,8 @@ const TransactionsListScreen: React.FC = () => {
         tags: transaction.tags,
         createdAt: transaction.createdAt,
         updatedAt: transaction.updatedAt || transaction.createdAt,
+        originalAmount: transaction.originalAmount,
+        originalCurrency: transaction.originalCurrency,
       };
       openBottomSheet(expense);
     } else {

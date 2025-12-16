@@ -63,24 +63,19 @@ if (__DEV__) {
     // @ts-ignore
     global.setStorage = async (key: string, value: any) => {
       await AsyncStorage.default.setItem(key, JSON.stringify(value));
-      console.log(`Set ${key}:`, value);
     };
     
     // Helper function to remove a key
     // @ts-ignore
     global.removeStorage = async (key: string) => {
       await AsyncStorage.default.removeItem(key);
-      console.log(`Removed ${key}`);
     };
     
     // Helper function to clear all storage
     // @ts-ignore
     global.clearStorage = async () => {
       await AsyncStorage.default.clear();
-      console.log('Cleared all AsyncStorage');
     };
-    
-    console.log('🔧 Debug helpers loaded! Use: getAllStorage(), getStorage(key), setStorage(key, value), removeStorage(key), clearStorage()');
   });
 }
 

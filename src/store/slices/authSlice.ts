@@ -74,15 +74,11 @@ export const login = createAsyncThunk(
       // Extract error code and message
       const errorCode = error?.code;
       const errorMessage = error?.message || 'Login failed. Please try again.';
-      
-      console.log('[AuthSlice] Login error:', error);
-      console.log('[AuthSlice] Error code:', errorCode);
-      console.log('[AuthSlice] Error message:', errorMessage);
-      
+
       // Preserve error code for frontend handling
       return rejectWithValue({
         message: errorMessage,
-        code: errorCode,
+        code: errorCode
       });
     }
   }

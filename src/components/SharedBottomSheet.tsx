@@ -210,7 +210,8 @@ const SharedBottomSheet: React.FC = () => {
   // Pre-fill form when editing expense
   useEffect(() => {
     if (editingExpense && isEditingExpense && isBottomSheetOpen) {
-      // Prefer originalAmount if available, otherwise convert from USD
+      // getTransactionDisplayAmount always returns amount in user's current currency
+      // (either originalAmount if originalCurrency matches, or converted from USD)
       if (editingExpense.amount) {
         const amountInDisplayCurrency = getTransactionDisplayAmount(
           editingExpense.amount,
@@ -230,6 +231,10 @@ const SharedBottomSheet: React.FC = () => {
       } else {
         setNewExpenseTags([]);
       }
+      // IMPORTANT: The displayed amount is always in user's current currency (from getTransactionDisplayAmount)
+      // So the currency selector must match - leave undefined to default to user's currencyCode
+      // This ensures proper conversion on save (user's currency → USD)
+      setSelectedExpenseCurrency(undefined);
       // Set transaction type to expense
       setTransactionType('expense');
       // Category will be set in loadCategoriesAndTags after categories load
@@ -242,7 +247,8 @@ const SharedBottomSheet: React.FC = () => {
   // Pre-fill form when editing income
   useEffect(() => {
     if (editingIncome && isEditingIncome && isBottomSheetOpen) {
-      // Prefer originalAmount if available, otherwise convert from USD
+      // getTransactionDisplayAmount always returns amount in user's current currency
+      // (either originalAmount if originalCurrency matches, or converted from USD)
       if (editingIncome.amount) {
         const amountInDisplayCurrency = getTransactionDisplayAmount(
           editingIncome.amount,
@@ -256,12 +262,10 @@ const SharedBottomSheet: React.FC = () => {
       if (editingIncome.incomeSourceId) {
         setNewIncomeSourceId(editingIncome.incomeSourceId);
       }
-      // Set original currency if available
-      if (editingIncome.originalCurrency) {
-        setSelectedIncomeCurrency(editingIncome.originalCurrency);
-      } else {
-        setSelectedIncomeCurrency(undefined);
-      }
+      // IMPORTANT: The displayed amount is always in user's current currency (from getTransactionDisplayAmount)
+      // So the currency selector must match - leave undefined to default to user's currencyCode
+      // This ensures proper conversion on save (user's currency → USD)
+      setSelectedIncomeCurrency(undefined);
       // Set transaction type to income
       setTransactionType('income');
     }
@@ -370,12 +374,8 @@ const SharedBottomSheet: React.FC = () => {
         description: newExpenseDescription.trim(),
         date: newExpenseDate,
         originalAmount,
+        originalCurrency: amountCurrency,
       };
-      
-      // Only include originalCurrency if it's different from current currency
-      if (amountCurrency.toUpperCase() !== currencyCode.toUpperCase()) {
-        payload.originalCurrency = amountCurrency;
-      }
 
       // Only include optional fields if they have values
       if (newExpensePaymentMethod) {
@@ -467,12 +467,11 @@ const SharedBottomSheet: React.FC = () => {
         date: newIncomeDate.toISOString(),
         description: newIncomeDescription.trim(),
         originalAmount,
+        // Always include originalCurrency to match the currency shown in the input
+        // This is critical for edits: if we don't send it, the old value (e.g., 'USD') 
+        // stays in DB while originalAmount gets the new PKR value, causing corruption
+        originalCurrency: amountCurrency,
       };
-      
-      // Only include originalCurrency if it's different from current currency
-      if (amountCurrency.toUpperCase() !== currencyCode.toUpperCase()) {
-        payload.originalCurrency = amountCurrency;
-      }
 
       // Only include incomeSourceId if it has a value
       if (newIncomeSourceId) {
@@ -632,9 +631,15 @@ const SharedBottomSheet: React.FC = () => {
           const isOpen = index >= 0;
           setIsBottomSheetOpen(isOpen);
           
-          // Reset the handled flag when closing
+          // Reset the handled flag and form state when closing
           if (index === -1) {
             hasHandledFormState.current = false;
+            // Reset currency selections to prevent stale state affecting next edit
+            setSelectedExpenseCurrency(undefined);
+            setSelectedIncomeCurrency(undefined);
+            // Clear editing state
+            setEditingExpense(null);
+            setEditingIncome(null);
             Animated.spring(fabScale, {
               toValue: 1,
               useNativeDriver: true,
@@ -646,6 +651,12 @@ const SharedBottomSheet: React.FC = () => {
         }}
         onClose={() => {
           setIsBottomSheetOpen(false);
+          // Reset currency selections to prevent stale state affecting next edit
+          setSelectedExpenseCurrency(undefined);
+          setSelectedIncomeCurrency(undefined);
+          // Clear editing state
+          setEditingExpense(null);
+          setEditingIncome(null);
           Animated.spring(fabScale, {
             toValue: 1,
             useNativeDriver: true,

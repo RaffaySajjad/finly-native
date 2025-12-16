@@ -363,12 +363,6 @@ const subscriptionSlice = createSlice({
         };
         state.subscription = normalizedSubscription;
         state.usageLimits = action.payload.usageLimits;
-        console.log('[SubscriptionSlice] Premium subscription activated:', {
-          tier: normalizedSubscription.tier,
-          isActive: normalizedSubscription.isActive,
-          isTrial: normalizedSubscription.isTrial,
-          fullSubscription: normalizedSubscription,
-        });
       })
       .addCase(subscribeToPremium.rejected, (state, action) => {
         state.isLoading = false;

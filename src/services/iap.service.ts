@@ -15,6 +15,7 @@
  */
 
 import { Platform } from 'react-native';
+import { logger } from '../utils/logger';
 import {
   initConnection,
   endConnection,
@@ -74,7 +75,7 @@ class IAPService {
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
-      console.log('[IAP] Already initialized');
+      logger.debug('[IAP] Already initialized');
       return;
     }
 
@@ -92,14 +93,14 @@ class IAPService {
         // Clear any unfinished transactions on Android
         if (Platform.OS === 'android') {
           // Note: flushFailedPurchasesCachedAsPendingAndroid was removed in v14
-          console.log('[IAP] Android initialization complete');
+          logger.debug('[IAP] Android initialization complete');
         }
 
         // Setup listeners
         this.setupListeners();
         
         this.initialized = true;
-        console.log('[IAP] Initialized successfully');
+        logger.debug('[IAP] Initialized successfully');
         return;
       } catch (error: any) {
         console.error(`[IAP] Initialization failed (attempts left: ${retries - 1}):`, error);
@@ -125,7 +126,7 @@ class IAPService {
     }
 
     this.purchaseUpdatedListener = purchaseUpdatedListener(async (purchase: any) => {
-      console.log('[IAP] Purchase updated listener triggered:', purchase.transactionId);
+      logger.debug('[IAP] Purchase updated listener triggered:', purchase.transactionId);
       
       const purchaseResult: PurchaseResult = {
         success: true,
@@ -165,7 +166,7 @@ class IAPService {
    */
   setMockScenario(scenario: MockScenario): void {
     if (!IAP_CONFIG.ENABLE_MOCKS) {
-      console.warn('[IAP] Mock scenarios only available in development mode');
+      logger.warn('[IAP] Mock scenarios only available in development mode');
       return;
     }
     this.mockScenario = scenario;
@@ -211,7 +212,7 @@ class IAPService {
       const products = await fetchProducts({ skus: productIds, type: 'subs' });
       
       if (!products || products.length === 0) {
-        console.warn('[IAP] No products returned from store');
+        logger.warn('[IAP] No products returned from store');
         return [];
       }
       
@@ -332,13 +333,13 @@ class IAPService {
     try {
       if (Platform.OS === 'android' && purchaseResult.purchaseToken) {
         await acknowledgePurchaseAndroid(purchaseResult.purchaseToken);
-        console.log('[IAP] Purchase acknowledged on Android');
+        logger.debug('[IAP] Purchase acknowledged on Android');
       } else if (Platform.OS === 'ios' && purchaseResult.originalPurchase) {
         await finishTransaction({ 
           purchase: purchaseResult.originalPurchase, 
           isConsumable: false 
         });
-        console.log('[IAP] Transaction finished on iOS');
+        logger.debug('[IAP] Transaction finished on iOS');
       }
     } catch (error) {
       console.error('[IAP] Failed to finish transaction:', error);
@@ -394,7 +395,7 @@ class IAPService {
         
         await endConnection();
         this.initialized = false;
-        console.log('[IAP] Disconnected successfully');
+        logger.debug('[IAP] Disconnected successfully');
       } catch (error) {
         console.error('[IAP] Disconnect failed:', error);
       }

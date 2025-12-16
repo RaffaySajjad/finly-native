@@ -20,6 +20,7 @@
  */
 
 import { Platform } from 'react-native';
+import { logger } from '../utils/logger';
 import { iapService, PurchaseResult } from './iap.service';
 import { api } from './apiClient';
 import { IAP_CONFIG, getProductId } from '../config/iap.config';
@@ -40,11 +41,11 @@ export const subscriptionService = {
   async initialize(): Promise<void> {
     try {
       await iapService.initialize();
-      console.log('[Subscription] IAP initialized successfully');
+      logger.debug('[Subscription] IAP initialized successfully');
 
       // Set up purchase listener for background/interrupted purchases
       iapService.setPurchaseListener(async (purchase) => {
-        console.log('[Subscription] Received purchase update:', purchase.transactionId);
+        logger.debug('[Subscription] Received purchase update:', purchase.transactionId);
         await this.verifyAndActivate(purchase);
       });
     } catch (error) {
@@ -128,7 +129,7 @@ export const subscriptionService = {
         throw new Error(purchaseResult.error || 'Purchase failed');
       }
 
-      console.log('[Subscription] Purchase successful, validating with backend...');
+      logger.debug('[Subscription] Purchase successful, validating with backend...');
 
       // Step 3: Validate receipt with backend
       try {
@@ -140,7 +141,7 @@ export const subscriptionService = {
         });
 
         if (response.success && response.data) {
-          console.log('[Subscription] Backend validation successful');
+          logger.debug('[Subscription] Backend validation successful');
           
           // Finish transaction only after successful validation
           await iapService.finishTransaction(purchaseResult);
@@ -174,7 +175,7 @@ export const subscriptionService = {
    */
   async verifyAndActivate(purchase: PurchaseResult): Promise<void> {
     try {
-      console.log('[Subscription] Verifying purchase:', purchase.transactionId);
+      logger.debug('[Subscription] Verifying purchase:', purchase.transactionId);
       
       const response = await api.post<{ subscription: Subscription }>('/subscriptions/verify-purchase', {
         transactionId: purchase.transactionId,
@@ -184,7 +185,7 @@ export const subscriptionService = {
       });
 
       if (response.success && response.data) {
-        console.log('[Subscription] Purchase verified successfully');
+        logger.debug('[Subscription] Purchase verified successfully');
         
         // Finish transaction
         await iapService.finishTransaction(purchase);
@@ -258,13 +259,13 @@ export const subscriptionService = {
       const purchases = await iapService.restorePurchases();
       
       if (purchases.length === 0) {
-        console.log('[Subscription] No purchases to restore');
+        logger.debug('[Subscription] No purchases to restore');
         return { success: true, subscription: null };
       }
 
       // Validate most recent purchase with backend
       const latestPurchase = purchases[0];
-      console.log('[Subscription] Restoring purchase:', latestPurchase.transactionId);
+      logger.debug('[Subscription] Restoring purchase:', latestPurchase.transactionId);
 
       const response = await api.post<{ subscription: Subscription }>('/subscriptions/restore', {
         transactionId: latestPurchase.transactionId,
@@ -309,7 +310,7 @@ export const subscriptionService = {
   async cleanup(): Promise<void> {
     try {
       await iapService.disconnect();
-      console.log('[Subscription] Cleaned up successfully');
+      logger.debug('[Subscription] Cleaned up successfully');
     } catch (error) {
       console.error('[Subscription] Cleanup failed:', error);
     }

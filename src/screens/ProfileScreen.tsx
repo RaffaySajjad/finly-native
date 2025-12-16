@@ -4,7 +4,7 @@
  * Includes theme toggle, user info, app settings, and logout
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,6 @@ import {
   StatusBar,
   TextInput,
   Alert,
-  ActivityIndicator,
-  Animated,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,7 +30,7 @@ import { iapService } from '../services/iap.service';
 import { useSubscription } from '../hooks/useSubscription';
 import { BottomSheetBackground, SettingItem, Header, InputGroup, PrimaryButton, SecondaryButton, CurrencySelector } from '../components';
 import { typography, spacing, borderRadius, elevation } from '../theme';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import {
@@ -67,8 +65,7 @@ const ProfileScreen: React.FC = () => {
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [currency, setCurrency] = useState('USD');
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricSupported, setBiometricSupported] = useState(false);
 
@@ -88,10 +85,17 @@ const ProfileScreen: React.FC = () => {
       setEditEmail(user.email);
     }
     loadCurrency();
-    loadNotificationsPreference();
+    checkNotificationStatus();
     dispatch(loadDevSettings());
     checkBiometricSupport();
   }, [user]);
+
+  // Reload notification status when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      checkNotificationStatus();
+    }, [])
+  );
 
   const checkBiometricSupport = async () => {
     const supported = await isBiometricAvailable();
@@ -132,59 +136,22 @@ const ProfileScreen: React.FC = () => {
     }
   };
 
-  const loadNotificationsPreference = async () => {
+  const checkNotificationStatus = async () => {
     try {
-      const preferences = await apiService.getPreferences();
-      setNotificationsEnabled(preferences.notificationsEnabled);
+      const enabled = await notificationService.areNotificationsEnabled();
+      console.log('[ProfileScreen] Notification permission status:', enabled);
+      setNotificationsEnabled(enabled);
     } catch (error) {
-      console.error('Error loading notifications preference:', error);
-      // Default to true if API fails
-      setNotificationsEnabled(true);
+      console.error('Error checking notification status:', error);
+      setNotificationsEnabled(false);
     }
   };
 
-  const handleToggleNotifications = async (value: boolean) => {
-    setLoadingNotifications(true);
-    try {
-      if (value) {
-        // Request permissions when enabling
-        const hasPermission = await notificationService.requestPermissions();
-        if (!hasPermission) {
-          Alert.alert(
-            'Permission Required',
-            'Please enable notifications in your device settings to receive insights.',
-            [{ text: 'OK' }]
-          );
-          setLoadingNotifications(false);
-          return;
-        }
-
-        // Register for push notifications
-        const registered = await notificationService.registerForPushNotifications();
-        if (!registered) {
-          Alert.alert(
-            'Registration Failed',
-            'Failed to register for push notifications. Please try again.',
-            [{ text: 'OK' }]
-          );
-          setLoadingNotifications(false);
-          return;
-        }
-      }
-
-      // Update preference on backend
-      await apiService.updatePreferences({ notificationsEnabled: value });
-      setNotificationsEnabled(value);
-
-      if (Platform.OS === 'ios') {
-        Haptics.selectionAsync();
-      }
-    } catch (error) {
-      console.error('Error updating notifications preference:', error);
-      Alert.alert('Error', 'Failed to update notification settings. Please try again.');
-    } finally {
-      setLoadingNotifications(false);
+  const handleOpenNotificationSettings = async () => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
+    await notificationService.openAppSettings();
   };
 
   const handleEditProfile = () => {
@@ -352,6 +319,27 @@ const ProfileScreen: React.FC = () => {
     }
   };
 
+  const handleSendTestNotification = async () => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    try {
+      await notificationService.sendTestNotification();
+      if (Platform.OS === 'ios') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to send test notification. Make sure notifications are enabled.'
+      );
+      if (Platform.OS === 'ios') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
@@ -469,19 +457,20 @@ const ProfileScreen: React.FC = () => {
           <SettingItem
             icon="bell-outline"
             title="Notifications"
-            subtitle={notificationsEnabled ? 'Enabled' : 'Disabled'}
+            subtitle={notificationsEnabled ? 'Enabled - Tap to manage in Settings' : 'Disabled - Tap to enable in Settings'}
+            onPress={handleOpenNotificationSettings}
             rightComponent={
-              loadingNotifications ? (
-                <ActivityIndicator size="small" color={theme.primary} />
-              ) : (
-                  <Switch
-                    value={notificationsEnabled}
-                    onValueChange={handleToggleNotifications}
-                    trackColor={{ false: theme.border, true: theme.primary + '60' }}
-                    thumbColor={notificationsEnabled ? theme.primary : theme.surface}
-                    disabled={loadingNotifications}
-                  />
-                )
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                <View
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: notificationsEnabled ? theme.success : theme.textTertiary,
+                  }}
+                />
+                <Icon name="chevron-right" size={24} color={theme.textTertiary} />
+              </View>
             }
           />
         </View>
@@ -567,6 +556,12 @@ const ProfileScreen: React.FC = () => {
               title="IAP Testing Lab"
               subtitle="Test all in-app purchase scenarios"
               onPress={() => navigation.navigate('DevMenu')}
+            />
+            <SettingItem
+              icon="bell-ring-outline"
+              title="Send Test Notification"
+              subtitle="Send a test push notification to this device"
+              onPress={handleSendTestNotification}
             />
           </View>
         )}

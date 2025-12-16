@@ -645,7 +645,7 @@ const TransactionsListScreen: React.FC = () => {
     <View style={styles.emptyState}>
       <Icon name="receipt-text-outline" size={64} color={theme.textTertiary} />
       <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
-        {hasActiveFilters ? 'No transactions match your filters' : 'No transactions yet'}
+        {hasActiveFilters ? 'No matches found. Try adjusting your filters.' : 'Quiet day! No transactions logged yet.'}
       </Text>
       {hasActiveFilters && (
         <TouchableOpacity

@@ -30,6 +30,7 @@ import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
+import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 type CategoryOnboardingNavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -94,6 +95,20 @@ const CategoryOnboardingScreen: React.FC = () => {
   const [customCategoryIcon, setCustomCategoryIcon] = useState('tag');
   const [customCategoryColor, setCustomCategoryColor] = useState('#6B7280');
   const [customCategoryBudget, setCustomCategoryBudget] = useState('');
+
+  const firstRowRef = React.useRef<Swipeable>(null);
+
+  React.useEffect(() => {
+    // Educational animation: Swipe the first item slightly to show it's interactable
+    if (step === 'budgets' && categories.length > 0) {
+      setTimeout(() => {
+        firstRowRef.current?.openRight();
+        setTimeout(() => {
+          firstRowRef.current?.close();
+        }, 800);
+      }, 500);
+    }
+  }, [step, categories.length]);
 
   const handleIncomeSubmit = () => {
     const income = parseFloat(monthlyIncome);
@@ -233,8 +248,8 @@ const CategoryOnboardingScreen: React.FC = () => {
 
   const handleSkip = async () => {
     Alert.alert(
-      'Skip Budget Setup?',
-      'You can set budgets later, but tracking budgets helps you save money.',
+      'Set Budgets Later?',
+      'Tracking budgets is a superpower for saving, but you can always set them up when you\'re ready.',
       [
         { text: 'Go Back', style: 'cancel' },
         {
@@ -273,10 +288,10 @@ const CategoryOnboardingScreen: React.FC = () => {
           </View>
 
           <Text style={[styles.title, { color: theme.text }]}>
-            Let's Set Up Your Budget
+            Let's Build Your Plan
           </Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            First, what's your average monthly income? This helps us suggest realistic budgets.
+            Starting with your monthly income helps us craft a personalized budget just for you.
           </Text>
 
           {/* Income Input */}
@@ -346,6 +361,7 @@ const CategoryOnboardingScreen: React.FC = () => {
     const remaining = income - totalBudget;
 
     return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Header */}
@@ -393,8 +409,21 @@ const CategoryOnboardingScreen: React.FC = () => {
           {/* Category Budgets */}
           <View style={styles.categoriesSection}>
             {categories.map((category, index) => (
-              <View
+              <Swipeable
                 key={index}
+                ref={index === 0 ? firstRowRef : undefined}
+                renderRightActions={() => (
+                  <View style={styles.deleteActionContainer}>
+                    <TouchableOpacity
+                      style={styles.deleteAction}
+                      onPress={() => handleDeleteCategory(index)}
+                    >
+                      <Icon name="delete" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              >
+                <View
                 style={[styles.categoryCard, { backgroundColor: theme.card, borderColor: theme.border }]}
               >
                 <View style={styles.categoryHeader}>
@@ -420,25 +449,22 @@ const CategoryOnboardingScreen: React.FC = () => {
                       inputStyle={[styles.budgetInput, { color: theme.text }]}
                       containerStyle={{ flex: 1 }}
                     />
-                  </View>
-                  {isPremium && category.description === 'Custom category' && (
-                    <TouchableOpacity
-                      onPress={() => handleDeleteCategory(index)}
-                      activeOpacity={0.7}
-                      style={styles.deleteButton}
-                    >
-                      <Icon name="delete" size={20} color="#EF4444" />
-                    </TouchableOpacity>
-                  )}
+                    </View>
                 </View>
               </View>
+              </Swipeable>
             ))}
 
-            {/* Add Custom Category Button (Premium Only) */}
-            {isPremium && (
+              {/* Add Custom Category Button (Visible for all, limited for free) */}
               <TouchableOpacity
                 style={[styles.addCategoryButton, { backgroundColor: theme.card, borderColor: theme.primary }]}
-                onPress={() => setShowCustomCategoryModal(true)}
+                onPress={() => {
+                  if (!isPremium && categories.length >= 10) {
+                    Alert.alert('Category Limit Reached', 'You’ve mastered the essentials! Upgrade to Premium to add unlimited custom categories.');
+                    return;
+                  }
+                  setShowCustomCategoryModal(true);
+                }}
                 activeOpacity={0.8}
               >
                 <Icon name="plus-circle" size={24} color={theme.primary} />
@@ -446,7 +472,6 @@ const CategoryOnboardingScreen: React.FC = () => {
                   Create Custom Category
                 </Text>
               </TouchableOpacity>
-            )}
           </View>
 
           {isPremium && (
@@ -480,29 +505,7 @@ const CategoryOnboardingScreen: React.FC = () => {
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
-    );
-  }
-
-  // Step 3: Loading
-  if (step === 'loading') {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.text }]}>
-            Setting up your categories...
-          </Text>
-          <Text style={[styles.loadingSubtext, { color: theme.textSecondary }]}>
-            This will only take a moment
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // Custom Category Modal (Premium only)
-  return (
-    <>
+        {/* Custom Category Modal */}
       <Modal
         visible={showCustomCategoryModal}
         animationType="slide"
@@ -653,8 +656,31 @@ const CategoryOnboardingScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
-    </>
-  );
+      </GestureHandlerRootView>
+    );
+  }
+
+  // Step 3: Loading
+  if (step === 'loading') {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.text }]}>
+            Setting up your categories...
+          </Text>
+          <Text style={[styles.loadingSubtext, { color: theme.textSecondary }]}>
+            This will only take a moment
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Custom Category Modal (Premium only)
+
+
+
 };
 
 const styles = StyleSheet.create({
@@ -985,6 +1011,20 @@ const styles = StyleSheet.create({
   modalButtonText: {
     ...typography.labelLarge,
     fontWeight: '600',
+  },
+  deleteActionContainer: {
+    width: 80,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteAction: {
+    backgroundColor: '#EF4444',
+    width: 56,
+    height: '80%',
+    borderRadius: borderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

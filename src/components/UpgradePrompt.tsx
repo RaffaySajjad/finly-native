@@ -78,11 +78,10 @@ export const UpgradePrompt: React.FC<UpgradePromptProps> = ({
               <Icon name="crown" size={32} color={theme.primary} />
             </View>
             <Text style={[styles.title, { color: theme.text }]}>
-              Upgrade to Premium
+              Unlock Finly Pro
             </Text>
             <Text style={[styles.message, { color: theme.textSecondary }]}>
-              {message ||
-                `${feature} is available for Premium subscribers. Upgrade to unlock all premium features.`}
+              {message || `Unlock unlimited access to ${feature} and other pro tools.`}
             </Text>
           </View>
 
@@ -94,7 +93,7 @@ export const UpgradePrompt: React.FC<UpgradePromptProps> = ({
             />
             <FeatureItem
               icon="microphone"
-              text="Voice & AI Transaction Entry"
+              text="Smart Entry (Voice & AI)"
               theme={theme}
             />
             <FeatureItem
@@ -119,7 +118,7 @@ export const UpgradePrompt: React.FC<UpgradePromptProps> = ({
                 onPress={handleStartTrial}
               >
                 <Text style={[styles.trialButtonText, { color: theme.primary }]}>
-                  Start 7-Day Free Trial
+                  Unlock 7 Days Free
                 </Text>
               </TouchableOpacity>
             )}
@@ -127,7 +126,7 @@ export const UpgradePrompt: React.FC<UpgradePromptProps> = ({
               style={[styles.upgradeButton, { backgroundColor: theme.primary }, elevation.sm]}
               onPress={handleUpgrade}
             >
-              <Text style={styles.upgradeButtonText}>Upgrade to Premium</Text>
+              <Text style={styles.upgradeButtonText}>Join Finly Pro</Text>
               <Text style={styles.priceText}>$4.99/month</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -135,7 +134,7 @@ export const UpgradePrompt: React.FC<UpgradePromptProps> = ({
               onPress={onClose}
             >
               <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
-                Maybe Later
+                Not right now
               </Text>
             </TouchableOpacity>
           </View>

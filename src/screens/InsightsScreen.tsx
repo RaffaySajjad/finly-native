@@ -424,7 +424,7 @@ const InsightsScreen: React.FC = () => {
         feature="Advanced Insights"
         message={
           !isPremium
-            ? `You've used ${3 - getRemainingUsage('advancedInsights')} of 3 free insights this week. Upgrade to Premium for unlimited AI-powered insights.`
+            ? 'Valuable insights! You’ve viewed your weekly free tips. Upgrade to Premium for unlimited financial guidance.'
             : undefined
         }
       />

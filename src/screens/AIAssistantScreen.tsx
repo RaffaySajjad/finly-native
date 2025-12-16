@@ -261,7 +261,7 @@ const AIAssistantScreen: React.FC = () => {
 
         // Show user-friendly rate limit message as toast
         const errorMessage =
-          'You\'ve reached your daily query limit. Upgrade to Premium for unlimited queries.';
+          'Great questions! You’ve used your daily free queries. Upgrade to Premium to keep the answers coming.';
 
         setToastMessage(errorMessage);
         setToastVisible(true);
@@ -508,7 +508,7 @@ const AIAssistantScreen: React.FC = () => {
             >
               <Icon name="crown" size={16} color={theme.primary} />
               <Text style={[styles.upgradeButtonText, { color: theme.primary }]}>
-                Upgrade for unlimited queries
+                Unlock Unlimited Queries
               </Text>
             </TouchableOpacity>
           )}

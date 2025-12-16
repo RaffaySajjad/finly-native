@@ -103,9 +103,10 @@ export const InsightCard: React.FC<InsightCardProps> = ({ insight, onPress }) =>
       <Animated.View
         style={[
           styles.container,
-          { backgroundColor: theme.card, borderColor: theme.border },
+          { backgroundColor: theme.card, borderColor: ['warning', 'achievement'].includes(insight.type) ? insight.color : theme.border },
           elevation.sm,
           { transform: [{ scale: scaleAnim }] },
+          ['warning', 'achievement'].includes(insight.type) && { borderWidth: 1.5 },
         ]}
       >
       <View style={[styles.iconContainer, { backgroundColor: insight.color + '20' }]}>

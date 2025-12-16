@@ -48,4 +48,5 @@ export { AlertDialog } from './AlertDialog';
 export type { AlertType, AlertButton } from './AlertDialog';
 export { Toast } from './Toast';
 export type { ToastType, ToastProps } from './Toast';
+export { NotificationPermissionBanner } from './NotificationPermissionBanner';
 

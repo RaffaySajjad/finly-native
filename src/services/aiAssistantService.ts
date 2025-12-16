@@ -82,7 +82,18 @@ export const processAIQuery = async (
     const limits = await getQueryLimits(isPremium);
     
     if (!isPremium && limits.used >= limits.limit) {
-      throw new Error(`You've reached your daily limit of ${limits.limit} queries. Upgrade to Premium for unlimited queries.`);
+      // Soft landing: Return a friendly message instead of throwing an error
+      const limitReachedResponse = "I've reached my daily energy limit for free insights! ⚡️\n\nI can help you again tomorrow, or you can upgrade to Premium for unlimited AI access right now.";
+      
+      const limitQuery: AIQuery = {
+        id: 'limit-reached-' + Date.now(),
+        query: query,
+        response: limitReachedResponse,
+        timestamp: new Date().toISOString(),
+        context
+      };
+      
+      return { response: limitReachedResponse, query: limitQuery };
     }
 
     // Process query via backend API
@@ -134,12 +145,18 @@ export const processAIQuery = async (
     
     // Handle rate limit errors from backend (429 status code)
     if (error.response?.status === 429 || error.response?.data?.error?.code === 'RATE_LIMIT_EXCEEDED') {
-      const errorMessage = error.response?.data?.error?.message || 
-                          'You\'ve reached your daily query limit. Upgrade to Premium for unlimited queries.';
-      const rateLimitError = new Error(errorMessage);
-      (rateLimitError as any).isRateLimit = true;
-      (rateLimitError as any).statusCode = 429;
-      throw rateLimitError;
+      // Soft landing for backend rate limits as well
+      const limitReachedResponse = "I've reached my daily energy limit for free insights! ⚡️\n\nI can help you again tomorrow, or you can upgrade to Premium for unlimited AI access right now.";
+      
+      const limitQuery: AIQuery = {
+        id: 'limit-reached-' + Date.now(),
+        query: query,
+        response: limitReachedResponse,
+        timestamp: new Date().toISOString(),
+        context
+      };
+      
+      return { response: limitReachedResponse, query: limitQuery };
     }
     
     // Handle API response errors (when response.success is false)

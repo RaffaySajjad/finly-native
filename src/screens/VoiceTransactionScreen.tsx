@@ -494,7 +494,7 @@ const VoiceTransactionScreen: React.FC = () => {
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={[styles.headerTitle, { color: theme.text }]}>
-            AI Transaction Entry
+            Smart Entry
           </Text>
         </View>
         <View style={{ width: 40 }} />
@@ -517,7 +517,7 @@ const VoiceTransactionScreen: React.FC = () => {
             </Text>
             <View style={styles.examplesContainer}>
               <Text style={[styles.exampleText, { color: theme.textTertiary }]}>
-                Example: "Lunch $15, Uber $20, and Groceries $50"
+                Example: "Spent $120 on Groceries at Walmart yesterday, and $15 for lunch today."
               </Text>
             </View>
           </View>
@@ -551,10 +551,10 @@ const VoiceTransactionScreen: React.FC = () => {
               <View style={styles.voicePromptCard}>
                 <Icon name="microphone" size={48} color={theme.primary} />
                 <Text style={[styles.voicePromptText, { color: theme.text }]}>
-                  Tap to start recording
+                  Tap to speak
                 </Text>
                 <Text style={[styles.voicePromptSubtext, { color: theme.textSecondary }]}>
-                  Speak your transactions clearly
+                  Just say it naturally. We'll handle the rest.
                 </Text>
               </View>
             )}
@@ -572,7 +572,7 @@ const VoiceTransactionScreen: React.FC = () => {
                   {formatDuration(recordingState.duration)}
                 </Text>
                 <Text style={[styles.recordingStatus, { color: theme.textSecondary }]}>
-                  {recordingState.isPaused ? 'Paused' : 'Recording...'}
+                  {recordingState.isPaused ? 'Paused' : 'Listening...'}
                 </Text>
               </View>
             )}
@@ -581,7 +581,7 @@ const VoiceTransactionScreen: React.FC = () => {
               <View style={[styles.recordingCompleteCard, { backgroundColor: theme.card, borderColor: theme.success }, elevation.sm]}>
                 <Icon name="check-circle" size={32} color={theme.success} />
                 <Text style={[styles.recordingCompleteText, { color: theme.text }]}>
-                  Recording Complete
+                  Got it!
                 </Text>
                 <Text style={[styles.recordingCompleteSubtext, { color: theme.textSecondary }]}>
                   {formatDuration(recordingState.duration)}
@@ -853,8 +853,8 @@ const VoiceTransactionScreen: React.FC = () => {
       <UpgradePrompt
         visible={showUpgradePrompt}
         onClose={() => setShowUpgradePrompt(false)}
-        feature="Voice & AI Transaction Entry"
-        message="This premium feature allows you to add multiple transactions at once using natural language. Speak or type multiple expenses and let AI parse them automatically."
+        feature="Voice Entry"
+        message="Voice entry complete! You’ve used your free allowance. Upgrade to Premium to log transactions by voice anytime."
       />
     </SafeAreaView>
   );

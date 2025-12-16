@@ -81,22 +81,28 @@ const PrivacyPolicyScreen: React.FC = () => {
           </Paragraph>
         </Section>
 
-        <Section title="2. Data Collection & Storage">
+        <Section title="2. Important Disclaimer">
+          <Paragraph>
+            This app is not a bank, broker, or financial advisor. It does not hold your funds or execute transactions on your behalf.
+          </Paragraph>
+        </Section>
+
+        <Section title="3. Data Collection & Storage">
           <Paragraph>
             Finly is designed with a "privacy-first" approach. We believe your financial data belongs to you.
           </Paragraph>
           <BulletPoint>
-            <Text style={{ fontWeight: '600' }}>Secure Storage:</Text> Your financial transactions, budgets, and categories are securely stored and encrypted.
+            <Text style={{ fontWeight: '600' }}>Secure cloud-based storage and synchronization:</Text> Your financial transactions, budgets, and categories are securely stored on our servers to allow access across your devices.
           </BulletPoint>
           <BulletPoint>
-            <Text style={{ fontWeight: '600' }}>Privacy First:</Text> We never share or sell your financial data to third parties.
+            <Text style={{ fontWeight: '600' }}>Privacy First:</Text> We do not sell, rent, or trade your personal or financial data to advertisers or data brokers.
           </BulletPoint>
           <BulletPoint>
             <Text style={{ fontWeight: '600' }}>Account Info:</Text> We only collect basic account information (name, email) for authentication and subscription management purposes.
           </BulletPoint>
         </Section>
 
-        <Section title="3. How We Use Your Data">
+        <Section title="4. How We Use Your Data">
           <Paragraph>
             The app uses your data solely to:
           </Paragraph>
@@ -105,7 +111,7 @@ const PrivacyPolicyScreen: React.FC = () => {
           <BulletPoint>Process voice commands and AI queries (processed ephemerally)</BulletPoint>
         </Section>
 
-        <Section title="4. AI Features">
+        <Section title="5. AI Features">
           <Paragraph>
             When you use our AI features (Voice Entry, Finly AI):
           </Paragraph>
@@ -117,16 +123,16 @@ const PrivacyPolicyScreen: React.FC = () => {
           </BulletPoint>
         </Section>
 
-        <Section title="5. Data Security">
+        <Section title="6. Data Security">
           <Paragraph>
             We implement industry-standard security measures to protect your information:
           </Paragraph>
           <BulletPoint>Secure authentication for app access</BulletPoint>
           <BulletPoint>Biometric lock support (FaceID/TouchID)</BulletPoint>
-          <BulletPoint>Encrypted local storage</BulletPoint>
+          <BulletPoint>Encrypted transmission via HTTPS</BulletPoint>
         </Section>
 
-        <Section title="6. Your Rights">
+        <Section title="7. Your Rights">
           <Paragraph>
             You have full control over your data:
           </Paragraph>
@@ -137,7 +143,7 @@ const PrivacyPolicyScreen: React.FC = () => {
             <Text style={{ fontWeight: '600' }}>Export:</Text> You can export your data to CSV or JSON formats at any time.
           </BulletPoint>
           <BulletPoint>
-            <Text style={{ fontWeight: '600' }}>Delete:</Text> You can delete your account and all local data through the Settings menu.
+            <Text style={{ fontWeight: '600' }}>Delete:</Text> When you delete your account, your personal data is permanently removed from our servers within a reasonable period, except where retention is required for legal or operational reasons.
           </BulletPoint>
         </Section>
 

@@ -195,12 +195,7 @@ const IncomeManagementScreen: React.FC = () => {
       }
 
       await loadIncomeSources();
-      
-      // Sync widget data after saving income source
-      syncWidgetData(currencyCode, getCurrencySymbol()).catch(err => {
-        console.error('[IncomeManagement] Error syncing widget data:', err);
-      });
-      
+
       handleCloseSheet();
       if (Platform.OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -230,12 +225,7 @@ const IncomeManagementScreen: React.FC = () => {
             try {
               await deleteIncomeSource(source.id);
               await loadIncomeSources();
-              
-              // Sync widget data after deleting income source
-              syncWidgetData(currencyCode, getCurrencySymbol()).catch(err => {
-                console.error('[IncomeManagement] Error syncing widget data:', err);
-              });
-              
+
               if (Platform.OS === 'ios') {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               }

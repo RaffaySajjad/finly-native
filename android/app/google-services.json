@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "777535574580",
+    "project_id": "finly-finance",
+    "storage_bucket": "finly-finance.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:777535574580:android:033f1396fd9e6a3734f061",
+        "android_client_info": {
+          "package_name": "com.raffay.finly"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB7IkbXMURDjv6LmzgaO1HVF19vqyp1tPc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

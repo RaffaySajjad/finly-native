@@ -29,7 +29,6 @@ import CategoriesScreen from '../screens/CategoriesScreen';
 import InsightsScreen from '../screens/InsightsScreen';
 import TrendsScreen from '../screens/TrendsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import AddExpenseScreen from '../screens/AddExpenseScreen';
 import AddIncomeScreen from '../screens/AddIncomeScreen';
 import ReceiptUploadScreen from '../screens/ReceiptUploadScreen';
 import TransactionDetailsScreen from '../screens/TransactionDetailsScreen';
@@ -57,8 +56,6 @@ import SignupScreen from '../screens/SignupScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import VerificationScreen from '../screens/VerificationScreen';
-import { notificationService } from '../services/notificationService';
-import * as Notifications from 'expo-notifications';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
@@ -88,6 +85,7 @@ const AuthNavigator: React.FC = () => {
       <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <AuthStack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <AuthStack.Screen name="Verification" component={VerificationScreen} />
+      <AuthStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
     </AuthStack.Navigator>
   );
 };
@@ -283,12 +281,24 @@ const AppNavigator: React.FC = () => {
   }, [checkOnboarding, checkIncomeSetup, onboardingComplete, incomeSetupComplete]);
 
   // Handle deep linking from widgets
+  const { openBottomSheet } = useBottomSheet();
+
   useEffect(() => {
     const handleDeepLink = (url: string) => {
       if (url.startsWith('finly://add-transaction')) {
-        // Navigate to AddExpense screen when widget button is tapped
+        // Open SharedBottomSheet when widget button is tapped
+        if (isAuthenticated && onboardingComplete) {
+          openBottomSheet();
+        }
+      } else if (url.startsWith('finly://voice-transaction')) {
+        // Navigate to VoiceTransaction screen
         if (isAuthenticated && onboardingComplete && navigationRef.current) {
-          navigationRef.current.navigate('AddExpense');
+          navigationRef.current.navigate('VoiceTransaction');
+        }
+      } else if (url.startsWith('finly://scan-receipt')) {
+        // Navigate to ReceiptUpload screen
+        if (isAuthenticated && onboardingComplete && navigationRef.current) {
+          navigationRef.current.navigate('ReceiptUpload');
         }
       }
     };
@@ -308,40 +318,8 @@ const AppNavigator: React.FC = () => {
     return () => {
       subscription.remove();
     };
-  }, [isAuthenticated, onboardingComplete]);
+  }, [isAuthenticated, onboardingComplete, openBottomSheet]);
 
-  // Setup notification handlers
-  useEffect(() => {
-    if (!isAuthenticated || !onboardingComplete) {
-      return;
-    }
-
-    // Setup notification handlers
-    notificationService.setupNotificationHandlers(
-      // Notification received (foreground)
-      (notification) => {
-        console.log('[AppNavigator] Notification received:', notification);
-        // Notification will be shown automatically by expo-notifications
-      },
-      // Notification tapped
-      (response) => {
-        console.log('[AppNavigator] Notification tapped:', response);
-        const data = notificationService.getNotificationData(response);
-
-        // Navigate to InsightsScreen when notification is tapped
-        if (navigationRef.current) {
-          navigationRef.current.navigate('MainTabs', {
-            screen: 'Insights',
-          });
-        }
-      }
-    );
-
-    // Cleanup on unmount
-    return () => {
-      notificationService.removeNotificationHandlers();
-    };
-  }, [isAuthenticated, onboardingComplete]);
 
   // Show loading screen while checking auth state and onboarding
   if (isRestoringAuth || onboardingComplete === null || (onboardingComplete && incomeSetupComplete === null)) {
@@ -454,16 +432,7 @@ const AppNavigator: React.FC = () => {
                 component={MainTabs}
                 options={{ headerShown: false }}
               />
-              <Stack.Screen
-                name="AddExpense"
-                component={AddExpenseScreen}
-                options={{
-                  title: 'Add Transaction',
-                  presentation: 'modal',
-                  headerShown: true,
-                }}
-              />
-              <Stack.Screen
+                    <Stack.Screen
                       name="AddIncome"
                       component={AddIncomeScreen}
                       options={{
@@ -512,7 +481,7 @@ const AppNavigator: React.FC = () => {
                 name="VoiceTransaction"
                 component={VoiceTransactionScreen}
                 options={{
-                  title: 'AI Transaction Entry',
+                  title: 'Smart Entry',
                   presentation: 'modal',
                   headerShown: false,
                 }}
@@ -672,6 +641,7 @@ const AppNavigator: React.FC = () => {
           </>
         )}
       </CreateCategoryModalProvider>
+
     </NavigationContainer>
   );
 };

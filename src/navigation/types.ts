@@ -11,6 +11,7 @@ export type AuthStackParamList = {
   ForgotPassword: undefined;
   ResetPassword: { email: string };
   Verification: { email: string };
+  PrivacyPolicy: undefined;
 };
 
 export type RootStackParamList = {
@@ -18,7 +19,6 @@ export type RootStackParamList = {
   Onboarding: undefined;
   IncomeSetup: undefined;
   MainTabs: undefined;
-  AddExpense: { expense?: Partial<Expense> } | undefined;
   AddIncome: undefined;
   ReceiptUpload: undefined;
   TransactionDetails: { transaction: UnifiedTransaction };

@@ -27,6 +27,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../hooks/useSubscription';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useBottomSheet } from '../contexts/BottomSheetContext';
 import { UpgradePrompt, PremiumBadge } from '../components';
 import { apiService } from '../services/api';
 import receiptService from '../services/receiptService';
@@ -45,6 +46,7 @@ const ReceiptUploadScreen: React.FC = () => {
   const navigation = useNavigation<ReceiptUploadNavigationProp>();
   const { isPremium, requiresUpgrade, trackUsage, getRemainingUsage } = useSubscription();
   const { currencyCode } = useCurrency();
+  const { openBottomSheet } = useBottomSheet();
 
   const [image, setImage] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -204,8 +206,8 @@ const ReceiptUploadScreen: React.FC = () => {
 
       if (!extractedTransactions || extractedTransactions.length === 0) {
         Alert.alert(
-          'No Transactions Found',
-          'Could not extract any transactions from the receipt. Please try again with a clearer image.'
+          'No Info Found',
+          'We couldn\'t read the transaction details. Try a clearer photo.'
         );
         setScanning(false);
         return;
@@ -275,10 +277,8 @@ const ReceiptUploadScreen: React.FC = () => {
           });
         }
 
-        // Navigate to Add Expense
-        navigation.navigate('AddExpense', {
-          expense: combinedExpense,
-        });
+        // Open SharedBottomSheet with pre-filled expense data
+        openBottomSheet(combinedExpense);
       }
 
       if (incomeTransactions.length > 0) {
@@ -286,8 +286,8 @@ const ReceiptUploadScreen: React.FC = () => {
         // For now, navigate back and let user manually add via bottom sheet
         // In future, we can add a navigation param to pre-fill income
         Alert.alert(
-          'Income Detected',
-          `Found ${incomeTransactions.length} income transaction(s). Please add them manually using the income form.`,
+          'Incoming Money!',
+          `We found ${incomeTransactions.length} income transaction(s). Head to the income tab to add it.`,
           [{ text: 'OK' }]
         );
       }
@@ -307,10 +307,10 @@ const ReceiptUploadScreen: React.FC = () => {
       }
 
       // Extract user-friendly error message
-      const errorMessage = error?.message || 'Could not extract receipt data. Please try again.';
+      const errorMessage = error?.message || 'Couldn\'t capture that. Try again with a clearer photo?';
 
       Alert.alert(
-        'Scan Failed',
+        'Try Again',
         errorMessage,
         [
           {
@@ -371,7 +371,7 @@ const ReceiptUploadScreen: React.FC = () => {
               Upload a Receipt
             </Text>
             <Text style={[styles.emptyDescription, { color: theme.textSecondary }]}>
-              Take a photo or select from your gallery to automatically extract transaction details
+              Snap a photo or pick from gallery. We'll handle the rest.
             </Text>
 
             <View style={styles.buttonContainer}>
@@ -437,8 +437,8 @@ const ReceiptUploadScreen: React.FC = () => {
                   </View>
                   <View style={styles.scanningBadge}>
                     <ActivityIndicator color="#FFFFFF" size="small" />
-                    <Text style={styles.scanningText}>Scanning receipt...</Text>
-                  </View>
+                      <Text style={styles.scanningText}>Reading receipt details...</Text>
+                    </View>
                 </>
               )}
             </View>
@@ -483,11 +483,11 @@ const ReceiptUploadScreen: React.FC = () => {
             {scanning && (
               <View style={styles.scanningInfo}>
                 <Text style={[styles.scanningInfoText, { color: theme.textSecondary }]}>
-                  📊 Extracting transaction details...
-                </Text>
-                <Text style={[styles.scanningInfoSubtext, { color: theme.textTertiary }]}>
-                    This usually takes 3-5 seconds
-                </Text>
+                    ✨ Reading receipt details...
+                  </Text>
+                  <Text style={[styles.scanningInfoSubtext, { color: theme.textTertiary }]}>
+                    Just a moment.
+                  </Text>
               </View>
             )}
           </Animated.View>
@@ -501,7 +501,7 @@ const ReceiptUploadScreen: React.FC = () => {
         feature="Receipt Scanning"
         message={
           !isPremium
-            ? `You've used ${Math.max(0, 3 - getRemainingUsage('receiptScanning'))} of 3 free scans this month. Upgrade to Premium for unlimited receipt scanning.`
+            ? 'You\'ve mastered the basics! Unlock unlimited scanning to track every single expense with ease.'
             : undefined
         }
       />
@@ -702,4 +702,3 @@ const styles = StyleSheet.create({
 });
 
 export default ReceiptUploadScreen;
-

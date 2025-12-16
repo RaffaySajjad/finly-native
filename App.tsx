@@ -29,7 +29,7 @@ if (__DEV__) {
     global.getAllStorage = async () => {
       const keys = await AsyncStorage.default.getAllKeys();
       const values = await AsyncStorage.default.multiGet(keys);
-      const storage = {};
+      const storage: Record<string, any> = {};
       values.forEach(([key, value]) => {
         try {
           storage[key] = JSON.parse(value || 'null');
@@ -109,10 +109,6 @@ const AppContent = () => {
 };
 
 
-/**
- * App component - Root of the application
- * Wraps the app with necessary providers (Redux, Theme, Currency) and navigation
- */
 export default function App(): React.ReactElement {
   return (
     <ReduxProvider store={store}>

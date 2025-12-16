@@ -85,9 +85,9 @@ const AnalyticsScreen: React.FC = () => {
 
         <EmptyState
           icon="chart-line"
-          title="Premium Feature"
-          subtitle="Upgrade to Premium to access advanced analytics, year-over-year comparisons, and spending predictions."
-          actionLabel="Upgrade to Premium"
+          title="See the Full Picture"
+          subtitle="Unlock advanced trends, year-over-year comparisons, and predictive insights to grow your wealth."
+          actionLabel="Unlock Finly Pro"
           onActionPress={() => navigation.navigate('Subscription')}
         />
 

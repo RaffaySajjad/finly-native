@@ -12,4 +12,3 @@ RCT_EXTERN_METHOD(syncWidgetData:(NSDictionary *)data
                   rejecter:(RCTPromiseRejectBlock)reject)
 
 @end
-

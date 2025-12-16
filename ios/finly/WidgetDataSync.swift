@@ -33,7 +33,6 @@ class WidgetDataSync: NSObject {
       let error = NSError(domain: "WidgetDataSync", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to access App Group"])
       print("[WidgetDebug] ❌ ERROR: Cannot access App Group storage")
       print("[WidgetDebug] NOTE: App Groups require paid Apple Developer account ($99/year)")
-      print("[WidgetDebug] App Group suite name: \(appGroupIdentifier)")
       reject("APP_GROUP_ERROR", "Cannot access App Group storage", error)
       return
     }
@@ -41,18 +40,8 @@ class WidgetDataSync: NSObject {
     // Log received data for debugging
     print("[WidgetDebug] Received data: balance=\(data["balance"] ?? "nil"), currencyCode=\(data["currencyCode"] ?? "nil"), currencySymbol=\(data["currencySymbol"] ?? "nil")")
     
-    // Ensure numeric values are stored correctly
-    var processedData: [String: Any] = [:]
-    processedData["balance"] = data["balance"]
-    processedData["monthlyIncome"] = data["monthlyIncome"]
-    processedData["monthlyExpenses"] = data["monthlyExpenses"]
-    processedData["currencyCode"] = data["currencyCode"] as? String ?? "USD"
-    processedData["currencySymbol"] = data["currencySymbol"] as? String
-    processedData["lastUpdated"] = data["lastUpdated"] as? String ?? ISO8601DateFormatter().string(from: Date())
-    
     // Store widget data in App Group UserDefaults
-    sharedDefaults.set(processedData, forKey: widgetDataKey)
-    sharedDefaults.synchronize() // Force immediate write
+    sharedDefaults.set(data, forKey: widgetDataKey)
     
     // Verify data was stored
     if let storedData = sharedDefaults.dictionary(forKey: widgetDataKey) {
@@ -65,10 +54,6 @@ class WidgetDataSync: NSObject {
     if #available(iOS 14.0, *) {
       WidgetCenter.shared.reloadTimelines(ofKind: "FinlyWidget")
       print("[WidgetDebug] Widget timeline reload triggered for kind: FinlyWidget")
-      
-      // Also try reloading all timelines as a fallback
-      WidgetCenter.shared.reloadAllTimelines()
-      print("[WidgetDebug] Reloaded all widget timelines")
     }
     
     resolve(nil)
@@ -79,4 +64,3 @@ class WidgetDataSync: NSObject {
     return false
   }
 }
-

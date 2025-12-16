@@ -5,7 +5,8 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "android": {
-      "package": "com.raffay.finly"
+      "package": "com.raffay.finly",
+      "googleServicesFile": "./android/app/google-services.json"
     },
     "ios": {
       "bundleIdentifier": "com.raffay.finly",
@@ -25,6 +26,13 @@
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "env": "development",
+      "apiUrl": "http://192.168.1.100:3000",
+      "eas": {
+        "projectId": "dfa0ffd0-4dca-4765-b6dd-1ca535a8e731"
+      }
+    }
   }
 }

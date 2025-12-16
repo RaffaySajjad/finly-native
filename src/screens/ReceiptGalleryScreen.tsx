@@ -196,12 +196,12 @@ const ReceiptGalleryScreen: React.FC = () => {
           <View style={styles.emptyState}>
             <Icon name="image-multiple-outline" size={64} color={theme.textTertiary} />
             <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
-              {searchQuery ? 'No receipts found' : 'No receipts yet'}
+                {searchQuery ? 'No receipts match your search' : 'Receipt box is empty'}
             </Text>
             <Text style={[styles.emptyStateSubtext, { color: theme.textTertiary }]}>
               {searchQuery
-                ? 'Try a different search term'
-                : 'Scan receipts to see them here'}
+                  ? 'Try a different keyword'
+                  : 'Snap your first receipt to start organizing'}
             </Text>
           </View>
         )}

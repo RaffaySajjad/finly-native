@@ -45,6 +45,11 @@ export const AlertDialog: React.FC<AlertDialogProps> = ({
   buttons,
   onClose,
 }) => {
+  // Transform generic titles for friendlier tone
+  const displayTitle = title === 'Error' ? 'Something went wrong' :
+    title === 'Success' ? 'All set!' :
+      title;
+
   const { theme } = useTheme();
 
   const getIconConfig = () => {
@@ -162,7 +167,7 @@ export const AlertDialog: React.FC<AlertDialogProps> = ({
             >
               <Icon name={iconConfig.name} size={32} color={iconConfig.color} />
             </View>
-            <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+            <Text style={[styles.title, { color: theme.text }]}>{displayTitle}</Text>
             <Text style={[styles.message, { color: theme.textSecondary }]}>
               {message}
             </Text>

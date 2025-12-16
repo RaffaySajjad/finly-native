@@ -19,7 +19,7 @@
                BlueprintIdentifier = "9A576F2B2EE18151003A11A9"
                BuildableName = "FinlyWidgetExtension.appex"
                BlueprintName = "FinlyWidgetExtension"
-               ReferencedContainer = "container:finly.xcodeproj">
+               ReferencedContainer = "container:Finly.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -43,6 +43,17 @@
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES"
       launchAutomaticallySubstyle = "2">
+      <RemoteRunnable
+         runnableDebuggingMode = "2"
+         BundleIdentifier = "com.apple.springboard">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "9A576F2B2EE18151003A11A9"
+            BuildableName = "FinlyWidgetExtension.appex"
+            BlueprintName = "FinlyWidgetExtension"
+            ReferencedContainer = "container:Finly.xcodeproj">
+         </BuildableReference>
+      </RemoteRunnable>
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "_XCWidgetKind"

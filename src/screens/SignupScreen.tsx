@@ -363,6 +363,24 @@ const SignupScreen: React.FC = () => {
                 </View>
               )}
 
+              {/* Terms and Privacy Consent */}
+              <Text style={[styles.consentText, { color: theme.textSecondary }]}>
+                By creating an account, you agree to our{' '}
+                <Text
+                  style={[styles.linkText, { color: theme.primary }]}
+                  onPress={() => navigation.navigate('PrivacyPolicy')}
+                >
+                  Privacy Policy
+                </Text>
+                {' '}and{' '}
+                <Text
+                  style={[styles.linkText, { color: theme.primary }]}
+                  onPress={() => navigation.navigate('PrivacyPolicy')}
+                >
+                  Terms of Service
+                </Text>
+              </Text>
+
               {/* Signup Button */}
               <TouchableOpacity
                 style={[
@@ -508,6 +526,15 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     flex: 1,
     fontWeight: '500',
+  },
+  consentText: {
+    ...typography.bodySmall,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+    fontSize: 12,
+  },
+  linkText: {
+    fontWeight: '600',
   },
 });
 

@@ -408,7 +408,9 @@ export const api = {
 async function invalidateRelatedCaches(url: string): Promise<void> {
   try {
     // Invalidate based on endpoint patterns
-    if (url.includes('/categories')) {
+    if (url.includes('/auth/preferences')) {
+      await apiCacheService.invalidate('/auth/preferences');
+    } else if (url.includes('/categories')) {
       await apiCacheService.invalidate('/categories');
     } else if (url.includes('/expenses')) {
       // Expenses affect categories (totalSpent), analytics, and expenses cache

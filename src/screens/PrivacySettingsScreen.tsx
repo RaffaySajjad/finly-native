@@ -223,10 +223,10 @@ const PrivacySettingsScreen: React.FC = () => {
         <View style={[styles.privacyBadge, { backgroundColor: theme.success + '20', borderColor: theme.success }]}>
           <Icon name="shield-check" size={32} color={theme.success} />
           <Text style={[styles.privacyBadgeTitle, { color: theme.text }]}>
-            Your Data is Private
+            Secure & Private
           </Text>
           <Text style={[styles.privacyBadgeText, { color: theme.textSecondary }]}>
-            Your data is securely stored and private. We never share your financial information with third parties.
+            Your data is securely synced to your account. We do not sell your personal information.
           </Text>
         </View>
 

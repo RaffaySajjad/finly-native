@@ -16,7 +16,7 @@ struct FinlyWidget: Widget {
         }
         .configurationDisplayName("Finly Finance")
         .description("View your balance, income, and expenses at a glance.")
-        .supportedFamilies([.systemSmall, .systemLarge])
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 

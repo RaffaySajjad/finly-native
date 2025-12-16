@@ -1,7 +1,7 @@
 /**
  * FinlyWidgetViews
  * Purpose: SwiftUI views for widget display
- * Supports both small and large widget families
+ * Supports both small and medium widget families
  */
 
 import WidgetKit
@@ -23,7 +23,7 @@ struct FinlyWidgetEntryView: View {
         switch family {
         case .systemSmall:
             SmallWidgetView(entry: entry)
-        case .systemLarge:
+        case .systemMedium:
             LargeWidgetView(entry: entry)
         default:
             SmallWidgetView(entry: entry)
@@ -35,37 +35,53 @@ struct SmallWidgetView: View {
     var entry: FinlyWidgetProvider.Entry
     
     var body: some View {
-        VStack(spacing: 12) {
-            // Balance
-            VStack(spacing: 4) {
-                Text("Balance")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.9))
-                Text(WidgetDataManager.formatCurrency(entry.balance, symbol: entry.currencySymbol, code: entry.currencyCode))
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-            }
-            
+        VStack {
             Spacer()
             
-            // Add button
-            Link(destination: URL(string: "finly://add-transaction")!) {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                    Text("Add Transaction")
-                        .font(.caption)
-                        .fontWeight(.semibold)
+            // Quick Actions
+            HStack(spacing: 6) {
+                // Voice Entry
+                Link(destination: URL(string: "finly://voice-transaction")!) {
+                    VStack {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 16))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Color.white.opacity(0.2))
+                    .cornerRadius(8)
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Color.white.opacity(0.2))
-                .cornerRadius(8)
+                
+                // Scan Receipt
+                Link(destination: URL(string: "finly://scan-receipt")!) {
+                    VStack {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 16))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Color.white.opacity(0.2))
+                    .cornerRadius(8)
+                }
+                
+                // Manual Entry
+                Link(destination: URL(string: "finly://add-transaction")!) {
+                    VStack {
+                        Image(systemName: "plus")
+                            .font(.system(size: 18, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Color.white.opacity(0.2))
+                    .cornerRadius(8)
+                }
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 12)
         }
-        .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(for: .widget) {
             LinearGradient(
@@ -86,78 +102,58 @@ struct LargeWidgetView: View {
     
     var body: some View {
         VStack(spacing: 16) {
-            // Balance Section
-            VStack(spacing: 8) {
-                Text("Current Balance")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.9))
-                Text(WidgetDataManager.formatCurrency(entry.balance, symbol: entry.currencySymbol, code: entry.currencyCode))
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            .padding(.top, 8)
-            
-            Divider()
-                .background(Color.white.opacity(0.3))
-            
-            // Income and Expenses
-            HStack(spacing: 20) {
-                // Income
-                VStack(spacing: 6) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .foregroundColor(.white.opacity(0.9))
-                            .font(.caption)
-                        Text("Income")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.9))
-                    }
-                    Text(WidgetDataManager.formatCurrency(entry.monthlyIncome, symbol: entry.currencySymbol, code: entry.currencyCode))
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                }
-                .frame(maxWidth: .infinity)
-                
-                Divider()
-                    .background(Color.white.opacity(0.3))
-                    .frame(height: 40)
-                
-                // Expenses
-                VStack(spacing: 6) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .foregroundColor(.white.opacity(0.9))
-                            .font(.caption)
-                        Text("Expenses")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.9))
-                    }
-                    Text(WidgetDataManager.formatCurrency(entry.monthlyExpenses, symbol: entry.currencySymbol, code: entry.currencyCode))
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .padding(.vertical, 8)
-            
             Spacer()
             
-            // Add button
-            Link(destination: URL(string: "finly://add-transaction")!) {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title3)
-                    Text("Add Transaction")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+            // Quick Actions
+            HStack(spacing: 12) {
+                // Voice Entry
+                Link(destination: URL(string: "finly://voice-transaction")!) {
+                    VStack(spacing: 4) {
+                        Image(systemName: "mic.fill")
+                            .font(.title3)
+                        Text("Voice")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 60)
+                    .background(Color.white.opacity(0.2))
+                    .cornerRadius(10)
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Color.white.opacity(0.2))
-                .cornerRadius(10)
+                
+                // Scan Receipt
+                Link(destination: URL(string: "finly://scan-receipt")!) {
+                    VStack(spacing: 4) {
+                        Image(systemName: "camera.fill")
+                            .font(.title3)
+                        Text("Scan")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 60)
+                    .background(Color.white.opacity(0.2))
+                    .cornerRadius(10)
+                }
+                
+                // Manual Entry
+                Link(destination: URL(string: "finly://add-transaction")!) {
+                    VStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                        Text("Add")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 60)
+                    .background(Color.white.opacity(0.2))
+                    .cornerRadius(10)
+                }
             }
         }
         .padding()

@@ -59,10 +59,10 @@ const SubscriptionScreen: React.FC = () => {
       await subscribe(selectedPlan);
       // Refetch subscription status to ensure UI updates
       await checkStatus();
-      Alert.alert('Success', 'Welcome to Premium! 🎉');
+      Alert.alert('Welcome to Finly Pro!', 'You\'ve promised yourself a better financial future. We\'re here to help you build it.');
       navigation.goBack();
     } catch (error) {
-      Alert.alert('Error', 'Failed to upgrade. Please try again.');
+      Alert.alert('Upgrade Issue', 'We couldn\'t process the upgrade right now. Please check your connection and try again.');
     } finally {
       setProcessing(false);
     }
@@ -101,7 +101,7 @@ const SubscriptionScreen: React.FC = () => {
 
   const premiumFeatures = [
     { icon: 'camera-outline', title: 'Unlimited Receipt Scanning', description: 'Scan unlimited receipts with advanced AI OCR' },
-    { icon: 'microphone', title: 'Voice & AI Transaction Entry', description: 'Speak or type to add multiple transactions' },
+    { icon: 'microphone', title: 'Smart Entry', description: 'Speak or type to add multiple transactions' },
     { icon: 'chart-line', title: 'Advanced Analytics', description: 'Year-over-year comparisons & predictions' },
     { icon: 'brain', title: 'Smart Insights', description: 'Unlimited AI-powered financial insights' },
     { icon: 'shape', title: 'Unlimited Categories', description: 'Create as many categories as you need' },
@@ -211,7 +211,7 @@ const SubscriptionScreen: React.FC = () => {
                   </Text>
                   {selectedPlan !== 'yearly' && (
                     <View style={[styles.saveBadge, { backgroundColor: theme.success }]}>
-                      <Text style={styles.saveBadgeText}>-40%</Text>
+                      <Text style={styles.saveBadgeText}>Best Value</Text>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -229,7 +229,7 @@ const SubscriptionScreen: React.FC = () => {
 
             {selectedPlan === 'yearly' && (
               <Text style={[styles.savingsText, { color: theme.success }]}>
-                Save 40% ($35.99/year)
+                Build a long-term habit. (And save 40%)
               </Text>
             )}
           </View>

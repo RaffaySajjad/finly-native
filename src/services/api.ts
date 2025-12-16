@@ -15,7 +15,7 @@ import {
   UnifiedTransaction,
   PaginatedInsightsResponse
 } from '../types';
-import { api, apiClient } from './apiClient';
+import { api, apiClient, ApiResponse } from './apiClient';
 import { API_ENDPOINTS } from '../config/api.config';
 
 /**
@@ -1335,16 +1335,18 @@ export const apiService = {
 
   /**
    * Get user preferences
+   * @deprecated - Preferences are now device-specific and stored in AsyncStorage
    */
-  async getPreferences(): Promise<{ notificationsEnabled: boolean }> {
+  async getPreferences(): Promise<Record<string, never>> {
     try {
-      const response = await api.get<{ notificationsEnabled: boolean }>(
-        '/auth/preferences'
+      const response = await api.get<Record<string, never>>(
+        '/auth/preferences',
+        { skipCache: true }
       );
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to get preferences');
       }
-      return response.data || { notificationsEnabled: true };
+      return response.data || {};
     } catch (error) {
       console.error('[API] Get preferences error:', error);
       throw error;
@@ -1353,12 +1355,13 @@ export const apiService = {
 
   /**
    * Update user preferences
+   * @deprecated - Preferences are now device-specific and stored in AsyncStorage
    */
-  async updatePreferences(preferences: {
-    notificationsEnabled: boolean;
-  }): Promise<{ notificationsEnabled: boolean }> {
+  async updatePreferences(
+    preferences: Record<string, any>
+  ): Promise<Record<string, never>> {
     try {
-      const response = await api.put<{ notificationsEnabled: boolean }>(
+      const response = await api.put<Record<string, never>>(
         '/auth/preferences',
         preferences
       );
@@ -1367,7 +1370,7 @@ export const apiService = {
           response.error?.message || 'Failed to update preferences'
         );
       }
-      return response.data || preferences;
+      return response.data || {};
     } catch (error) {
       console.error('[API] Update preferences error:', error);
       throw error;
@@ -1400,6 +1403,29 @@ export const apiService = {
   },
 
   /**
+   * Get all push notification tokens for the current user
+   */
+  async getUserPushTokens(): Promise<
+    Array<{
+      id: string;
+      token: string;
+      platform: string;
+      deviceId: string | null;
+    }>
+  > {
+    try {
+      const response = await api.get('/auth/push-tokens');
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to get push tokens');
+      }
+      return response.data || [];
+    } catch (error) {
+      console.error('[API] Get user push tokens error:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Remove push notification token
    */
   async removePushToken(token: string): Promise<void> {
@@ -1412,6 +1438,62 @@ export const apiService = {
       }
     } catch (error) {
       console.error('[API] Remove push token error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Send test notification to a specific device token
+   */
+  async sendTestNotificationToDevice(
+    tokenId: string,
+    options?: {
+      title?: string;
+      body?: string;
+      data?: object;
+      priority?: 'default' | 'normal' | 'high';
+    }
+  ): Promise<ApiResponse<any>> {
+    try {
+      const response = await api.post(
+        `/auth/test-notification/device/${tokenId}`,
+        options || {}
+      );
+      if (!response.success) {
+        throw new Error(
+          response.error?.message || 'Failed to send test notification'
+        );
+      }
+      return response;
+    } catch (error) {
+      console.error('[API] Send test notification to device error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Send test notification to all users
+   */
+  async sendTestNotificationToAll(options?: {
+    title?: string;
+    body?: string;
+    data?: object;
+    priority?: 'default' | 'normal' | 'high';
+  }): Promise<ApiResponse<any>> {
+    try {
+      const response = await api.post(
+        '/auth/test-notification/all',
+        options || {}
+      );
+      if (!response.success) {
+        throw new Error(
+          response.error?.message ||
+            'Failed to send test notification to all users'
+        );
+      }
+      return response;
+    } catch (error) {
+      console.error('[API] Send test notification to all error:', error);
       throw error;
     }
   }

@@ -647,6 +647,10 @@ const CategoryDetailsScreen: React.FC = () => {
         }
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        initialNumToRender={10}
       />
 
       {/* Budget Edit Bottom Sheet */}

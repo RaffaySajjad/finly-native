@@ -17,6 +17,7 @@ import {
   ScrollView,
 } from 'react-native';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { logger } from '../utils/logger';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets, SafeAreaContext } from 'react-native-safe-area-context';
@@ -58,7 +59,7 @@ export const CreateCategoryModal: React.FC = () => {
   const insets = insetsContext ?? { top: 0, bottom: 0, left: 0, right: 0 };
 
   if (!insetsContext) {
-    console.warn('[CreateCategoryModal] SafeAreaContext is missing! Defaulting to 0 insets.');
+    logger.warn('[CreateCategoryModal] SafeAreaContext is missing! Defaulting to 0 insets.');
   }
   
   // Get context
@@ -68,13 +69,13 @@ export const CreateCategoryModal: React.FC = () => {
 
   // Register bottom sheet ref with context immediately
   useEffect(() => {
-    console.log('[CreateCategoryModal] mounted');
+    logger.debug('[CreateCategoryModal] mounted');
     if (bottomSheetRef.current) {
-      console.log('[CreateCategoryModal] Registering bottom sheet ref');
+      logger.debug('[CreateCategoryModal] Registering bottom sheet ref');
       setBottomSheetRef(bottomSheetRef.current);
     }
     return () => {
-      console.log('[CreateCategoryModal] unmounted');
+      logger.debug('[CreateCategoryModal] unmounted');
       setBottomSheetRef(null);
     };
   }, [setBottomSheetRef]);
@@ -82,7 +83,7 @@ export const CreateCategoryModal: React.FC = () => {
   // Open bottom sheet when config is set
   useEffect(() => {
     if (config && bottomSheetRef.current) {
-      console.log('[CreateCategoryModal] Config received, opening bottom sheet', config);
+      logger.debug('[CreateCategoryModal] Config received, opening bottom sheet', config);
       bottomSheetRef.current.snapToIndex(0);
     } else if (!config && bottomSheetRef.current) {
       bottomSheetRef.current.close();
@@ -133,7 +134,7 @@ export const CreateCategoryModal: React.FC = () => {
   // Register bottom sheet ref with context
   useEffect(() => {
     if (bottomSheetRef.current) {
-      console.log('[CreateCategoryModal] Registering bottom sheet ref');
+      logger.debug('[CreateCategoryModal] Registering bottom sheet ref');
       setBottomSheetRef(bottomSheetRef.current);
     }
     return () => {
@@ -144,7 +145,7 @@ export const CreateCategoryModal: React.FC = () => {
   // Log when config changes
   useEffect(() => {
     if (config) {
-      console.log('[CreateCategoryModal] Config received, modal should open', config);
+      logger.debug('[CreateCategoryModal] Config received, modal should open', config);
     }
   }, [config]);
 

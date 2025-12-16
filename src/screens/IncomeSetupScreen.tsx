@@ -23,6 +23,7 @@ import * as Haptics from 'expo-haptics';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { logger } from '../utils/logger';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
@@ -111,7 +112,7 @@ const IncomeSetupScreen: React.FC = () => {
         // Having transactions means they've been using the app, so currency is already configured
         const hasCurrencySet = hasTransactions || hasCurrencyExplicitlySet;
 
-        console.log('[IncomeSetup] Setup check:', {
+        logger.debug('[IncomeSetup] Setup check:', {
           hasTransactions,
           hasCurrencyExplicitlySet,
           savedCurrencyRaw,
@@ -121,7 +122,7 @@ const IncomeSetupScreen: React.FC = () => {
         const savedCurrency = await getUserCurrency();
         if (hasCurrencySet) {
           setSelectedCurrency(savedCurrency);
-          console.log('[IncomeSetup] Currency already set, skipping currency step:', savedCurrency);
+          logger.debug('[IncomeSetup] Currency already set, skipping currency step:', savedCurrency);
         }
 
         // Check if user has income sources (check both API and local storage)
@@ -131,7 +132,7 @@ const IncomeSetupScreen: React.FC = () => {
 
         try {
           apiIncomeSources = await apiService.getIncomeSources();
-          console.log('[IncomeSetup] Income sources API response:', {
+          logger.debug('[IncomeSetup] Income sources API response:', {
             rawResponse: apiIncomeSources,
             isArray: Array.isArray(apiIncomeSources),
             length: apiIncomeSources?.length || 0,
@@ -144,7 +145,7 @@ const IncomeSetupScreen: React.FC = () => {
 
         try {
           localIncomeSources = await getLocalIncomeSources();
-          console.log('[IncomeSetup] Income sources local storage:', {
+          logger.debug('[IncomeSetup] Income sources local storage:', {
             rawResponse: localIncomeSources,
             isArray: Array.isArray(localIncomeSources),
             length: localIncomeSources?.length || 0,
@@ -160,7 +161,7 @@ const IncomeSetupScreen: React.FC = () => {
           (Array.isArray(apiIncomeSources) && apiIncomeSources.length > 0) ||
           (Array.isArray(localIncomeSources) && localIncomeSources.length > 0);
 
-        console.log('[IncomeSetup] Income sources check result:', {
+        logger.debug('[IncomeSetup] Income sources check result:', {
           apiIncomeSourcesCount: apiIncomeSources?.length || 0,
           localIncomeSourcesCount: localIncomeSources?.length || 0,
           hasIncomeSources,
@@ -171,14 +172,14 @@ const IncomeSetupScreen: React.FC = () => {
         // If user already has income sources, they've completed setup before
         // Skip the entire income setup screen
         if (hasIncomeSources) {
-          console.log('[IncomeSetup] ✅ User already has income sources, skipping entire income setup');
+          logger.debug('[IncomeSetup] ✅ User already has income sources, skipping entire income setup');
           await markIncomeSetupComplete();
           setIsCheckingSetup(false);
           setShouldShowSetup(false);
           // AppNavigator will detect the change and navigate away
           return;
         } else {
-          console.log('[IncomeSetup] ❌ No income sources found, showing setup screen');
+          logger.debug('[IncomeSetup] ❌ No income sources found, showing setup screen');
           setIsCheckingSetup(false);
           setShouldShowSetup(true);
         }
@@ -192,19 +193,19 @@ const IncomeSetupScreen: React.FC = () => {
         if (hasCurrencySet && hasStartingBalance) {
           // Currency and balance set, but no income sources - start with income setup
           stepToStart = 1;
-          console.log('[IncomeSetup] Currency and balance set, starting with income setup (step 1)');
+          logger.debug('[IncomeSetup] Currency and balance set, starting with income setup (step 1)');
         } else if (hasCurrencySet && !hasStartingBalance) {
           // Currency set but no balance - skip to balance step (but this shouldn't happen without income sources)
           // Actually, if no income sources, we should start from step 1 (income name)
           stepToStart = 1;
-          console.log('[IncomeSetup] Currency set, starting with income setup (step 1)');
+          logger.debug('[IncomeSetup] Currency set, starting with income setup (step 1)');
         } else if (!hasCurrencySet) {
           // Start with currency selection
           stepToStart = 0;
-          console.log('[IncomeSetup] Starting with currency selection (step 0)');
+          logger.debug('[IncomeSetup] Starting with currency selection (step 0)');
         }
 
-        console.log('[IncomeSetup] Starting at step:', stepToStart);
+        logger.debug('[IncomeSetup] Starting at step:', stepToStart);
         setInitialStep(stepToStart);
         setCurrentStep(stepToStart);
 
@@ -389,7 +390,7 @@ const IncomeSetupScreen: React.FC = () => {
 
     setSaving(true);
     try {
-      console.log(`[IncomeSetupScreen] About to save starting balance: ${balance}`);
+      logger.debug(`[IncomeSetupScreen] About to save starting balance: ${balance}`);
 
       // Convert balance to USD before sending to backend
       const balanceInUSD = convertToUSD(balance);
@@ -404,11 +405,11 @@ const IncomeSetupScreen: React.FC = () => {
       // Let's save the USD value to be safe, assuming app logic expects USD from "source of truth".
       await setStartingBalance(balanceInUSD);
 
-      console.log(`[IncomeSetupScreen] Starting balance saved successfully`);
+      logger.debug(`[IncomeSetupScreen] Starting balance saved successfully`);
       
       // Verify it was saved (local check)
       const savedBalance = await getStartingBalance();
-      console.log(`[IncomeSetupScreen] Verified saved balance: ${savedBalance}`);
+      logger.debug(`[IncomeSetupScreen] Verified saved balance: ${savedBalance}`);
       
       // Mark income setup as complete
       await markIncomeSetupComplete();

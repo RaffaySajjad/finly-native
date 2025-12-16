@@ -664,13 +664,15 @@ const DashboardScreen: React.FC = () => {
         const shouldShow = scrollPosition > threshold;
         
         if (shouldShow !== showBalancePill) {
-          console.log('[BalancePill] Visibility change:', {
-            scrollPosition,
-            threshold,
-            cardY: balanceCardY.current,
-            cardHeight: balanceCardHeight.current,
-            shouldShow,
-          });
+          if (__DEV__) {
+            console.log('[BalancePill] Visibility change:', {
+              scrollPosition,
+              threshold,
+              cardY: balanceCardY.current,
+              cardHeight: balanceCardHeight.current,
+              shouldShow,
+            });
+          }
           
           setShowBalancePill(shouldShow);
           
@@ -697,7 +699,7 @@ const DashboardScreen: React.FC = () => {
     const { y, height } = event.nativeEvent.layout;
     balanceCardY.current = y;
     balanceCardHeight.current = height;
-    console.log('[BalancePill] Card measured:', { y, height, threshold: y + height - 60 });
+    if (__DEV__) console.log('[BalancePill] Card measured:', { y, height, threshold: y + height - 60 });
   };
 
   // Scroll back to balance card when pill is tapped

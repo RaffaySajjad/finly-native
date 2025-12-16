@@ -139,7 +139,7 @@ const ProfileScreen: React.FC = () => {
   const checkNotificationStatus = async () => {
     try {
       const enabled = await notificationService.areNotificationsEnabled();
-      console.log('[ProfileScreen] Notification permission status:', enabled);
+      if (__DEV__) console.log('[ProfileScreen] Notification permission status:', enabled);
       setNotificationsEnabled(enabled);
     } catch (error) {
       console.error('Error checking notification status:', error);

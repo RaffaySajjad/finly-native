@@ -259,7 +259,7 @@ const CategoryDetailsScreen: React.FC = () => {
 
   useFocusEffect(
     React.useCallback(() => {
-      console.log('[CategoryDetailsScreen] useFocusEffect - categoryId:', categoryId);
+      if (__DEV__) console.log('[CategoryDetailsScreen] useFocusEffect - categoryId:', categoryId);
       loadData(true);
     }, [categoryId])
   );
@@ -327,11 +327,13 @@ const CategoryDetailsScreen: React.FC = () => {
 
       const cursorToUse = initialLoad ? undefined : (cursor || undefined);
 
-      console.log('[CategoryDetailsScreen] Loading expenses:', {
-        categoryId,
-        initialLoad,
-        cursor: cursorToUse,
-      });
+      if (__DEV__) {
+        console.log('[CategoryDetailsScreen] Loading expenses:', {
+          categoryId,
+          initialLoad,
+          cursor: cursorToUse,
+        });
+      }
 
       const result = await apiService.getExpensesPaginated({
         categoryId,
@@ -339,14 +341,16 @@ const CategoryDetailsScreen: React.FC = () => {
         cursor: cursorToUse,
       });
 
-      console.log('[CategoryDetailsScreen] Received expenses:', {
-        count: result.expenses.length,
-        total: result.pagination.total,
-        hasMore: result.pagination.hasMore,
-        nextCursor: result.pagination.nextCursor,
-        firstExpenseDate: result.expenses[0]?.date,
-        lastExpenseDate: result.expenses[result.expenses.length - 1]?.date,
-      });
+      if (__DEV__) {
+        console.log('[CategoryDetailsScreen] Received expenses:', {
+          count: result.expenses.length,
+          total: result.pagination.total,
+          hasMore: result.pagination.hasMore,
+          nextCursor: result.pagination.nextCursor,
+          firstExpenseDate: result.expenses[0]?.date,
+          lastExpenseDate: result.expenses[result.expenses.length - 1]?.date,
+        });
+      }
 
       if (initialLoad) {
         setExpenses(result.expenses);
@@ -368,12 +372,14 @@ const CategoryDetailsScreen: React.FC = () => {
    * Load more expenses (pagination)
    */
   const loadMore = useCallback(() => {
-    console.log('[CategoryDetailsScreen] loadMore called:', {
-      loadingMore,
-      hasMore,
-      nextCursor,
-      canLoad: !loadingMore && hasMore && nextCursor,
-    });
+    if (__DEV__) {
+      console.log('[CategoryDetailsScreen] loadMore called:', {
+        loadingMore,
+        hasMore,
+        nextCursor,
+        canLoad: !loadingMore && hasMore && nextCursor,
+      });
+    }
 
     if (!loadingMore && hasMore && nextCursor) {
       loadExpenses(false, nextCursor);

@@ -211,16 +211,18 @@ const InsightsScreen: React.FC = () => {
       const isRefreshing = forceRefreshParam === true;
       const shouldCallAPI = isFirstTime || isRefreshing;
 
-      console.log('[InsightsScreen] Loading insights:', {
-        initialLoad,
-        refreshing,
-        forceRefresh: shouldCallAPI,
-        forceRefreshParam,
-        isFirstLoad,
-        isFirstTime,
-        isRefreshing,
-        shouldCallAPI
-      });
+      if (__DEV__) {
+        console.log('[InsightsScreen] Loading insights:', {
+          initialLoad,
+          refreshing,
+          forceRefresh: shouldCallAPI,
+          forceRefreshParam,
+          isFirstLoad,
+          isFirstTime,
+          isRefreshing,
+          shouldCallAPI
+        });
+      }
 
       // Call API only on first load or pull-to-refresh
       // Otherwise, rely on cache (which will be checked by apiClient)
@@ -231,11 +233,13 @@ const InsightsScreen: React.FC = () => {
         forceRefresh: shouldCallAPI, // true on first load or pull-to-refresh only
       });
 
-      console.log('[InsightsScreen] Insights loaded:', {
-        count: result.insights.length,
-        total: result.pagination.total,
-        hasMore: result.pagination.hasMore
-      });
+      if (__DEV__) {
+        console.log('[InsightsScreen] Insights loaded:', {
+          count: result.insights.length,
+          total: result.pagination.total,
+          hasMore: result.pagination.hasMore
+        });
+      }
 
       if (initialLoad) {
         setInsights(result.insights);
@@ -269,7 +273,7 @@ const InsightsScreen: React.FC = () => {
    * Handles pull-to-refresh
    */
   const onRefresh = (): void => {
-    console.log('[InsightsScreen] Pull to refresh triggered');
+    if (__DEV__) console.log('[InsightsScreen] Pull to refresh triggered');
     setRefreshing(true);
     setNextCursor(null);
     // Pass true for forceRefresh explicitly since refreshing state hasn't updated yet

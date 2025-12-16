@@ -28,6 +28,7 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '../contexts/ThemeContext';
 import { useBottomSheetActions } from '../contexts/BottomSheetContext';
 import { TransactionCard, ExpenseOptionsSheet } from '../components';
+import { logger } from '../utils/logger';
 import { apiService } from '../services/api';
 import tagsService from '../services/tagsService';
 import { Expense, PaymentMethod, Tag, UnifiedTransaction, Category, IncomeTransaction } from '../types';
@@ -273,15 +274,13 @@ const TransactionsListScreen: React.FC = () => {
         endDate = customEndDate.toISOString();
       }
 
-      if (__DEV__) {
-        console.log('[TransactionsListScreen] Loading transactions:', {
-          initialLoad,
-          cursor: cursorToUse,
-          startDate,
-          endDate,
-          type: selectedTransactionType === 'all' ? undefined : selectedTransactionType,
-        });
-      }
+      logger.debug('[TransactionsListScreen] Loading transactions:', {
+        initialLoad,
+        cursor: cursorToUse,
+        startDate,
+        endDate,
+        type: selectedTransactionType === 'all' ? undefined : selectedTransactionType,
+      });
 
       const result = await apiService.getUnifiedTransactionsPaginated({
         startDate,
@@ -291,14 +290,12 @@ const TransactionsListScreen: React.FC = () => {
         cursor: cursorToUse,
       });
 
-      if (__DEV__) {
-        console.log('[TransactionsListScreen] Received transactions:', {
-          count: result.transactions.length,
-          total: result.pagination.total,
-          hasMore: result.pagination.hasMore,
-          nextCursor: result.pagination.nextCursor,
-        });
-      }
+      logger.debug('[TransactionsListScreen] Received transactions:', {
+        count: result.transactions.length,
+        total: result.pagination.total,
+        hasMore: result.pagination.hasMore,
+        nextCursor: result.pagination.nextCursor,
+      });
 
       if (initialLoad) {
         setTransactions(result.transactions);
@@ -325,14 +322,12 @@ const TransactionsListScreen: React.FC = () => {
    * Load more transactions (pagination)
    */
   const loadMore = useCallback(() => {
-    if (__DEV__) {
-      console.log('[TransactionsListScreen] loadMore called:', {
-        loadingMore,
-        hasMore,
-        nextCursor,
-        canLoad: !loadingMore && hasMore && nextCursor,
-      });
-    }
+    logger.debug('[TransactionsListScreen] loadMore called:', {
+      loadingMore,
+      hasMore,
+      nextCursor,
+      canLoad: !loadingMore && hasMore && nextCursor,
+    });
 
     if (!loadingMore && hasMore && nextCursor) {
       loadTransactions(false, nextCursor);

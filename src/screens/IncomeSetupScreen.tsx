@@ -57,7 +57,7 @@ type SetupStep = 0 | 1 | 2 | 3 | 4;
 
 const IncomeSetupScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { getCurrencySymbol, setCurrency: setCurrencyGlobal, convertToUSD } = useCurrency();
+  const { getCurrencySymbol, setCurrency: setCurrencyGlobal, convertToUSD, currencyCode } = useCurrency();
   const navigation = useNavigation<IncomeSetupNavigationProp>();
   const { markIncomeSetupComplete } = useAppFlow();
   
@@ -351,12 +351,16 @@ const IncomeSetupScreen: React.FC = () => {
   const handleSaveIncomeSource = async () => {
     setSaving(true);
     try {
+      // Original amount in the selected currency
+      const originalAmount = parseFloat(amount);
       // Convert amount to USD before sending to backend
-      const amountInUSD = convertToUSD(parseFloat(amount));
+      const amountInUSD = convertToUSD(originalAmount);
 
       const sourceData = {
         name: name.trim(),
         amount: amountInUSD,
+        originalAmount: originalAmount,
+        originalCurrency: currencyCode, // Use the active currency from context
         frequency,
         startDate: new Date().toISOString(), // Default to today
         autoAdd: true, // Always auto-add for onboarding

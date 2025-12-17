@@ -58,13 +58,6 @@
 		<true/>
 		<key>NSExceptionDomains</key>
 		<dict>
-			<key>localhost</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-			</dict>
 			<key>192.168.1.100</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
@@ -72,20 +65,70 @@
 				<key>NSExceptionRequiresForwardSecrecy</key>
 				<false/>
 			</dict>
+			<key>localhost</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
 		</dict>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Finly needs access to your camera to scan receipts and capture expense photos.</string>
+	<string>Finly AI needs access to your camera to scan receipts and capture expense photos.</string>
 	<key>NSFaceIDUsageDescription</key>
-	<string>$(PRODUCT_NAME) uses Face ID to securely authenticate sensitive operations like account deletion.</string>
+	<string>Finly AI  uses Face ID to securely authenticate sensitive operations like account deletion.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Allow $(PRODUCT_NAME) to access your microphone</string>
+	<string>Allow Finly AI to access your microphone</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Finly needs permission to save receipt photos to your library.</string>
+	<string>Finly AI needs permission to save receipt photos to your library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Finly needs access to your photo library to select receipt images.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeCapturePhoto</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Add with voice</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Voice Entry</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>finly.action.voice_transaction</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeCapturePhoto</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Capture expense</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Scan Receipt</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>finly.action.scan_receipt</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeAdd</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Manual entry</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>New Transaction</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>finly.action.add_transaction</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeSearch</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Ask anything</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Finly AI</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>finly.action.ai_assistant</string>
+		</dict>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>SplashScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
@@ -105,48 +148,5 @@
 	<string>Light</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
-	<key>UIApplicationShortcutItems</key>
-	<array>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>finly.action.voice_transaction</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Voice Entry</string>
-			<key>UIApplicationShortcutItemSubtitle</key>
-			<string>Add with voice</string>
-			<key>UIApplicationShortcutItemIconType</key>
-			<string>UIApplicationShortcutIconTypeCapturePhoto</string>
-		</dict>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>finly.action.scan_receipt</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Scan Receipt</string>
-			<key>UIApplicationShortcutItemSubtitle</key>
-			<string>Capture expense</string>
-			<key>UIApplicationShortcutItemIconType</key>
-			<string>UIApplicationShortcutIconTypeCapturePhoto</string>
-		</dict>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>finly.action.add_transaction</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>New Transaction</string>
-			<key>UIApplicationShortcutItemSubtitle</key>
-			<string>Manual entry</string>
-			<key>UIApplicationShortcutItemIconType</key>
-			<string>UIApplicationShortcutIconTypeAdd</string>
-		</dict>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>finly.action.ai_assistant</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Finly AI</string>
-			<key>UIApplicationShortcutItemSubtitle</key>
-			<string>Ask anything</string>
-			<key>UIApplicationShortcutItemIconType</key>
-			<string>UIApplicationShortcutIconTypeSearch</string>
-		</dict>
-	</array>
 </dict>
 </plist>

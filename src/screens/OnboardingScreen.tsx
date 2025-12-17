@@ -71,14 +71,14 @@ const OnboardingScreen: React.FC = () => {
       id: '3',
       icon: 'camera-outline',
       title: 'No More Paper Clutter',
-      description: 'Snap a photo, and let AI organize the details for you. Keep your wallet clean and your records perfect.',
+      description: 'Snap a photo, and let Finly AI organize the details for you. Keep your wallet clean and your records perfect.',
       color: '#F59E0B',
     },
     {
       id: '4',
       icon: 'microphone',
       title: 'Just Talk to Finly',
-      description: `Before you forget: "Coffee for ${getCurrencySymbol()}5." Speak naturally, and let AI handle the categorization. It's like magic for your money.`,
+      description: `Before you forget: "Coffee for ${getCurrencySymbol()}5." Speak naturally, and let Finly AI handle the categorization. It's like magic for your money.`,
       color: '#8B5CF6',
     },
     {

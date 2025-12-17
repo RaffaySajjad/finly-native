@@ -1,7 +1,7 @@
 /**
  * BalanceHistoryScreen - Balance History & Insights
  * Purpose: Shows balance trends, projections, and actionable insights
- * Features: Balance trend chart, cash flow forecast, savings analysis, date filters, period comparison
+ * Features: Clean balance overview, trend chart, collapsible details, date filters
  */
 
 import React, { useCallback, useState, useMemo } from 'react';
@@ -13,6 +13,9 @@ import {
   ActivityIndicator,
   Dimensions,
   Platform,
+  LayoutAnimation,
+  UIManager,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -26,8 +29,10 @@ import Animated, {
   Extrapolate,
   runOnJS,
   Easing,
+  FadeIn,
+  FadeInDown,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '../contexts/ThemeContext';
@@ -39,85 +44,108 @@ import { BalanceChart } from '../components/charts/BalanceChart';
 import { BalanceInsightCard } from '../components/trends/BalanceInsightCard';
 import { DateRangeFilter, DateRange } from '../components/filters/DateRangeFilter';
 
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Bottom sheet snap points
-const COLLAPSED_HEIGHT = 80; // Just shows the handle and period label
-const EXPANDED_HEIGHT = 220; // Full filter view
+const COLLAPSED_HEIGHT = 80;
+const EXPANDED_HEIGHT = 220;
 
 /**
- * PercentageChange - Displays percentage change with icon and color
+ * ChangeIndicator - Compact percentage change display
+ * Caps display at 999% to prevent layout overflow
  */
-interface PercentageChangeProps {
+interface ChangeIndicatorProps {
   value: number;
-  size?: 'small' | 'medium' | 'large';
-  inverted?: boolean; // For expenses, lower is better
-  showLabel?: boolean;
-  labelStyle?: 'badge' | 'inline';
+  inverted?: boolean;
+  size?: 'sm' | 'md';
 }
 
-const PercentageChange: React.FC<PercentageChangeProps> = ({
-  value,
-  size = 'small',
-  inverted = false,
-  showLabel = true,
-  labelStyle = 'inline',
-}) => {
+const ChangeIndicator: React.FC<ChangeIndicatorProps> = ({ value, inverted = false, size = 'sm' }) => {
   const { theme } = useTheme();
-
-  // Determine if this is positive (good) or negative (bad)
+  
   const isPositive = inverted ? value < 0 : value > 0;
   const isNeutral = Math.abs(value) < 0.5;
+  
+  const color = isNeutral ? theme.textTertiary : isPositive ? theme.success : theme.expense;
+  const iconName = isNeutral ? 'minus' : value > 0 ? 'trending-up' : 'trending-down';
+  const iconSize = size === 'md' ? 12 : 10;
+  const fontSize = size === 'md' ? 11 : 10;
 
-  const color = isNeutral
-    ? theme.textTertiary
-    : isPositive
-      ? theme.success
-      : theme.expense;
-
-  const iconName = isNeutral
-    ? 'minus'
-    : value > 0
-      ? 'arrow-up'
-      : 'arrow-down';
-
-  const fontSize = size === 'large' ? 14 : size === 'medium' ? 12 : 10;
-  const iconSize = size === 'large' ? 14 : size === 'medium' ? 12 : 10;
-
-  const formattedValue = Math.abs(value).toFixed(1);
-
-  if (labelStyle === 'badge') {
-    return (
-      <View style={[
-        styles.percentBadge,
-        { backgroundColor: color + '20' }
-      ]}>
-        <Icon name={iconName} size={iconSize} color={color} />
-        <Text style={[styles.percentText, { color, fontSize }]}>
-          {formattedValue}%
-        </Text>
-      </View>
-    );
-  }
+  // Cap display value for readability
+  const absValue = Math.abs(value);
+  const displayValue = absValue > 999 ? '999+' : absValue.toFixed(0);
 
   return (
-    <View style={styles.percentInline}>
+    <View style={[styles.changeIndicator, { backgroundColor: color + '15' }]}>
       <Icon name={iconName} size={iconSize} color={color} />
-      <Text style={[styles.percentText, { color, fontSize }]}>
-        {formattedValue}%
-        {showLabel && (
-          <Text style={{ color: theme.textTertiary, fontSize: fontSize - 2 }}>
-            {' '}vs prev
-          </Text>
-        )}
+      <Text style={[styles.changeText, { color, fontSize }]}>
+        {displayValue}%
       </Text>
     </View>
   );
 };
 
+/**
+ * StatItem - Compact stat display
+ */
+interface StatItemProps {
+  label: string;
+  value: string;
+  change?: number;
+  inverted?: boolean;
+  valueColor?: string;
+}
+
+const StatItem: React.FC<StatItemProps> = ({ label, value, change, inverted, valueColor }) => {
+  const { theme } = useTheme();
+  
+  return (
+    <View style={styles.statItem}>
+      <Text style={[styles.statItemLabel, { color: theme.textTertiary }]}>{label}</Text>
+      <View style={styles.statItemRow}>
+        <Text style={[styles.statItemValue, { color: valueColor || theme.text }]} numberOfLines={1}>
+          {value}
+        </Text>
+        {change !== undefined && <ChangeIndicator value={change} inverted={inverted} />}
+      </View>
+    </View>
+  );
+};
+
+/**
+ * formatCompactCurrency - Format currency with k/M suffix for large numbers
+ * Used in compact spaces like Period Comparison grid
+ * @param value - USD amount (will be converted by formatCurrency internally)
+ * @param symbol - Currency symbol to prepend
+ * @param exchangeRate - Exchange rate for conversion
+ */
+const formatCompactValue = (value: number, symbol: string, exchangeRate: number = 1): string => {
+  const convertedValue = value * exchangeRate;
+  const absValue = Math.abs(convertedValue);
+  const sign = convertedValue < 0 ? '-' : '';
+  
+  if (absValue >= 1000000) {
+    return `${sign}${symbol}${(absValue / 1000000).toFixed(1)}M`;
+  }
+  if (absValue >= 1000) {
+    return `${sign}${symbol}${(absValue / 1000).toFixed(1)}k`;
+  }
+  return `${sign}${symbol}${absValue.toFixed(0)}`;
+};
+
 const BalanceHistoryScreen: React.FC = () => {
   const { theme, isDark } = useTheme();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, exchangeRate } = useCurrency();
+  
+  // Helper for compact currency in tight spaces
+  const compactCurrency = useCallback((value: number) => {
+    return formatCompactValue(value, getCurrencySymbol(), exchangeRate || 1);
+  }, [getCurrencySymbol, exchangeRate]);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const {
@@ -134,6 +162,9 @@ const BalanceHistoryScreen: React.FC = () => {
   // Bottom sheet state
   const sheetHeight = useSharedValue(COLLAPSED_HEIGHT);
   const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Collapsible details state
+  const [showDetails, setShowDetails] = useState(false);
 
   // Local state for filter
   const [filterValue, setFilterValue] = useState<DateRange>(() => ({
@@ -179,21 +210,6 @@ const BalanceHistoryScreen: React.FC = () => {
     return 'Custom';
   }, [filterValue.periodPreset]);
 
-  // Format period label (full version)
-  const formatPeriodLabel = (): string => {
-    if (filterValue.periodPreset && filterValue.periodPreset !== 'custom') {
-      const labels: Record<string, string> = {
-        '7d': 'Last 7 Days',
-        '30d': 'Last 30 Days',
-        '12w': 'Last 12 Weeks',
-        '6m': 'Last 6 Months',
-        '1y': 'Last Year',
-      };
-      return labels[filterValue.periodPreset] || 'Custom Period';
-    }
-    return 'Custom Period';
-  };
-
   // Toggle bottom sheet expanded state
   const toggleSheet = useCallback(() => {
     triggerHaptic();
@@ -204,6 +220,13 @@ const BalanceHistoryScreen: React.FC = () => {
       easing: Easing.out(Easing.cubic),
     });
   }, [isExpanded, sheetHeight, triggerHaptic]);
+
+  // Toggle details visibility
+  const toggleDetails = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    triggerHaptic();
+    setShowDetails(prev => !prev);
+  }, [triggerHaptic]);
 
   // Pan gesture for dragging the bottom sheet
   const panGesture = Gesture.Pan()
@@ -253,14 +276,6 @@ const BalanceHistoryScreen: React.FC = () => {
     ],
   }));
 
-  // Get comparison label for previous period
-  const getComparisonLabel = (): string => {
-    if (balanceData?.comparison) {
-      return `vs ${balanceData.comparison.previousLabel}`;
-    }
-    return 'vs previous period';
-  };
-
   // Only show full loading screen when we have no cached data
   if (loading && !balanceData) {
     return (
@@ -301,7 +316,7 @@ const BalanceHistoryScreen: React.FC = () => {
           </View>
         </PullToRefreshScrollView>
 
-        {/* Bottom Sheet Filter - also shown on empty state */}
+        {/* Bottom Sheet Filter */}
         <GestureDetector gesture={panGesture}>
           <Animated.View
             style={[
@@ -314,11 +329,7 @@ const BalanceHistoryScreen: React.FC = () => {
               sheetAnimatedStyle,
             ]}
           >
-            <TouchableOpacity
-              style={styles.sheetHeader}
-              onPress={toggleSheet}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={styles.sheetHeader} onPress={toggleSheet} activeOpacity={0.7}>
               <View style={[styles.handleBar, { backgroundColor: theme.border }]} />
               <View style={styles.sheetHeaderContent}>
                 <View style={styles.sheetTitleRow}>
@@ -333,11 +344,7 @@ const BalanceHistoryScreen: React.FC = () => {
               </View>
             </TouchableOpacity>
             <Animated.View style={[styles.sheetContent, contentOpacity]}>
-              <DateRangeFilter
-                value={filterValue}
-                onChange={handleFilterChange}
-                compact
-              />
+              <DateRangeFilter value={filterValue} onChange={handleFilterChange} compact />
             </Animated.View>
           </Animated.View>
         </GestureDetector>
@@ -346,15 +353,13 @@ const BalanceHistoryScreen: React.FC = () => {
   }
 
   const comparison = balanceData.comparison;
+  const periodStats = balanceData.periodStats;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Icon name="arrow-left" size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
@@ -368,319 +373,219 @@ const BalanceHistoryScreen: React.FC = () => {
 
       <PullToRefreshScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: EXPANDED_HEIGHT + 20 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: EXPANDED_HEIGHT + 40 }]}
         onRefresh={forceRefresh}
       >
-        {/* Period Label with Comparison */}
-        <View style={styles.periodLabelContainer}>
-          <Text style={[styles.periodLabel, { color: theme.textSecondary }]}>
-            {formatPeriodLabel()}
-          </Text>
-          {comparison && (
-            <Text style={[styles.comparisonLabel, { color: theme.textTertiary }]}>
-              {getComparisonLabel()}
-            </Text>
-          )}
-        </View>
-
-        {/* Current Balance Card */}
-        <View style={styles.currentBalanceCardContainer}>
-          <View style={[styles.currentBalanceCard, elevation.md]}>
+        {/* Hero Balance Card - Simplified */}
+        <Animated.View entering={FadeInDown.duration(400).delay(100)}>
+          <View style={styles.heroCardContainer}>
             <LinearGradient
               colors={isDark 
-                ? ['#1E4A6F', '#0F2E4A', '#2E5F8F']
-                : [theme.primary, theme.primaryDark, theme.primaryLight]
+                ? ['#1A3A52', '#0D2438', '#1E4A6F']
+                : [theme.primary, theme.primaryDark, '#2563EB']
               }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.gradientCard}
+              style={[styles.heroCard, elevation.md]}
             >
-              <View style={styles.balanceHeader}>
-                <Text style={styles.currentBalanceLabel}>Current Balance</Text>
+              {/* Period Badge */}
+              <View style={styles.periodBadge}>
+                <Icon name="calendar-range" size={14} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.periodBadgeText}>{formatPeriodLabelShort}</Text>
+              </View>
+
+              {/* Balance */}
+              <View style={styles.balanceRow}>
+                <View style={styles.balanceMain}>
+                  <Text style={styles.balanceLabel}>Current Balance</Text>
+                  <Text style={styles.balanceAmount}>{formatCurrency(stats.balance)}</Text>
+                </View>
                 {comparison && (
-                  <View style={styles.balanceChangeContainer}>
-                    <PercentageChange
-                      value={comparison.changes.balance}
-                      size="medium"
-                      showLabel={false}
-                      labelStyle="badge"
-                    />
+                  <View style={styles.balanceChange}>
+                    <View style={[
+                      styles.balanceChangeBadge,
+                      { backgroundColor: comparison.changes.balance >= 0 ? 'rgba(74,222,128,0.2)' : 'rgba(248,113,113,0.2)' }
+                    ]}>
+                      <Icon 
+                        name={comparison.changes.balance >= 0 ? 'trending-up' : 'trending-down'} 
+                        size={16} 
+                        color={comparison.changes.balance >= 0 ? '#4ADE80' : '#F87171'} 
+                      />
+                      <Text style={[
+                        styles.balanceChangeText,
+                        { color: comparison.changes.balance >= 0 ? '#4ADE80' : '#F87171' }
+                      ]}>
+                        {Math.abs(comparison.changes.balance).toFixed(1)}%
+                      </Text>
+                    </View>
+                    <Text style={styles.balanceChangeLabel}>vs prev period</Text>
                   </View>
                 )}
               </View>
-              <Text style={styles.currentBalanceAmount}>
-                {formatCurrency(stats.balance)}
-              </Text>
 
-              <View style={styles.balanceBreakdown}>
-                <View style={styles.breakdownItem}>
-                  <View style={styles.breakdownHeader}>
-                    <Text style={styles.breakdownLabel}>Income</Text>
-                    {comparison && (
-                      <PercentageChange
-                        value={comparison.changes.income}
-                        size="small"
-                        showLabel={false}
-                      />
-                    )}
-                  </View>
-                  <Text style={[styles.breakdownValue, { color: '#4ADE80' }]}>
-                    +{formatCurrency(balanceData.periodStats?.totalIncome || stats.totalIncome)}
+              {/* Projection Teaser */}
+              {balanceData.projection && (
+                <View style={styles.projectionTeaser}>
+                  <Icon name="crystal-ball" size={14} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.projectionTeaserText}>
+                    Month-end projection: {formatCurrency(balanceData.projection.endOfMonth)}
                   </Text>
                 </View>
-                <View style={styles.breakdownDivider} />
-                <View style={styles.breakdownItem}>
-                  <View style={styles.breakdownHeader}>
-                    <Text style={styles.breakdownLabel}>Expenses</Text>
-                    {comparison && (
-                      <PercentageChange
-                        value={comparison.changes.expenses}
-                        size="small"
-                        inverted={true}
-                        showLabel={false}
-                      />
-                    )}
-                  </View>
-                  <Text style={[styles.breakdownValue, { color: '#F87171' }]}>
-                    -{formatCurrency(balanceData.periodStats?.totalExpenses || stats.totalExpenses)}
-                  </Text>
-                </View>
-              </View>
+              )}
             </LinearGradient>
           </View>
-        </View>
+        </Animated.View>
 
-        {/* Period Stats Summary with Comparison */}
-        {balanceData.periodStats && (
-          <View style={styles.statsRow}>
-            <View style={[styles.statCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <View style={styles.statHeader}>
-                <View style={[styles.statIconContainer, { backgroundColor: theme.success + '20' }]}>
-                  <Icon name="trending-up" size={18} color={theme.success} />
-                </View>
-                {comparison && (
-                  <PercentageChange
-                    value={comparison.changes.netChange}
-                    size="small"
-                    showLabel={false}
-                  />
-                )}
-              </View>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Net Change</Text>
-              <Text style={[
-                styles.statValue,
-                { color: balanceData.periodStats.netChange >= 0 ? theme.success : theme.expense }
-              ]}>
-                {balanceData.periodStats.netChange >= 0 ? '+' : ''}
-                {formatCurrency(balanceData.periodStats.netChange)}
-              </Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <View style={styles.statHeader}>
-                <View style={[styles.statIconContainer, { backgroundColor: theme.warning + '20' }]}>
-                  <Icon name="calculator" size={18} color={theme.warning} />
-                </View>
-                {comparison && (
-                  <PercentageChange
-                    value={comparison.changes.avgSpending}
-                    size="small"
-                    inverted={true}
-                    showLabel={false}
-                  />
-                )}
-              </View>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Avg Daily</Text>
-              <Text style={[styles.statValue, { color: theme.text }]}>
-                {formatCurrency(balanceData.periodStats.averageDailySpending)}/day
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Period Comparison Summary Card */}
-        {comparison && (
-          <View style={[
-            styles.comparisonCard,
-            { backgroundColor: theme.card, borderColor: theme.border },
-            elevation.sm,
-          ]}>
-            <View style={styles.comparisonHeader}>
-              <Icon name="compare-horizontal" size={20} color={theme.primary} />
-              <Text style={[styles.comparisonTitle, { color: theme.text }]}>
-                Period Comparison
-              </Text>
-            </View>
-            <Text style={[styles.comparisonSubtitle, { color: theme.textSecondary }]}>
-              Comparing {balanceData.comparison?.currentLabel} with {balanceData.comparison?.previousLabel}
-            </Text>
-
-            <View style={styles.comparisonGrid}>
-              <View style={styles.comparisonItem}>
-                <Text style={[styles.comparisonItemLabel, { color: theme.textTertiary }]}>
-                  Transactions
-                </Text>
-                <View style={styles.comparisonItemValue}>
-                  <Text style={[styles.comparisonItemNumber, { color: theme.text }]}>
-                    {balanceData.periodStats.transactionCount}
-                  </Text>
-                  <PercentageChange
-                    value={comparison.changes.transactions}
-                    size="small"
-                    showLabel={false}
-                  />
-                </View>
-                <Text style={[styles.comparisonItemPrev, { color: theme.textTertiary }]}>
-                  prev: {comparison.previousPeriod.transactionCount}
-                </Text>
-              </View>
-
-              <View style={styles.comparisonItem}>
-                <Text style={[styles.comparisonItemLabel, { color: theme.textTertiary }]}>
-                  Income
-                </Text>
-                <View style={styles.comparisonItemValue}>
-                  <Text style={[styles.comparisonItemNumber, { color: theme.success }]}>
-                    {formatCurrency(balanceData.periodStats.totalIncome)}
-                  </Text>
-                  <PercentageChange
-                    value={comparison.changes.income}
-                    size="small"
-                    showLabel={false}
-                  />
-                </View>
-                <Text style={[styles.comparisonItemPrev, { color: theme.textTertiary }]}>
-                  prev: {formatCurrency(comparison.previousPeriod.totalIncome)}
-                </Text>
-              </View>
-
-              <View style={styles.comparisonItem}>
-                <Text style={[styles.comparisonItemLabel, { color: theme.textTertiary }]}>
-                  Expenses
-                </Text>
-                <View style={styles.comparisonItemValue}>
-                  <Text style={[styles.comparisonItemNumber, { color: theme.expense }]}>
-                    {formatCurrency(balanceData.periodStats.totalExpenses)}
-                  </Text>
-                  <PercentageChange
-                    value={comparison.changes.expenses}
-                    size="small"
-                    inverted={true}
-                    showLabel={false}
-                  />
-                </View>
-                <Text style={[styles.comparisonItemPrev, { color: theme.textTertiary }]}>
-                  prev: {formatCurrency(comparison.previousPeriod.totalExpenses)}
-                </Text>
-              </View>
-
-              <View style={styles.comparisonItem}>
-                <Text style={[styles.comparisonItemLabel, { color: theme.textTertiary }]}>
-                  End Balance
-                </Text>
-                <View style={styles.comparisonItemValue}>
-                  <Text style={[styles.comparisonItemNumber, { color: theme.text }]}>
-                    {formatCurrency(balanceData.periodStats.endBalance)}
-                  </Text>
-                  <PercentageChange
-                    value={comparison.changes.balance}
-                    size="small"
-                    showLabel={false}
-                  />
-                </View>
-                <Text style={[styles.comparisonItemPrev, { color: theme.textTertiary }]}>
-                  prev: {formatCurrency(comparison.previousPeriod.endBalance)}
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Projection Card */}
-        <View
-          style={[
-            styles.card,
-            styles.projectionCard,
-            {
-              backgroundColor: theme.card,
-              borderColor: theme.border,
-            },
-            elevation.sm,
-          ]}
-        >
-          <View style={styles.projectionHeader}>
-            <View style={[
-              styles.projectionIconContainer,
-              {
-                backgroundColor: balanceData.projection.isPositive ? theme.success + '20' : theme.expense + '20',
-              }
-            ]}>
-              <Icon
-                name={balanceData.projection.isPositive ? 'trending-up' : 'trending-down'}
-                size={20}
-                color={balanceData.projection.isPositive ? theme.success : theme.expense}
-              />
-            </View>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>
-              {balanceData.projection.daysRemaining > 0 ? 'Month End Projection' : 'Period End Balance'}
-            </Text>
-          </View>
-          <Text style={[
-            styles.projectionAmount,
-            { color: balanceData.projection.isPositive ? theme.success : theme.expense },
-          ]}>
-            {formatCurrency(balanceData.projection.endOfMonth)}
-          </Text>
-          <Text style={[styles.projectionSubtext, { color: theme.textSecondary }]}>
-            Based on your spending rate of {formatCurrency(balanceData.projection.dailySpendingRate)}/day
-          </Text>
-          {balanceData.projection.daysRemaining > 0 && (
-            <Text style={[styles.projectionSubtext, { color: theme.textSecondary }]}>
-              {balanceData.projection.daysRemaining} days remaining this month
-            </Text>
-          )}
-        </View>
-
-        {/* Balance Trend Chart */}
-        <View style={styles.chartSection}>
-          <View style={styles.chartHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Balance Trend</Text>
-            {comparison && (
-              <View style={styles.chartChange}>
-                <PercentageChange
-                  value={comparison.changes.balance}
-                  size="medium"
-                  showLabel={true}
-                  labelStyle="badge"
+        {/* Quick Stats Row - Horizontal Scroll */}
+        {periodStats && (
+          <Animated.View entering={FadeInDown.duration(400).delay(200)}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.quickStatsScrollContent}
+              style={styles.quickStatsScroll}
+            >
+              <View style={[styles.quickStatsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <StatItem 
+                  label="Income" 
+                  value={`+${formatCurrency(periodStats.totalIncome)}`}
+                  valueColor={theme.success}
+                  change={comparison?.changes.income}
+                />
+                <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+                <StatItem 
+                  label="Expenses" 
+                  value={`-${formatCurrency(periodStats.totalExpenses)}`}
+                  valueColor={theme.expense}
+                  change={comparison?.changes.expenses}
+                  inverted
+                />
+                <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+                <StatItem 
+                  label="Net" 
+                  value={`${periodStats.netChange >= 0 ? '+' : ''}${formatCurrency(periodStats.netChange)}`}
+                  valueColor={periodStats.netChange >= 0 ? theme.success : theme.expense}
+                  change={comparison?.changes.netChange}
                 />
               </View>
-            )}
-          </View>
-          <BalanceChart data={balanceData.dailyBalances} periodLabel={formatPeriodLabelShort} />
-        </View>
-
-        {/* Insights */}
-        {balanceData.insights && balanceData.insights.length > 0 && (
-          <>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Insights</Text>
-            <BalanceInsightCard insights={balanceData.insights} />
-          </>
+            </ScrollView>
+          </Animated.View>
         )}
 
-        {/* Transaction Count */}
-        {balanceData.periodStats && (
-          <View style={[styles.transactionSummary, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Icon name="swap-horizontal" size={20} color={theme.primary} />
-            <Text style={[styles.transactionSummaryText, { color: theme.textSecondary }]}>
-              {balanceData.periodStats.transactionCount} transactions in this period
-            </Text>
-            {comparison && (
-              <PercentageChange
-                value={comparison.changes.transactions}
-                size="small"
-                showLabel={false}
-              />
+        {/* Balance Trend Chart */}
+        <Animated.View entering={FadeInDown.duration(400).delay(300)}>
+          <BalanceChart data={balanceData.dailyBalances} periodLabel={formatPeriodLabelShort} />
+        </Animated.View>
+
+        {/* Insights - Prominent placement */}
+        {balanceData.insights && balanceData.insights.length > 0 && (
+          <Animated.View entering={FadeInDown.duration(400).delay(400)}>
+            <View style={styles.sectionHeader}>
+              <Icon name="lightbulb-outline" size={20} color={theme.primary} />
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Insights</Text>
+            </View>
+            <BalanceInsightCard insights={balanceData.insights} />
+          </Animated.View>
+        )}
+
+        {/* Expandable Details Section */}
+        {comparison && periodStats && (
+          <Animated.View entering={FadeInDown.duration(400).delay(500)}>
+            <TouchableOpacity 
+              style={[
+                styles.detailsToggle, 
+                { backgroundColor: theme.card, borderColor: theme.border },
+                showDetails && styles.detailsToggleExpanded,
+              ]}
+              onPress={toggleDetails}
+              activeOpacity={0.7}
+            >
+              <View style={styles.detailsToggleLeft}>
+                <Icon name="chart-box-outline" size={20} color={theme.primary} />
+                <Text style={[styles.detailsToggleText, { color: theme.text }]}>
+                  Period Comparison
+                </Text>
+              </View>
+              <View style={styles.detailsToggleRight}>
+                <Text style={[styles.detailsToggleHint, { color: theme.textTertiary }]}>
+                  {periodStats.transactionCount} transactions
+                </Text>
+                <Icon 
+                  name={showDetails ? 'chevron-up' : 'chevron-down'} 
+                  size={20} 
+                  color={theme.textSecondary} 
+                />
+              </View>
+            </TouchableOpacity>
+
+            {/* Collapsible Details Content */}
+            {showDetails && (
+              <View style={[styles.detailsContent, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <Text style={[styles.detailsSubtitle, { color: theme.textSecondary }]}>
+                  {comparison.currentLabel} vs {comparison.previousLabel}
+                </Text>
+                
+                <View style={styles.detailsGrid}>
+                  <View style={styles.detailsItem}>
+                    <Text style={[styles.detailsItemLabel, { color: theme.textTertiary }]}>Transactions</Text>
+                    <View style={styles.detailsItemRow}>
+                      <Text style={[styles.detailsItemValue, { color: theme.text }]}>
+                        {periodStats.transactionCount}
+                      </Text>
+                      <ChangeIndicator value={comparison.changes.transactions} size="md" />
+                    </View>
+                    <Text style={[styles.detailsItemPrev, { color: theme.textTertiary }]}>
+                      Prev: {comparison.previousPeriod.transactionCount}
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailsItem}>
+                    <Text style={[styles.detailsItemLabel, { color: theme.textTertiary }]}>End Balance</Text>
+                    <View style={styles.detailsItemRow}>
+                      <Text style={[styles.detailsItemValue, { color: theme.text }]}>
+                        {compactCurrency(periodStats.endBalance)}
+                      </Text>
+                      <ChangeIndicator value={comparison.changes.balance} size="md" />
+                    </View>
+                    <Text style={[styles.detailsItemPrev, { color: theme.textTertiary }]}>
+                      Prev: {compactCurrency(comparison.previousPeriod.endBalance)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailsItem}>
+                    <Text style={[styles.detailsItemLabel, { color: theme.textTertiary }]}>Avg Daily</Text>
+                    <View style={styles.detailsItemRow}>
+                      <Text style={[styles.detailsItemValue, { color: theme.text }]}>
+                        {compactCurrency(periodStats.averageDailySpending)}
+                      </Text>
+                      <ChangeIndicator value={comparison.changes.avgSpending} inverted size="md" />
+                    </View>
+                    <Text style={[styles.detailsItemPrev, { color: theme.textTertiary }]}>
+                      Rate: {compactCurrency(balanceData.projection?.dailySpendingRate || 0)}/d
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailsItem}>
+                    <Text style={[styles.detailsItemLabel, { color: theme.textTertiary }]}>Savings</Text>
+                    <View style={styles.detailsItemRow}>
+                      <Text style={[
+                        styles.detailsItemValue, 
+                        { color: periodStats.netChange >= 0 ? theme.success : theme.expense }
+                      ]}>
+                        {periodStats.totalIncome > 0 
+                          ? `${Math.round((periodStats.netChange / periodStats.totalIncome) * 100)}%`
+                          : 'N/A'
+                        }
+                      </Text>
+                    </View>
+                    <Text style={[styles.detailsItemPrev, { color: theme.textTertiary }]}>
+                      of income
+                    </Text>
+                  </View>
+                </View>
+              </View>
             )}
-          </View>
+          </Animated.View>
         )}
 
       </PullToRefreshScrollView>
@@ -698,12 +603,7 @@ const BalanceHistoryScreen: React.FC = () => {
             sheetAnimatedStyle,
           ]}
         >
-          {/* Handle Bar */}
-          <TouchableOpacity
-            style={styles.sheetHeader}
-            onPress={toggleSheet}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.sheetHeader} onPress={toggleSheet} activeOpacity={0.7}>
             <View style={[styles.handleBar, { backgroundColor: theme.border }]} />
             <View style={styles.sheetHeaderContent}>
               <View style={styles.sheetTitleRow}>
@@ -717,14 +617,8 @@ const BalanceHistoryScreen: React.FC = () => {
               </Animated.View>
             </View>
           </TouchableOpacity>
-
-          {/* Filter Content */}
           <Animated.View style={[styles.sheetContent, contentOpacity]}>
-            <DateRangeFilter
-              value={filterValue}
-              onChange={handleFilterChange}
-              compact
-            />
+            <DateRangeFilter value={filterValue} onChange={handleFilterChange} compact />
           </Animated.View>
         </Animated.View>
       </GestureDetector>
@@ -759,8 +653,258 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   scrollContent: {
-    paddingBottom: spacing.xl,
+    paddingTop: spacing.xs,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: 14,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 100,
+  },
+  emptyText: {
+    marginTop: spacing.md,
+    fontSize: 16,
+  },
+
+  // Hero Card Styles
+  heroCardContainer: {
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  heroCard: {
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+  },
+  periodBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.full,
+    marginBottom: spacing.md,
+  },
+  periodBadgeText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '500',
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  balanceMain: {
+    flex: 1,
+  },
+  balanceLabel: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: 4,
+  },
+  balanceAmount: {
+    fontSize: 34,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  balanceChange: {
+    alignItems: 'flex-end',
+    marginLeft: spacing.md,
+  },
+  balanceChangeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.full,
+  },
+  balanceChangeText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  balanceChangeLabel: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 4,
+  },
+  projectionTeaser: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.lg,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+  },
+  projectionTeaserText: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+  },
+
+  // Quick Stats - Horizontal Scroll
+  quickStatsScroll: {
+    marginBottom: spacing.md,
+  },
+  quickStatsScrollContent: {
+    paddingHorizontal: spacing.md,
+  },
+  quickStatsCard: {
+    flexDirection: 'row',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+  },
+  statItem: {
+    minWidth: 110,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+  },
+  statItemLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  statItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statItemValue: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  statDivider: {
+    width: 1,
+    height: '80%',
+    alignSelf: 'center',
+  },
+
+  // Change Indicator
+  changeIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: borderRadius.full,
+  },
+  changeText: {
+    fontWeight: '600',
+  },
+
+  // Section Header
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Details Toggle
+  detailsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+  },
+  detailsToggleExpanded: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 0,
+  },
+  detailsToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  detailsToggleText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  detailsToggleRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  detailsToggleHint: {
+    fontSize: 12,
+  },
+
+  // Details Content
+  detailsContent: {
+    marginHorizontal: spacing.md,
+    marginTop: -1,
+    padding: spacing.sm,
+    paddingTop: spacing.sm,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderBottomLeftRadius: borderRadius.lg,
+    borderBottomRightRadius: borderRadius.lg,
+  },
+  detailsSubtitle: {
+    fontSize: 11,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  detailsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  detailsItem: {
+    width: '48%',
+    padding: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.xs,
+    borderRadius: borderRadius.md,
+    backgroundColor: 'rgba(128,128,128,0.05)',
+  },
+  detailsItemLabel: {
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    marginBottom: 2,
+  },
+  detailsItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  detailsItemValue: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  detailsItemPrev: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+
   // Bottom Sheet Styles
   bottomSheet: {
     position: 'absolute',
@@ -801,277 +945,6 @@ const styles = StyleSheet.create({
   },
   sheetContent: {
     flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: spacing.md,
-    fontSize: 14,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 100,
-  },
-  emptyText: {
-    marginTop: spacing.md,
-    fontSize: 16,
-  },
-  periodLabelContainer: {
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  periodLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  comparisonLabel: {
-    fontSize: 11,
-    fontStyle: 'italic',
-  },
-  currentBalanceCardContainer: {
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.md,
-  },
-  currentBalanceCard: {
-    borderRadius: borderRadius.xl,
-    overflow: 'hidden',
-  },
-  gradientCard: {
-    padding: spacing.lg,
-  },
-  balanceHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs,
-  },
-  currentBalanceLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  balanceChangeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  currentBalanceAmount: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: spacing.lg,
-  },
-  balanceBreakdown: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-    borderRadius: borderRadius.lg,
-    padding: spacing.sm,
-  },
-  breakdownItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  breakdownHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginBottom: 4,
-  },
-  breakdownDivider: {
-    width: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    marginHorizontal: spacing.sm,
-  },
-  breakdownLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  breakdownValue: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  statCard: {
-    flex: 1,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    padding: spacing.md,
-    alignItems: 'center',
-  },
-  statHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginBottom: spacing.xs,
-  },
-  statIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statLabel: {
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  // Comparison Card Styles
-  comparisonCard: {
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    padding: spacing.md,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
-  },
-  comparisonHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  comparisonTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  comparisonSubtitle: {
-    fontSize: 12,
-    marginBottom: spacing.md,
-  },
-  comparisonGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  comparisonItem: {
-    width: '48%',
-    padding: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: 'rgba(128, 128, 128, 0.05)',
-  },
-  comparisonItemLabel: {
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  comparisonItemValue: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  comparisonItemNumber: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  comparisonItemPrev: {
-    fontSize: 10,
-    marginTop: 2,
-  },
-  // Percentage Change Styles
-  percentBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.full,
-    gap: 2,
-  },
-  percentInline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  percentText: {
-    fontWeight: '600',
-  },
-  card: {
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    padding: spacing.md,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
-  },
-  projectionCard: {
-    marginTop: spacing.sm,
-  },
-  projectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  projectionIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  projectionAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: spacing.xs,
-  },
-  projectionSubtext: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  chartSection: {
-    marginTop: spacing.sm,
-  },
-  chartHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  chartChange: {
-    marginRight: spacing.md,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: spacing.md,
-    marginBottom: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  transactionSummary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    gap: spacing.sm,
-  },
-  transactionSummaryText: {
-    fontSize: 14,
   },
 });
 

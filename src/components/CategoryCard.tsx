@@ -25,7 +25,7 @@ interface CategoryCardProps {
  */
 const CategoryCardComponent: React.FC<CategoryCardProps> = ({ category, onPress }) => {
   const { theme } = useTheme();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, formatTransactionAmount } = useCurrency();
 
   // Memoize calculations
   const { percentage, isOverBudget, formattedSpent, formattedBudget } = useMemo(() => {
@@ -35,7 +35,10 @@ const CategoryCardComponent: React.FC<CategoryCardProps> = ({ category, onPress 
       : 0;
     const overBudget = category.budgetLimit && totalSpent > category.budgetLimit;
     const spent = formatCurrency(totalSpent);
-    const budget = category.budgetLimit ? formatCurrency(category.budgetLimit) : null;
+    // Use originalAmount and originalCurrency if available for proper currency display
+    const budget = category.budgetLimit 
+      ? formatTransactionAmount(category.budgetLimit, category.originalAmount, category.originalCurrency) 
+      : null;
     
     return {
       percentage: pct,
@@ -43,7 +46,7 @@ const CategoryCardComponent: React.FC<CategoryCardProps> = ({ category, onPress 
       formattedSpent: spent,
       formattedBudget: budget,
     };
-  }, [category.budgetLimit, category.totalSpent, formatCurrency]);
+  }, [category.budgetLimit, category.totalSpent, category.originalAmount, category.originalCurrency, formatCurrency, formatTransactionAmount]);
 
   return (
     <TouchableOpacity
@@ -107,6 +110,8 @@ export const CategoryCard = React.memo(CategoryCardComponent, (prevProps, nextPr
     prevProps.category.id === nextProps.category.id &&
     prevProps.category.totalSpent === nextProps.category.totalSpent &&
     prevProps.category.budgetLimit === nextProps.category.budgetLimit &&
+    prevProps.category.originalAmount === nextProps.category.originalAmount &&
+    prevProps.category.originalCurrency === nextProps.category.originalCurrency &&
     prevProps.onPress === nextProps.onPress
   );
 });

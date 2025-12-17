@@ -42,6 +42,8 @@ interface GroupedInsights {
 
 /**
  * Group insights by date
+ * Also filters out duplicate insights with the same title on the same day,
+ * keeping only the most recent one
  */
 const groupInsightsByDate = (insights: Insight[]): GroupedInsights[] => {
   // Remove duplicates by ID first to prevent duplicate groups
@@ -66,15 +68,30 @@ const groupInsightsByDate = (insights: Insight[]): GroupedInsights[] => {
     grouped[dateKey].push(insight);
   });
 
-  // Convert to array and sort by date (newest first)
+  // Convert to array, dedupe by title within each day, and sort by date (newest first)
   return Object.entries(grouped)
-    .map(([date, insights]) => ({
-      date,
-      dateLabel: formatDateLabel(insights[0].createdAt),
-      insights: insights.sort((a, b) =>
+    .map(([date, dayInsights]) => {
+      // Sort insights within the day (newest first)
+      const sortedDayInsights = dayInsights.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      ),
-    }))
+      );
+
+      // Filter out duplicates with same title, keeping only the latest (first after sort)
+      const seenTitles = new Set<string>();
+      const dedupedInsights = sortedDayInsights.filter((insight) => {
+        if (seenTitles.has(insight.title)) {
+          return false; // Skip duplicate title
+        }
+        seenTitles.add(insight.title);
+        return true;
+      });
+
+      return {
+        date,
+        dateLabel: formatDateLabel(dayInsights[0].createdAt),
+        insights: dedupedInsights,
+      };
+    })
     .sort((a, b) => b.date.localeCompare(a.date));
 };
 

@@ -66,7 +66,7 @@ const TrendsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [trendsData, setTrendsData] = useState<TrendsData | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
-  const [timeRange, setTimeRange] = useState<'week' | 'month'>('week');
+  const [timeRange, setTimeRange] = useState<'week' | 'month'>('month');
   const [refreshing, setRefreshing] = useState(false);
 
   // Animation values

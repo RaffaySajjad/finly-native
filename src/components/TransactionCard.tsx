@@ -46,6 +46,9 @@ const TransactionCardComponent: React.FC<TransactionCardProps> = ({ expense, tra
     paymentMethod: expense.paymentMethod,
     tags: expense.tags,
     notes: expense.notes,
+    // Include original currency info for proper amount display
+    originalAmount: expense.originalAmount,
+    originalCurrency: expense.originalCurrency,
   } : null);
 
   if (!tx) {

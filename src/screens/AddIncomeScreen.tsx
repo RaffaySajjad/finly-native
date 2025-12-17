@@ -42,6 +42,9 @@ const AddIncomeScreen: React.FC = () => {
   const isEditing = !!editingIncome;
 
   const [amount, setAmount] = useState(editingIncome ? editingIncome.amount.toString() : '');
+  const [selectedCurrency, setSelectedCurrency] = useState<string | undefined>(
+    editingIncome?.originalCurrency || undefined
+  );
   const [incomeSourceId, setIncomeSourceId] = useState<string | undefined>(editingIncome?.incomeSource?.id);
   const [description, setDescription] = useState(editingIncome?.description || '');
   const [date, setDate] = useState(editingIncome ? new Date(editingIncome.date) : new Date());
@@ -81,15 +84,19 @@ const AddIncomeScreen: React.FC = () => {
 
     try {
       const originalAmount = parseFloat(amount);
-      // Convert amount from display currency to USD before sending
-      const amountInUSD = convertToUSD(originalAmount);
+      // Determine which currency the amount is in
+      const amountCurrency = selectedCurrency || currencyCode;
+      // Convert amount from the selected currency to USD before sending
+      const amountInUSD = amountCurrency.toUpperCase() === 'USD' 
+        ? originalAmount 
+        : convertToUSD(originalAmount);
 
       const payload: any = {
         amount: amountInUSD,
         date: date.toISOString(),
         description: description.trim(),
         originalAmount,
-        originalCurrency: currencyCode,
+        originalCurrency: amountCurrency,
       };
 
       // Only include incomeSourceId if it has a value
@@ -150,6 +157,9 @@ const AddIncomeScreen: React.FC = () => {
               <CurrencyInput
                 value={amount}
                 onChangeText={setAmount}
+                onCurrencyChange={(code: string) => setSelectedCurrency(code)}
+                selectedCurrency={selectedCurrency}
+                allowCurrencySelection={true}
                 placeholder="0.00"
                 placeholderTextColor={theme.textTertiary}
                 autoFocus

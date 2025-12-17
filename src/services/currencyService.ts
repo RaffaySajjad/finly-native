@@ -178,3 +178,272 @@ export const getCurrencyByCode = (code: string): Currency | undefined => {
   return POPULAR_CURRENCIES.find(c => c.code === code);
 };
 
+/**
+ * Currency name aliases - maps common/ambiguous currency names to their possible codes
+ * Used for disambiguating user input like "rupee" which could mean INR, PKR, etc.
+ * Structure: { lowercaseName: [currencyCodes in priority order] }
+ */
+export const CURRENCY_NAME_ALIASES: Record<string, string[]> = {
+  // Rupee variants
+  'rupee': ['INR', 'PKR', 'NPR', 'LKR', 'MUR', 'SCR'],
+  'rupees': ['INR', 'PKR', 'NPR', 'LKR', 'MUR', 'SCR'],
+  'indian rupee': ['INR'],
+  'indian rupees': ['INR'],
+  'pakistani rupee': ['PKR'],
+  'pakistani rupees': ['PKR'],
+  'nepalese rupee': ['NPR'],
+  'sri lankan rupee': ['LKR'],
+  'mauritian rupee': ['MUR'],
+  
+  // Dollar variants
+  'dollar': ['USD', 'AUD', 'CAD', 'NZD', 'SGD', 'HKD'],
+  'dollars': ['USD', 'AUD', 'CAD', 'NZD', 'SGD', 'HKD'],
+  'us dollar': ['USD'],
+  'us dollars': ['USD'],
+  'american dollar': ['USD'],
+  'australian dollar': ['AUD'],
+  'australian dollars': ['AUD'],
+  'canadian dollar': ['CAD'],
+  'canadian dollars': ['CAD'],
+  'singapore dollar': ['SGD'],
+  'hong kong dollar': ['HKD'],
+  'new zealand dollar': ['NZD'],
+  
+  // Pound variants
+  'pound': ['GBP', 'EGP', 'SYP', 'LBP'],
+  'pounds': ['GBP', 'EGP', 'SYP', 'LBP'],
+  'british pound': ['GBP'],
+  'sterling': ['GBP'],
+  'quid': ['GBP'],
+  
+  // Peso variants
+  'peso': ['MXN', 'PHP', 'ARS', 'COP', 'CLP'],
+  'pesos': ['MXN', 'PHP', 'ARS', 'COP', 'CLP'],
+  'mexican peso': ['MXN'],
+  'philippine peso': ['PHP'],
+  
+  // Yen/Yuan variants (share same symbol ¥)
+  'yen': ['JPY'],
+  'yuan': ['CNY'],
+  'renminbi': ['CNY'],
+  'rmb': ['CNY'],
+  
+  // Krona/Krone variants (share same symbol kr)
+  'krona': ['SEK', 'ISK'],
+  'krone': ['NOK', 'DKK'],
+  'kronor': ['SEK'],
+  'kroner': ['NOK', 'DKK'],
+  'swedish krona': ['SEK'],
+  'norwegian krone': ['NOK'],
+  'danish krone': ['DKK'],
+  
+  // Franc variants
+  'franc': ['CHF', 'XAF', 'XOF'],
+  'francs': ['CHF', 'XAF', 'XOF'],
+  'swiss franc': ['CHF'],
+  
+  // Dirham variants
+  'dirham': ['AED', 'MAD'],
+  'dirhams': ['AED', 'MAD'],
+  'uae dirham': ['AED'],
+  'emirati dirham': ['AED'],
+  
+  // Riyal/Rial variants
+  'riyal': ['SAR', 'QAR', 'OMR'],
+  'rial': ['IRR', 'OMR', 'YER'],
+  'saudi riyal': ['SAR'],
+  
+  // Other common names
+  'euro': ['EUR'],
+  'euros': ['EUR'],
+  'baht': ['THB'],
+  'won': ['KRW'],
+  'ringgit': ['MYR'],
+  'rupiah': ['IDR'],
+  'lira': ['TRY'],
+  'ruble': ['RUB'],
+  'rubles': ['RUB'],
+  'shekel': ['ILS'],
+  'shekels': ['ILS'],
+  'rand': ['ZAR'],
+  'real': ['BRL'],
+  'reais': ['BRL'],
+  'zloty': ['PLN'],
+};
+
+/**
+ * Map of currency symbols to their possible currency codes
+ * Used for normalizing currency symbols in AI responses
+ */
+export const CURRENCY_SYMBOL_TO_CODES: Record<string, string[]> = {
+  '$': ['USD', 'AUD', 'CAD', 'NZD', 'SGD', 'HKD', 'MXN'],
+  '€': ['EUR'],
+  '£': ['GBP'],
+  '¥': ['JPY', 'CNY'],
+  '₹': ['INR'],
+  '₨': ['PKR', 'NPR', 'LKR', 'MUR'],
+  'Rs': ['PKR', 'INR', 'NPR', 'LKR'],
+  'Rs.': ['PKR', 'INR', 'NPR', 'LKR'],
+  'kr': ['SEK', 'NOK', 'DKK', 'ISK'],
+  '₩': ['KRW'],
+  '฿': ['THB'],
+  'RM': ['MYR'],
+  'Rp': ['IDR'],
+  '₱': ['PHP'],
+  'د.إ': ['AED'],
+  '﷼': ['SAR'],
+  '₪': ['ILS'],
+  '₺': ['TRY'],
+  '₽': ['RUB'],
+  'R$': ['BRL'],
+  'R': ['ZAR'],
+  'zł': ['PLN'],
+  'CHF': ['CHF'],
+  'A$': ['AUD'],
+  'C$': ['CAD'],
+  'S$': ['SGD'],
+  'HK$': ['HKD'],
+  'NZ$': ['NZD'],
+};
+
+/**
+ * Get the preferred currency code for an ambiguous currency name
+ * Prioritizes user's active currency if it matches one of the possible codes
+ * @param name - The currency name/alias (e.g., "rupee", "dollar")
+ * @param activeCurrencyCode - User's currently active currency code
+ * @returns The preferred currency code, or null if no match found
+ */
+export const getPreferredCurrencyCode = (
+  name: string,
+  activeCurrencyCode: string
+): string | null => {
+  const normalizedName = name.toLowerCase().trim();
+  const possibleCodes = CURRENCY_NAME_ALIASES[normalizedName];
+  
+  if (!possibleCodes || possibleCodes.length === 0) {
+    return null;
+  }
+  
+  // If user's active currency is in the list of possible codes, prefer it
+  if (possibleCodes.includes(activeCurrencyCode)) {
+    return activeCurrencyCode;
+  }
+  
+  // Otherwise, return the first (most common) option
+  return possibleCodes[0];
+};
+
+/**
+ * Get currency info for display, including symbol and full name
+ * Useful for providing context to AI or displaying to users
+ */
+export const getCurrencyDisplayInfo = (code: string): {
+  code: string;
+  symbol: string;
+  name: string;
+  flag: string;
+} | null => {
+  const currency = getCurrencyByCode(code);
+  if (!currency) return null;
+  
+  return {
+    code: currency.code,
+    symbol: currency.symbol,
+    name: currency.name,
+    flag: currency.flag,
+  };
+};
+
+/**
+ * Normalize currency symbols in a text to match the user's active currency
+ * This is useful for post-processing AI responses to ensure consistent currency display
+ * @param text - The text containing currency amounts
+ * @param activeCurrencyCode - User's active currency code
+ * @returns Text with currency symbols normalized to user's active currency
+ */
+export const normalizeCurrencySymbolsInText = (
+  text: string,
+  activeCurrencyCode: string
+): string => {
+  const activeCurrency = getCurrencyByCode(activeCurrencyCode);
+  if (!activeCurrency) return text;
+  
+  const activeSymbol = activeCurrency.symbol;
+  
+  // Find symbols that should be replaced based on ambiguous currencies
+  // Only replace symbols from currencies that share a name with active currency
+  const symbolsToReplace: string[] = [];
+  
+  // Get all symbols that could represent similar currencies
+  for (const [symbol, codes] of Object.entries(CURRENCY_SYMBOL_TO_CODES)) {
+    // If the active currency is NOT in this symbol's codes but shares a name category
+    // (e.g., both are "rupee" currencies), then replace this symbol
+    if (!codes.includes(activeCurrencyCode)) {
+      // Check if active currency shares a name alias with any of these codes
+      const activeCurrencyAliases = Object.entries(CURRENCY_NAME_ALIASES)
+        .filter(([_, aliasCodes]) => aliasCodes.includes(activeCurrencyCode))
+        .map(([alias, _]) => alias);
+      
+      const symbolCurrencyAliases = Object.entries(CURRENCY_NAME_ALIASES)
+        .filter(([_, aliasCodes]) => codes.some(c => aliasCodes.includes(c)))
+        .map(([alias, _]) => alias);
+      
+      // If they share any alias, this symbol should be replaced
+      const sharesAlias = activeCurrencyAliases.some(alias => 
+        symbolCurrencyAliases.includes(alias)
+      );
+      
+      if (sharesAlias && symbol !== activeSymbol) {
+        symbolsToReplace.push(symbol);
+      }
+    }
+  }
+  
+  if (symbolsToReplace.length === 0) return text;
+  
+  // Create regex patterns for currency amounts with these symbols
+  // Match patterns like: ₹1,234.56, Rs. 1234, Rs 1,234.56, $100, etc.
+  let result = text;
+  
+  for (const symbol of symbolsToReplace) {
+    // Escape special regex characters in the symbol
+    const escapedSymbol = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Pattern to match currency symbol followed by optional space and number
+    // Handles: ₹1234, ₹ 1234, ₹1,234.56, Rs.1234, Rs. 1234, etc.
+    const pattern = new RegExp(
+      `${escapedSymbol}\\.?\\s*([\\d,]+(?:\\.\\d{1,2})?)`,
+      'g'
+    );
+    
+    result = result.replace(pattern, `${activeSymbol}$1`);
+  }
+  
+  return result;
+};
+
+/**
+ * Build currency context string for AI prompts
+ * Provides comprehensive currency information for AI to use
+ */
+export const buildCurrencyContextForAI = (currencyCode: string): string => {
+  const currency = getCurrencyByCode(currencyCode);
+  if (!currency) {
+    return `User's active currency: ${currencyCode}`;
+  }
+  
+  // Find what aliases this currency belongs to (for disambiguation hints)
+  const aliases = Object.entries(CURRENCY_NAME_ALIASES)
+    .filter(([_, codes]) => codes.includes(currencyCode))
+    .map(([alias, _]) => alias)
+    .filter(alias => !alias.includes(currency.name.toLowerCase())); // Exclude full name matches
+  
+  let context = `User's active currency: ${currency.name} (${currencyCode}, symbol: ${currency.symbol})`;
+  
+  if (aliases.length > 0) {
+    context += `\nIMPORTANT: When the user mentions "${aliases[0]}" without specifying a country, always use ${currency.name} (${currency.symbol}) as they have set this as their preferred currency.`;
+  }
+  
+  return context;
+};
+

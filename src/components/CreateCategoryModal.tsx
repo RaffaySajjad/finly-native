@@ -52,7 +52,7 @@ const AVAILABLE_COLORS = [
  */
 export const CreateCategoryModal: React.FC = () => {
   const { theme, isDark } = useTheme();
-  const { getCurrencySymbol, convertToUSD } = useCurrency();
+  const { getCurrencySymbol, convertToUSD, currencyCode } = useCurrency();
   
   // Safe access to insets to prevent crashes if context is missing
   const insetsContext = useContext(SafeAreaContext);
@@ -123,6 +123,7 @@ export const CreateCategoryModal: React.FC = () => {
   const [selectedIcon, setSelectedIcon] = useState('tag');
   const [selectedColor, setSelectedColor] = useState('#6B7280');
   const [budgetAmount, setBudgetAmount] = useState('');
+  const [selectedBudgetCurrency, setSelectedBudgetCurrency] = useState<string | undefined>(undefined);
   const [isCreating, setIsCreating] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -193,8 +194,13 @@ export const CreateCategoryModal: React.FC = () => {
     setIsCreating(true);
 
     try {
-      const budgetInUSD = budgetAmount 
-        ? convertToUSD(parseFloat(budgetAmount))
+      // Determine which currency the amount is in
+      const amountCurrency = selectedBudgetCurrency || currencyCode;
+      const budgetValue = budgetAmount ? parseFloat(budgetAmount) : undefined;
+      
+      // Convert to USD if the selected currency is not USD
+      const budgetInUSD = budgetValue !== undefined
+        ? (amountCurrency.toUpperCase() === 'USD' ? budgetValue : convertToUSD(budgetValue))
         : undefined;
 
       if (onCreate) {
@@ -203,6 +209,8 @@ export const CreateCategoryModal: React.FC = () => {
           icon: selectedIcon,
           color: selectedColor,
           budgetLimit: budgetInUSD,
+          originalAmount: budgetValue,
+          originalCurrency: budgetValue !== undefined ? amountCurrency : undefined,
         });
       }
 
@@ -211,6 +219,7 @@ export const CreateCategoryModal: React.FC = () => {
       setSelectedIcon('tag');
       setSelectedColor('#6B7280');
       setBudgetAmount('');
+      setSelectedBudgetCurrency(undefined);
       setErrors({});
 
       if (Platform.OS === 'ios') {
@@ -251,6 +260,7 @@ export const CreateCategoryModal: React.FC = () => {
               setSelectedIcon('tag');
               setSelectedColor('#6B7280');
               setBudgetAmount('');
+              setSelectedBudgetCurrency(undefined);
               setErrors({});
               closeCreateCategoryModal();
             },
@@ -392,6 +402,9 @@ export const CreateCategoryModal: React.FC = () => {
                     setErrors({ ...errors, budget: undefined });
                   }
                 }}
+                onCurrencyChange={(code: string) => setSelectedBudgetCurrency(code)}
+                selectedCurrency={selectedBudgetCurrency}
+                allowCurrencySelection={true}
                 placeholder="0.00"
                 placeholderTextColor={getSecondaryTextColor(theme.textTertiary)}
                 showSymbol={true}

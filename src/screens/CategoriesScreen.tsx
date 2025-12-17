@@ -105,6 +105,8 @@ const CategoriesScreen: React.FC = () => {
     icon: string;
     color: string;
     budgetLimit?: number;
+    originalAmount?: number;
+    originalCurrency?: string;
   }): Promise<void> => {
     try {
       const newCategory = await apiService.createCategory(data);
@@ -153,6 +155,10 @@ const CategoriesScreen: React.FC = () => {
 
   const totalSpent = categories.reduce((sum, cat) => sum + (cat.totalSpent || 0), 0);
   const existingCategoryNames = categories.map(cat => cat.name);
+
+  // Group categories by system vs custom
+  const systemCategories = categories.filter(cat => cat.isSystemCategory === true);
+  const customCategories = categories.filter(cat => cat.isSystemCategory !== true);
 
   // Show onboarding if setup not completed and not loading
   if (!setupCompleted && !refreshing && !loading) {
@@ -246,13 +252,47 @@ const CategoriesScreen: React.FC = () => {
         }
       >
         <View style={styles.content}>
-          {categories.map((category) => (
-            <CategoryCard
-              key={category.id}
-              category={category}
-              onPress={() => navigation.navigate('CategoryDetails', { categoryId: category.id })}
-            />
-          ))}
+          {/* System Categories (Default) */}
+          {systemCategories.length > 0 && (
+            <View style={styles.categorySection}>
+              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+                Default Categories
+              </Text>
+              {systemCategories.map((category) => (
+                <CategoryCard
+                  key={category.id}
+                  category={category}
+                  onPress={() => navigation.navigate('CategoryDetails', { categoryId: category.id })}
+                />
+              ))}
+            </View>
+          )}
+
+          {/* Custom Categories */}
+          {customCategories.length > 0 && (
+            <View style={styles.categorySection}>
+              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+                Custom Categories
+              </Text>
+              {customCategories.map((category) => (
+                <CategoryCard
+                  key={category.id}
+                  category={category}
+                  onPress={() => navigation.navigate('CategoryDetails', { categoryId: category.id })}
+                />
+              ))}
+            </View>
+          )}
+
+          {/* Show message if no categories */}
+          {categories.length === 0 && !loading && (
+            <View style={styles.emptyContainer}>
+              <Icon name="folder-off-outline" size={48} color={theme.textTertiary} />
+              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                No categories found
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={{ height: Platform.OS === 'ios' ? spacing.xl : 0 }} />
@@ -295,6 +335,28 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingTop: spacing.sm,
+  },
+  categorySection: {
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    ...typography.labelMedium,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    fontWeight: '600',
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    marginTop: spacing.md,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xxl,
+  },
+  emptyText: {
+    ...typography.bodyMedium,
+    marginTop: spacing.md,
+    textAlign: 'center',
   },
   onboardingContent: {
     flexGrow: 1,

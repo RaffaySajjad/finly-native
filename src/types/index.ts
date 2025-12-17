@@ -111,6 +111,8 @@ export interface Category {
   color: string;
   totalSpent?: number; // Computed field, may not always be present
   budgetLimit?: number;
+  originalAmount?: number; // Budget amount in original currency
+  originalCurrency?: string; // Original currency code when budget was set
   userId?: string | null;
   isSystemCategory?: boolean;
   isImportCreated?: boolean;

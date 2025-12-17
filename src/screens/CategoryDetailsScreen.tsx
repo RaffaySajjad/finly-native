@@ -156,7 +156,7 @@ const groupExpensesByMonthAndDate = (expenses: Expense[]): MonthGroupedExpenses[
  */
 const CategoryDetailsScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency, getCurrencySymbol } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, convertFromUSD, convertToUSD, currencyCode, formatTransactionAmount } = useCurrency();
   const navigation = useNavigation<CategoryDetailsNavigationProp>();
   const route = useRoute<CategoryDetailsRouteProp>();
 
@@ -173,6 +173,7 @@ const CategoryDetailsScreen: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [newBudget, setNewBudget] = useState('');
   const [savingBudget, setSavingBudget] = useState(false);
+  const [selectedBudgetCurrency, setSelectedBudgetCurrency] = useState<string | undefined>(undefined);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
 
@@ -220,7 +221,18 @@ const CategoryDetailsScreen: React.FC = () => {
       const cat = categoriesData.find(c => c.id === categoryId);
       if (cat) {
         setCategory(cat);
-        setNewBudget(cat.budgetLimit?.toString() || '');
+        // Use originalAmount if available (preserves user's original input)
+        // Otherwise fall back to converting budgetLimit from USD
+        if (cat.originalAmount !== undefined && cat.originalAmount !== null) {
+          setNewBudget(cat.originalAmount > 0 ? cat.originalAmount.toString() : '');
+          // Set the currency to the original currency if available
+          setSelectedBudgetCurrency(cat.originalCurrency || undefined);
+        } else {
+          const budgetInDisplayCurrency = cat.budgetLimit ? convertFromUSD(cat.budgetLimit) : 0;
+          setNewBudget(budgetInDisplayCurrency > 0 ? budgetInDisplayCurrency.toString() : '');
+          // Reset currency selection to user's active currency
+          setSelectedBudgetCurrency(undefined);
+        }
       }
 
       // Load expenses with pagination
@@ -327,16 +339,36 @@ const CategoryDetailsScreen: React.FC = () => {
 
     setSavingBudget(true);
     try {
-      // Update category budget in mock data
-      // In real implementation, this would call an API
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Determine which currency the amount is in
+      const amountCurrency = selectedBudgetCurrency || currencyCode;
+
+      // Convert amount from the selected currency to USD for storage
+      // If currency is USD, no conversion needed
+      const budgetInUSD = amountCurrency.toUpperCase() === 'USD'
+        ? budgetValue
+        : convertToUSD(budgetValue);
+
+      // Update category budget via API - include originalAmount and originalCurrency
+      await apiService.updateCategory(category.id, {
+        budgetLimit: budgetInUSD,
+        originalAmount: budgetValue,
+        originalCurrency: amountCurrency,
+      });
 
       // Reload category data to reflect changes
       const categoriesData = await apiService.getCategories();
       const cat = categoriesData.find(c => c.id === categoryId);
       if (cat) {
         setCategory(cat);
-        setNewBudget(cat.budgetLimit?.toString() || '');
+        // Use originalAmount if available (preserves user's original input)
+        if (cat.originalAmount !== undefined && cat.originalAmount !== null) {
+          setNewBudget(cat.originalAmount > 0 ? cat.originalAmount.toString() : '');
+          setSelectedBudgetCurrency(cat.originalCurrency || undefined);
+        } else {
+          const budgetInDisplayCurrency = cat.budgetLimit ? convertFromUSD(cat.budgetLimit) : 0;
+          setNewBudget(budgetInDisplayCurrency > 0 ? budgetInDisplayCurrency.toString() : '');
+          setSelectedBudgetCurrency(undefined);
+        }
       }
 
       if (Platform.OS === 'ios') {
@@ -502,7 +534,7 @@ const CategoryDetailsScreen: React.FC = () => {
                       Monthly Budget
                     </Text>
                     <Text style={[styles.budgetValue, { color: theme.text }]}>
-                      {formatCurrency(category.budgetLimit)}
+                      {formatTransactionAmount(category.budgetLimit, category.originalAmount, category.originalCurrency)}
                     </Text>
                   </View>
 
@@ -593,6 +625,9 @@ const CategoryDetailsScreen: React.FC = () => {
               <CurrencyInput
                 value={newBudget}
                 onChangeText={setNewBudget}
+                onCurrencyChange={(code: string) => setSelectedBudgetCurrency(code)}
+                selectedCurrency={selectedBudgetCurrency}
+                allowCurrencySelection={true}
                 placeholder="0.00"
                 placeholderTextColor={theme.textTertiary}
                 showSymbol={true}

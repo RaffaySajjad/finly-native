@@ -108,6 +108,8 @@ export const apiService = {
     icon: string;
     color: string;
     budgetLimit?: number;
+    originalAmount?: number;
+    originalCurrency?: string;
   }): Promise<Category> {
     try {
       const response = await api.post<Category>(
@@ -134,6 +136,8 @@ export const apiService = {
       icon?: string;
       color?: string;
       budgetLimit?: number | null;
+      originalAmount?: number | null;
+      originalCurrency?: string | null;
       isActive?: boolean;
     }
   ): Promise<Category> {

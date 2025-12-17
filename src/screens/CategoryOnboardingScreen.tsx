@@ -25,6 +25,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { CurrencyInput } from '../components';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { logger } from '../utils/logger';
 import { apiService } from '../services/api';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -81,7 +82,7 @@ const AVAILABLE_COLORS = [
 
 const CategoryOnboardingScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency, getCurrencySymbol, convertToUSD } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, convertToUSD, currencyCode } = useCurrency();
   const navigation = useNavigation<CategoryOnboardingNavigationProp>();
   const subscription = useSelector((state: RootState) => state.subscription);
   const isPremium = subscription.subscription.tier === 'PREMIUM';
@@ -204,16 +205,19 @@ const CategoryOnboardingScreen: React.FC = () => {
       // Update system categories with budgets and create custom categories
       const promises = categories.map(async (cat) => {
         // Convert budget from display currency to USD before saving
-        const budgetInUSD = cat.suggestedBudget > 0 ? convertToUSD(cat.suggestedBudget) : undefined;
+        const originalAmount = cat.suggestedBudget > 0 ? cat.suggestedBudget : undefined;
+        const budgetInUSD = originalAmount ? convertToUSD(originalAmount) : undefined;
 
         // Check if it's a custom category
         if (cat.description === 'Custom category') {
-          // Create new custom category
+          // Create new custom category with original currency preserved
           return apiService.createCategory({
             name: cat.name,
             icon: cat.icon,
             color: cat.color,
             budgetLimit: budgetInUSD,
+            originalAmount: originalAmount,
+            originalCurrency: originalAmount ? currencyCode : undefined,
           });
         } else {
           // Update existing system category with budget
@@ -223,6 +227,8 @@ const CategoryOnboardingScreen: React.FC = () => {
           if (matchingCategory && budgetInUSD) {
             return apiService.updateCategory(matchingCategory.id, {
               budgetLimit: budgetInUSD,
+              originalAmount: originalAmount,
+              originalCurrency: originalAmount ? currencyCode : undefined,
             });
           }
         }

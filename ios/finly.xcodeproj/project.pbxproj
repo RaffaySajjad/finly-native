@@ -486,7 +486,7 @@
 					"FB_SONARKIT_ENABLED=1",
 				);
 				INFOPLIST_FILE = finly/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Finly Debug";
+				INFOPLIST_KEY_CFBundleDisplayName = "Finly AI Debug";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -519,7 +519,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = MUF3Y7U532;
 				INFOPLIST_FILE = finly/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Finly;
+				INFOPLIST_KEY_CFBundleDisplayName = "Finly AI";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

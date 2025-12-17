@@ -49,6 +49,7 @@ export type { AlertType, AlertButton } from './AlertDialog';
 export { Toast } from './Toast';
 export type { ToastType, ToastProps } from './Toast';
 export { NotificationPermissionBanner } from './NotificationPermissionBanner';
+export { AnimatedSplashScreen } from './AnimatedSplashScreen';
 
 // Filter components
 export * from './filters';

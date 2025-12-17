@@ -152,7 +152,7 @@ export const NotificationPermissionBanner: React.FC<NotificationPermissionBanner
               <View style={styles.infoStep}>
                 <Text style={[styles.stepNumber, { color: theme.primary }]}>2.</Text>
                 <Text style={[styles.stepText, { color: theme.textSecondary }]}>
-                  Find "Finly" in the apps list
+                  Find "Finly AI" in the apps list
                 </Text>
               </View>
               <View style={styles.infoStep}>

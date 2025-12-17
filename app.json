@@ -6,6 +6,11 @@
     "jsEngine": "hermes",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4F46E5"
+    },
     "android": {
       "package": "com.raffay.finly",
       "googleServicesFile": "./android/app/google-services.json",

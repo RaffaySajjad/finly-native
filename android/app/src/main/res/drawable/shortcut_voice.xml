@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Quick Action Icon: Voice Entry (Microphone) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#6366F1">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,14c1.66,0 3,-1.34 3,-3V5c0,-1.66 -1.34,-3 -3,-3S9,3.34 9,5v6C9,12.66 10.34,14 12,14zM17.91,11c0,3.31 -2.69,6 -6,6s-6,-2.69 -6,-6H4c0,3.93 2.99,7.16 6.84,7.84V21h2.32v-2.16C17.01,18.16 20,14.93 20,11H17.91z" />
+</vector>
+

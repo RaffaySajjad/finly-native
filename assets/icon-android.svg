@@ -1,4 +1,3 @@
-
 <!-- Finly AI App Icon - Premium Blue Finance Design -->
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -25,6 +24,18 @@
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
+
+    <!-- Soft AI glow - no defined shape, just illumination -->
+    <filter id="aiGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="25" result="blur"/>
+    </filter>
+
+    <radialGradient id="aiIllumination" cx="50%" cy="50%" r="50%" fx="40%" fy="40%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="25%" stop-color="#A5F3FC" stop-opacity="0.7"/>
+      <stop offset="60%" stop-color="#22D3EE" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#22D3EE" stop-opacity="0"/>
+    </radialGradient>
 
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="10" stdDeviation="20" flood-color="#1E3A5F" flood-opacity="0.35"/>
@@ -56,20 +67,14 @@
         Z
       " fill="#FFFFFF" filter="url(#softGlow)"/>
 
-      <!-- AI Spark/Accent Element - top right -->
-      <g transform="translate(140, -180)">
-        <!-- Spark glow -->
-        <circle cx="0" cy="0" r="60" fill="url(#accentGradient)" opacity="0.3" filter="url(#glow)"/>
-        <!-- Spark core -->
-        <circle cx="0" cy="0" r="40" fill="url(#accentGradient)"/>
-        <!-- Spark highlight -->
-        <circle cx="-10" cy="-10" r="15" fill="#FFFFFF" opacity="0.6"/>
-        <!-- Small orbiting dot -->
-        <circle cx="30" cy="-25" r="8" fill="#FFFFFF" opacity="0.8"/>
+      <!-- AI Illumination - subtle glow, no defined shape -->
+      <g transform="translate(150, -170)">
+        <!-- Soft diffused glow - gives AI/intelligence touch without hard edges -->
+        <ellipse cx="0" cy="0" rx="100" ry="90" fill="url(#aiIllumination)" filter="url(#aiGlow)"/>
       </g>
 
       <!-- Rounded, extended upward arrow -->
-      <g transform="translate(100, 220)">
+      <g transform="translate(10, 220)">
         <!-- Glow -->
         <path
           d="

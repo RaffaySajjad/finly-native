@@ -6,6 +6,7 @@
 import { Expense, UnifiedTransaction } from '../types';
 
 export type AuthStackParamList = {
+  Welcome: undefined;
   Login: undefined;
   Signup: undefined;
   ForgotPassword: undefined;

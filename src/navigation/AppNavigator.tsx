@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useCallback, useMemo, useRef } from 'react';
-import { Platform, ActivityIndicator, View, Linking } from 'react-native';
+import { Platform, Linking } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createNativeBottomTabNavigator } from '@bottom-tabs/react-navigation';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -22,6 +22,7 @@ import CustomTabBar from '../components/CustomTabBar';
 import SharedBottomSheet from '../components/SharedBottomSheet';
 import { CreateCategoryModalProvider } from '../contexts/CreateCategoryModalContext';
 import { CreateCategoryModal } from '../components/CreateCategoryModal';
+import { useQuickActions } from '../hooks/useQuickActions';
 
 // Import screens
 import DashboardScreen from '../screens/DashboardScreen';
@@ -52,6 +53,7 @@ import DevMenuScreen from '../screens/DevMenuScreen';
 
 import IncomeSetupScreen from '../screens/IncomeSetupScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
+import WelcomeScreen from '../screens/WelcomeScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
@@ -65,12 +67,27 @@ const NativeTab = createNativeBottomTabNavigator<MainTabsParamList>();
 const JSTab = createBottomTabNavigator<MainTabsParamList>();
 
 /**
+ * QuickActionsHandler component
+ * Purpose: Initializes and handles home screen quick actions (3D Touch iOS / Long Press Android)
+ * Must be rendered inside NavigationContainer to access navigation context
+ */
+interface QuickActionsHandlerProps {
+  isReady: boolean;
+}
+
+const QuickActionsHandler: React.FC<QuickActionsHandlerProps> = ({ isReady }) => {
+  useQuickActions({ isReady });
+  return null; // This component doesn't render anything
+};
+
+/**
  * AuthNavigator component - Authentication flow
- * Handles login, signup, and password recovery
+ * Handles welcome, login, signup, and password recovery
  */
 const AuthNavigator: React.FC = () => {
   return (
     <AuthStack.Navigator
+      initialRouteName="Welcome"
       screenOptions={{
         headerShown: false,
         cardStyle: { backgroundColor: 'transparent' },
@@ -81,6 +98,7 @@ const AuthNavigator: React.FC = () => {
         }),
       }}
     >
+      <AuthStack.Screen name="Welcome" component={WelcomeScreen} />
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Signup" component={SignupScreen} />
       <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
@@ -220,20 +238,20 @@ const AppNavigator: React.FC = () => {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
   const { onboardingComplete, incomeSetupComplete, refreshFlowState } = useAppFlow();
 
-  // Check auth status on mount
-  useEffect(() => {
-    dispatch(checkAuthStatus());
-  }, [dispatch]);
+  // Auth status and subscription are now checked in App.tsx during splash screen
+  // This effect only handles re-checking when auth state changes (e.g., after login/logout)
+  // to refresh onboarding flags for returning users or after account deletion
+  const previousAuthRef = useRef(isAuthenticated);
 
-  // Re-check onboarding status when user logs in
-  // This ensures that after account deletion and re-login, onboarding is shown again
-  // For normal logout/login, AsyncStorage keeps the flags so onboarding won't show
   useEffect(() => {
-    if (isAuthenticated) {
+    // Only refresh flow state when authentication status changes
+    // Skip initial mount since App.tsx handles that during splash
+    if (isAuthenticated && !previousAuthRef.current) {
+    // User just logged in - refresh subscription and flow state
       dispatch(checkSubscriptionStatus());
-      // Refresh completion flags once per login (no storage polling).
       refreshFlowState();
     }
+    previousAuthRef.current = isAuthenticated;
   }, [isAuthenticated, dispatch, refreshFlowState]);
 
   // Handle deep linking from widgets
@@ -241,20 +259,28 @@ const AppNavigator: React.FC = () => {
 
   useEffect(() => {
     const handleDeepLink = (url: string) => {
+      // Ensure user is ready to receive deep links
+      const isUserReady = isAuthenticated && onboardingComplete && incomeSetupComplete;
+
       if (url.startsWith('finly://add-transaction')) {
-        // Open SharedBottomSheet when widget button is tapped
-        if (isAuthenticated && onboardingComplete) {
+        // Open SharedBottomSheet for manual transaction entry
+        if (isUserReady) {
           openBottomSheet();
         }
       } else if (url.startsWith('finly://voice-transaction')) {
-        // Navigate to VoiceTransaction screen
-        if (isAuthenticated && onboardingComplete && navigationRef.current) {
+        // Navigate to VoiceTransaction screen for voice entry
+        if (isUserReady && navigationRef.current) {
           navigationRef.current.navigate('VoiceTransaction');
         }
       } else if (url.startsWith('finly://scan-receipt')) {
-        // Navigate to ReceiptUpload screen
-        if (isAuthenticated && onboardingComplete && navigationRef.current) {
+        // Navigate to ReceiptUpload screen for receipt scanning
+        if (isUserReady && navigationRef.current) {
           navigationRef.current.navigate('ReceiptUpload');
+        }
+      } else if (url.startsWith('finly://ai-assistant')) {
+        // Navigate to AI Assistant screen
+        if (isUserReady && navigationRef.current) {
+          navigationRef.current.navigate('AIAssistant');
         }
       }
     };
@@ -274,7 +300,7 @@ const AppNavigator: React.FC = () => {
     return () => {
       subscription.remove();
     };
-  }, [isAuthenticated, onboardingComplete, openBottomSheet]);
+  }, [isAuthenticated, onboardingComplete, incomeSetupComplete, openBottomSheet]);
 
 
   const navigationTheme = useMemo<NavigationTheme>(
@@ -310,23 +336,20 @@ const AppNavigator: React.FC = () => {
     [isDark, theme]
   );
 
-  // Show loading screen while restoring auth and/or loading flow flags for an authenticated user.
-  if (
-    isRestoringAuth ||
-    (isAuthenticated && (onboardingComplete === null || (onboardingComplete && incomeSetupComplete === null)))
-  ) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </View>
-    );
-  }
+  // Note: Loading state is now handled by AnimatedSplashScreen in App.tsx
+  // The splash screen waits for auth restoration and flow state loading
+  // before allowing AppNavigator to render, so this check is no longer needed
+
+  // Quick actions are ready when user is authenticated and onboarding is complete
+  const isQuickActionsReady = isAuthenticated && onboardingComplete === true && incomeSetupComplete === true;
 
   return (
     <NavigationContainer
       ref={navigationRef}
       theme={navigationTheme}
     >
+      {/* Initialize home screen quick actions (3D Touch iOS / Long Press Android) */}
+      <QuickActionsHandler isReady={isQuickActionsReady} />
       <CreateCategoryModalProvider>
         <Stack.Navigator
           screenOptions={{

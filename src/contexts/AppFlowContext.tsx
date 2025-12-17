@@ -18,6 +18,8 @@ import { INCOME_SETUP_COMPLETED_KEY, ONBOARDING_STORAGE_KEY } from '../constants
 interface AppFlowContextValue {
   onboardingComplete: boolean | null;
   incomeSetupComplete: boolean | null;
+  /** True while initial flow state is being loaded from AsyncStorage */
+  isFlowStateLoading: boolean;
   refreshFlowState: () => Promise<void>;
   markOnboardingComplete: () => Promise<void>;
   markIncomeSetupComplete: () => Promise<void>;
@@ -38,6 +40,7 @@ async function readBooleanFlag(key: string): Promise<boolean> {
 export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [incomeSetupComplete, setIncomeSetupComplete] = useState<boolean | null>(null);
+  const [isFlowStateLoading, setIsFlowStateLoading] = useState(true);
 
   const refreshFlowState = useCallback(async () => {
     const [onboarding, income] = await Promise.all([
@@ -46,6 +49,7 @@ export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ child
     ]);
     setOnboardingComplete(onboarding);
     setIncomeSetupComplete(income);
+    setIsFlowStateLoading(false);
   }, []);
 
   const markOnboardingComplete = useCallback(async () => {
@@ -97,6 +101,7 @@ export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ child
     () => ({
       onboardingComplete,
       incomeSetupComplete,
+      isFlowStateLoading,
       refreshFlowState,
       markOnboardingComplete,
       markIncomeSetupComplete,
@@ -105,6 +110,7 @@ export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [
       onboardingComplete,
       incomeSetupComplete,
+      isFlowStateLoading,
       refreshFlowState,
       markOnboardingComplete,
       markIncomeSetupComplete,

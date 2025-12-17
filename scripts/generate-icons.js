@@ -37,6 +37,7 @@ const iconSizes = {
     { size: 83.5, scale: 2, name: 'icon-83.5@2x.png' },
     { size: 1024, scale: 1, name: 'App-Icon-1024x1024@1x.png' },
   ],
+  // Legacy launcher icons (for older Android versions)
   android: [
     { size: 48, density: 'mdpi', name: 'ic_launcher.png' },
     { size: 72, density: 'hdpi', name: 'ic_launcher.png' },
@@ -49,15 +50,31 @@ const iconSizes = {
     { size: 144, density: 'xxhdpi', name: 'ic_launcher_round.png' },
     { size: 192, density: 'xxxhdpi', name: 'ic_launcher_round.png' },
   ],
+  // Adaptive icon foregrounds (Android 8.0+, API 26+)
+  // Foreground size is 108dp with content in 66dp safe zone (scaled by density)
+  androidAdaptive: [
+    { size: 108, density: 'mdpi', name: 'ic_launcher_foreground.png' },
+    { size: 162, density: 'hdpi', name: 'ic_launcher_foreground.png' },
+    { size: 216, density: 'xhdpi', name: 'ic_launcher_foreground.png' },
+    { size: 324, density: 'xxhdpi', name: 'ic_launcher_foreground.png' },
+    { size: 432, density: 'xxxhdpi', name: 'ic_launcher_foreground.png' },
+  ],
 };
 
 async function generateIcons() {
-  const svgPath = path.join(__dirname, '../assets/icon.svg');
+  // Platform-specific icon SVGs
+  const iosSvgPath = path.join(__dirname, '../assets/icon-ios.svg');
+  const androidSvgPath = path.join(__dirname, '../assets/icon-android.svg');
+  const foregroundSvgPath = path.join(__dirname, '../assets/icon-foreground.svg');
   const outputDir = path.join(__dirname, '../assets/generated-icons');
 
-  // Check if SVG exists
-  if (!fs.existsSync(svgPath)) {
-    console.error('❌ Icon SVG not found at:', svgPath);
+  // Check if platform-specific SVGs exist
+  if (!fs.existsSync(iosSvgPath)) {
+    console.error('❌ iOS Icon SVG not found at:', iosSvgPath);
+    process.exit(1);
+  }
+  if (!fs.existsSync(androidSvgPath)) {
+    console.error('❌ Android Icon SVG not found at:', androidSvgPath);
     process.exit(1);
   }
 
@@ -66,7 +83,8 @@ async function generateIcons() {
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  // Generate iOS icons
+  console.log('🍎 Generating iOS icons from icon-ios.svg...');
+  // Generate iOS icons from iOS-specific SVG
   for (const { size, scale, name } of iconSizes.ios) {
     const actualSize = size * scale;
     const outputPath = path.join(outputDir, 'ios', name);
@@ -75,13 +93,15 @@ async function generateIcons() {
       fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     }
 
-    await sharp(svgPath)
+    await sharp(iosSvgPath)
       .resize(actualSize, actualSize)
       .png()
       .toFile(outputPath);
   }
+  console.log('✅ iOS icons generated');
 
-  // Generate Android icons
+  console.log('🤖 Generating Android legacy icons from icon-android.svg...');
+  // Generate Android legacy icons from Android-specific SVG (for older devices)
   for (const { size, density, name } of iconSizes.android) {
     const outputPath = path.join(
       outputDir,
@@ -94,19 +114,44 @@ async function generateIcons() {
       fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     }
 
-    await sharp(svgPath).resize(size, size).png().toFile(outputPath);
+    await sharp(androidSvgPath).resize(size, size).png().toFile(outputPath);
+  }
+  console.log('✅ Android legacy icons generated');
+
+  // Generate Android Adaptive Icon foregrounds (Android 8.0+)
+  if (fs.existsSync(foregroundSvgPath)) {
+    console.log('🎯 Generating Android adaptive icon foregrounds...');
+    for (const { size, density, name } of iconSizes.androidAdaptive) {
+      const outputPath = path.join(
+        outputDir,
+        'android',
+        `mipmap-${density}`,
+        name
+      );
+
+      if (!fs.existsSync(path.dirname(outputPath))) {
+        fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      }
+
+      await sharp(foregroundSvgPath).resize(size, size).png().toFile(outputPath);
+    }
+    console.log('✅ Android adaptive icon foregrounds generated');
+  } else {
+    console.warn('⚠️  Foreground SVG not found at:', foregroundSvgPath);
+    console.warn('   Skipping adaptive icon foreground generation.');
+    console.warn('   Create assets/icon-foreground.svg for proper Android adaptive icons.');
   }
 
-  // Copy main icon.png for Expo (1024x1024)
+  // Copy main icon.png for Expo (1024x1024) - uses iOS icon as the primary
   const mainIconPath = path.join(outputDir, 'ios', 'App-Icon-1024x1024@1x.png');
   const expoIconPath = path.join(__dirname, '../assets/icon.png');
   await copyFile(mainIconPath, expoIconPath);
-  console.log('📱 Created assets/icon.png for Expo');
+  console.log('📱 Created assets/icon.png for Expo (from iOS icon)');
 
   // Automatically copy icons to correct locations
   await copyIconsToDestinations(outputDir);
   
-  console.log('✅ Icons generated successfully!');
+  console.log('✅ All icons generated successfully!');
 }
 
 /**

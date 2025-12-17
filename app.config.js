@@ -122,7 +122,9 @@ module.exports = ({ config }) => {
             sounds: ['default'],
             mode: isDevelopment ? 'development' : 'production'
           }
-        ]
+        ],
+        // Quick Actions plugin for home screen shortcuts (3D Touch iOS / Long Press Android)
+        'expo-quick-actions'
       ],
       notification: {
         icon: './assets/icon.png',

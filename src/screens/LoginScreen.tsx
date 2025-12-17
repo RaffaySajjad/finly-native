@@ -247,21 +247,22 @@ const LoginScreen: React.FC = () => {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Login Form */}
-            <>
-            {/* Logo Section */}
+            {/* Header */}
             <Animated.View
               style={[
-                styles.logoSection,
+                styles.header,
                 { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
               ]}
             >
-              <View style={[styles.logoCircle, { backgroundColor: theme.primary }]}>
-                  <Icon name="wallet" size={64} color="#FFFFFF" />
-              </View>
-              <Text style={[styles.title, { color: theme.text }]}>Welcome to Finly</Text>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => navigation.goBack()}
+              >
+                <Icon name="arrow-left" size={24} color={theme.text} />
+              </TouchableOpacity>
+              <Text style={[styles.title, { color: theme.text }]}>Welcome Back</Text>
               <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-                Your smart finance companion
+                Sign in to continue managing your finances
               </Text>
             </Animated.View>
 
@@ -389,7 +390,6 @@ const LoginScreen: React.FC = () => {
                 <Text style={[styles.signupLink, { color: theme.primary }]}>Sign Up</Text>
               </TouchableOpacity>
             </Animated.View>
-            </>
           </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
@@ -412,20 +412,18 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
     padding: spacing.lg,
+    paddingTop: spacing.md,
   },
-  logoSection: {
-    alignItems: 'center',
-    marginBottom: spacing.xxl,
+  header: {
+    marginBottom: spacing.xl,
   },
-  logoCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+  backButton: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   title: {
     ...typography.headlineMedium,

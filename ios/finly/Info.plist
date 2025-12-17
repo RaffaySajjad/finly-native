@@ -105,5 +105,48 @@
 	<string>Light</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>finly.action.voice_transaction</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Voice Entry</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Add with voice</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeCapturePhoto</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>finly.action.scan_receipt</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Scan Receipt</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Capture expense</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeCapturePhoto</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>finly.action.add_transaction</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>New Transaction</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Manual entry</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeAdd</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>finly.action.ai_assistant</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Finly AI</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Ask anything</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeSearch</string>
+		</dict>
+	</array>
 </dict>
 </plist>

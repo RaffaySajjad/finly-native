@@ -1,3 +1,14 @@
 <resources>
   <string name="app_name">Finly AI</string>
+
+  <!-- Quick Action Shortcuts -->
+  <string name="shortcut_voice_short">Voice Entry</string>
+  <string name="shortcut_voice_long">Add Transaction by Voice</string>
+  <string name="shortcut_receipt_short">Scan Receipt</string>
+  <string name="shortcut_receipt_long">Scan Receipt to Add Expense</string>
+  <string name="shortcut_add_short">New Transaction</string>
+  <string name="shortcut_add_long">Add Transaction Manually</string>
+  <string name="shortcut_ai_short">Finly AI</string>
+  <string name="shortcut_ai_long">Open Finly AI Assistant</string>
+  <string name="shortcut_disabled_message">This shortcut is disabled</string>
 </resources>

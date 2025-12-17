@@ -12,6 +12,7 @@ export type AuthStackParamList = {
   ResetPassword: { email: string };
   Verification: { email: string };
   PrivacyPolicy: undefined;
+  TermsOfService: undefined;
 };
 
 export type RootStackParamList = {
@@ -28,6 +29,7 @@ export type RootStackParamList = {
   BulkTransaction: undefined;
   PrivacySettings: undefined;
   PrivacyPolicy: undefined;
+  TermsOfService: undefined;
   ReceiptGallery: undefined;
   Analytics: undefined;
   BalanceHistory: undefined;
@@ -40,6 +42,11 @@ export type RootStackParamList = {
     | {
         context?: {
           transactionId?: string;
+          transactionType?: 'expense' | 'income';
+          amount?: number;
+          description?: string;
+          category?: string;
+          date?: string;
           categoryId?: string;
           screen?: string;
         };

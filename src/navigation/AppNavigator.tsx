@@ -47,6 +47,7 @@ import CSVImportScreen from '../screens/CSVImportScreen';
 import ExportTransactionsScreen from '../screens/ExportTransactionsScreen';
 import AIAssistantScreen from '../screens/AIAssistantScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
+import TermsOfServiceScreen from '../screens/TermsOfServiceScreen';
 import DevMenuScreen from '../screens/DevMenuScreen';
 
 import IncomeSetupScreen from '../screens/IncomeSetupScreen';
@@ -86,6 +87,7 @@ const AuthNavigator: React.FC = () => {
       <AuthStack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <AuthStack.Screen name="Verification" component={VerificationScreen} />
       <AuthStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <AuthStack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
     </AuthStack.Navigator>
   );
 };
@@ -471,6 +473,15 @@ const AppNavigator: React.FC = () => {
                 component={PrivacyPolicyScreen}
                 options={{
                   title: 'Privacy Policy',
+                  presentation: 'modal',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="TermsOfService"
+                component={TermsOfServiceScreen}
+                options={{
+                  title: 'Terms of Service',
                   presentation: 'modal',
                   headerShown: false,
                 }}

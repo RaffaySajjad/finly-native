@@ -734,7 +734,19 @@ const ProfileScreen: React.FC = () => {
             Finly is your personal expense tracking companion. Track your spending, manage budgets, and gain insights into your financial habits—all while keeping your data private and secure.
           </Text>
 
-          {/* <View style={styles.aboutLinks}>
+          <View style={styles.aboutLinks}>
+            <TouchableOpacity
+              style={[styles.aboutLink, { borderColor: theme.border }]}
+              onPress={() => {
+                aboutSheetRef.current?.close();
+                navigation.navigate('TermsOfService');
+              }}
+            >
+              <Icon name="file-document-outline" size={20} color={theme.textSecondary} />
+              <Text style={[styles.aboutLinkText, { color: theme.textSecondary }]}>Terms of Service</Text>
+              <Icon name="chevron-right" size={20} color={theme.textTertiary} />
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={[styles.aboutLink, { borderColor: theme.border }]}
               onPress={() => {
@@ -744,18 +756,9 @@ const ProfileScreen: React.FC = () => {
             >
               <Icon name="shield-check-outline" size={20} color={theme.textSecondary} />
               <Text style={[styles.aboutLinkText, { color: theme.textSecondary }]}>Privacy Policy</Text>
+              <Icon name="chevron-right" size={20} color={theme.textTertiary} />
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.aboutLink, { borderColor: theme.border }]}
-              onPress={() => {
-                Alert.alert('Terms of Service', 'Our terms of service are available at finly.app/terms');
-              }}
-            >
-              <Icon name="file-document-outline" size={20} color={theme.textSecondary} />
-              <Text style={[styles.aboutLinkText, { color: theme.textSecondary }]}>Terms of Service</Text>
-            </TouchableOpacity>
-          </View> */}
+          </View>
 
           <Text style={[styles.aboutCopyright, { color: theme.textTertiary }]}>
             © {new Date().getFullYear()} Finly. All rights reserved.

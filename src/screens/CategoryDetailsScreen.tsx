@@ -28,6 +28,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
+import { getDateKey, formatDateLabel, isCurrentMonth, getMonthLabel } from '../utils/dateFormatter';
 import { TransactionCard, BottomSheetBackground, CurrencyInput } from '../components';
 import { Expense, Category, UnifiedTransaction } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -47,85 +48,6 @@ interface MonthGroupedExpenses {
   isCurrentMonth: boolean;
   dateGroups: GroupedExpenses[];
 }
-
-/**
- * Format date for display (same as InsightsScreen)
- */
-const formatDateLabel = (dateString: string): string => {
-  const date = new Date(dateString);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  // Reset time for comparison
-  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-
-  if (dateOnly.getTime() === todayOnly.getTime()) {
-    return 'Today';
-  } else if (dateOnly.getTime() === yesterdayOnly.getTime()) {
-    return 'Yesterday';
-  } else {
-    // Check if it's within the last 7 days
-    const daysDiff = Math.floor((todayOnly.getTime() - dateOnly.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysDiff <= 7) {
-      return date.toLocaleDateString('en-US', { weekday: 'long' });
-    } else {
-      // Check if it's in the past year
-      const oneYearAgo = new Date(today);
-      oneYearAgo.setFullYear(today.getFullYear() - 1);
-
-      if (date.getFullYear() < today.getFullYear()) {
-        // Past year - include year: "26 November, 2024"
-        return date.toLocaleDateString('en-US', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric'
-        });
-      } else {
-        // Current year but more than 7 days ago - no year: "26 November"
-        return date.toLocaleDateString('en-US', {
-          day: 'numeric',
-          month: 'long'
-        });
-      }
-    }
-  }
-};
-
-/**
- * Get date key (YYYY-MM-DD) in local timezone for consistent grouping
- */
-const getDateKey = (dateString: string): string => {
-  const date = new Date(dateString);
-  // Use local date components to ensure consistent grouping regardless of timezone
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-/**
- * Check if a date is in the current month
- */
-const isCurrentMonth = (dateString: string): boolean => {
-  const date = new Date(dateString);
-  const today = new Date();
-  return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth();
-};
-
-/**
- * Get month label for grouping
- */
-const getMonthLabel = (dateString: string, isCurrent: boolean): string => {
-  const date = new Date(dateString);
-  if (isCurrent) {
-    const monthName = date.toLocaleDateString('en-US', { month: 'long' });
-    return `${monthName} (This month)`;
-  }
-  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-};
 
 /**
  * Group expenses by month first, then by date within each month

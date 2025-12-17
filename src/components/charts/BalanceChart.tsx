@@ -15,9 +15,10 @@ interface BalanceDataPoint {
 
 interface BalanceChartProps {
   data: BalanceDataPoint[];
+  periodLabel?: string;
 }
 
-export const BalanceChart: React.FC<BalanceChartProps> = ({ data }) => {
+export const BalanceChart: React.FC<BalanceChartProps> = ({ data, periodLabel }) => {
   const { theme } = useTheme();
   const { formatCurrency, convertFromUSD } = useCurrency();
 
@@ -57,7 +58,7 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({ data }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.card, borderColor: theme.border }]}>
-      <Text style={[styles.title, { color: theme.text }]}>Balance Trend (30 Days)</Text>
+      <Text style={[styles.title, { color: theme.text }]}>Balance Trend{periodLabel ? ` (${periodLabel})` : ''}</Text>
       <View style={{ marginLeft: -10 }}>
         <LineChart
           data={chartData}

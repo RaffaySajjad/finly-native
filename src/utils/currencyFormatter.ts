@@ -99,3 +99,24 @@ export const formatCurrencyDisplay = (
   return `${currencySymbol}${formattedNumber}`;
 };
 
+/**
+ * Convert USD amounts embedded in text to user's active currency.
+ * Useful for API responses with hardcoded USD values (e.g., insight descriptions).
+ */
+export const convertCurrencyAmountsInText = (
+  text: string,
+  formatCurrencyFn: (amount: number) => string
+): string => {
+  const usdAmountRegex = /\$([\d,]+(?:\.\d{1,2})?)/g;
+
+  return text.replace(usdAmountRegex, (match, amountStr) => {
+    try {
+      const usdAmount = parseFloat(amountStr.replace(/,/g, ''));
+      if (isNaN(usdAmount)) return match;
+      return formatCurrencyFn(usdAmount);
+    } catch {
+      return match;
+    }
+  });
+};
+

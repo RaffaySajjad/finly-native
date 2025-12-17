@@ -87,12 +87,31 @@ export const useVoiceRecording = (): UseVoiceRecordingReturn => {
   }, []);
 
   /**
+   * Wait for app to be in active state with retry
+   * Returns true if app is active, false if timeout
+   */
+  const waitForActiveState = async (maxWaitMs: number = 500): Promise<boolean> => {
+    const startTime = Date.now();
+    const checkInterval = 50; // Check every 50ms
+    
+    while (Date.now() - startTime < maxWaitMs) {
+      if (AppState.currentState === 'active') {
+        return true;
+      }
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+    }
+    
+    return AppState.currentState === 'active';
+  };
+
+  /**
    * Start recording audio
    */
   const startRecording = useCallback(async (): Promise<void> => {
     try {
-      // Check if app is in foreground (required for audio session activation on iOS)
-      if (AppState.currentState !== 'active') {
+      // Wait for app to be in foreground with retry (handles transition states)
+      const isActive = await waitForActiveState(500);
+      if (!isActive) {
         const errorMsg = 'Please ensure the app is in the foreground to start recording.';
         setState(prev => ({
           ...prev,
@@ -114,8 +133,25 @@ export const useVoiceRecording = (): UseVoiceRecordingReturn => {
 
       // Stop any existing recording
       if (recordingRef.current) {
-        await recordingRef.current.stopAndUnloadAsync();
+        try {
+          await recordingRef.current.stopAndUnloadAsync();
+        } catch (e) {
+          console.warn('[useVoiceRecording] Error stopping existing recording:', e);
+        }
         recordingRef.current = null;
+      }
+
+      // Small delay before setting audio mode (helps with iOS state transitions)
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Re-check app state after delay (state might have changed)
+      if (AppState.currentState !== 'active') {
+        console.warn('[useVoiceRecording] App went to background during setup');
+        setState(prev => ({
+          ...prev,
+          error: 'App went to background. Please try again.',
+        }));
+        return;
       }
 
       // Ensure audio mode is set right before recording (critical for iOS)
@@ -130,11 +166,23 @@ export const useVoiceRecording = (): UseVoiceRecordingReturn => {
         });
       } catch (audioModeError) {
         console.error('[useVoiceRecording] Failed to set audio mode:', audioModeError);
-        // Continue anyway - might still work
+        // On iOS, this error often means app is not in foreground
+        if (Platform.OS === 'ios') {
+          setState(prev => ({
+            ...prev,
+            error: 'Unable to activate audio session. Please try again.',
+          }));
+          Alert.alert(
+            'Recording Unavailable',
+            'Could not activate audio session. Please ensure the app is fully in the foreground and try again.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
       }
 
-      // Small delay to ensure audio session is ready (helps with iOS background state)
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Another small delay after audio mode setup
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       // Create new recording
       const { recording } = await Audio.Recording.createAsync(
@@ -168,9 +216,16 @@ export const useVoiceRecording = (): UseVoiceRecordingReturn => {
       
       // Provide user-friendly error message for background state
       let errorMessage = 'Failed to start recording';
+      let showAlert = false;
+      
       if (error instanceof Error) {
-        if (error.message.includes('background') || error.message.includes('audio session')) {
-          errorMessage = 'Please ensure the app is in the foreground to start recording.';
+        const errorLower = error.message.toLowerCase();
+        if (errorLower.includes('background') || 
+            errorLower.includes('audio session') ||
+            errorLower.includes('not in foreground') ||
+            errorLower.includes('avaudiosession')) {
+          errorMessage = 'Please ensure the app is fully in the foreground to start recording.';
+          showAlert = true;
         } else {
           errorMessage = error.message;
         }
@@ -182,11 +237,11 @@ export const useVoiceRecording = (): UseVoiceRecordingReturn => {
         error: errorMessage,
       }));
       
-      // Show alert for background state error
-      if (error instanceof Error && error.message.includes('background')) {
+      // Show alert for background/audio session errors
+      if (showAlert) {
         Alert.alert(
           'Recording Unavailable',
-          'Voice recording requires the app to be in the foreground. Please try again.',
+          'Voice recording requires the app to be fully in the foreground. Please tap away from any dialogs and try again.',
           [{ text: 'OK' }]
         );
       }
@@ -208,11 +263,25 @@ export const useVoiceRecording = (): UseVoiceRecordingReturn => {
         durationIntervalRef.current = null;
       }
 
-      const status = await recordingRef.current.getStatusAsync();
-      await recordingRef.current.stopAndUnloadAsync();
-
+      // CRITICAL: Get the URI BEFORE stopping and unloading
+      // After stopAndUnloadAsync(), the file reference may become invalid
       const uri = recordingRef.current.getURI();
+      
+      console.log('[useVoiceRecording] Recording URI before unload:', uri);
+
+      await recordingRef.current.stopAndUnloadAsync();
       recordingRef.current = null;
+
+      // Reset audio mode to allow playback (disable recording mode)
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+        });
+      } catch (audioModeError) {
+        console.warn('[useVoiceRecording] Failed to reset audio mode:', audioModeError);
+      }
 
       setState(prev => ({
         ...prev,

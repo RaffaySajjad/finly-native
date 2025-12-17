@@ -514,7 +514,7 @@ const VoiceTransactionScreen: React.FC = () => {
               Intelligent Transaction Entry
             </Text>
             <Text style={[styles.instructionsText, { color: theme.textSecondary }]}>
-              Use natural language to record transactions. Our AI extracts amounts, descriptions, and categories automatically—supporting multiple transactions in a single entry.
+              Use natural language to record transactions. Finly AI extracts amounts, descriptions, and categories automatically—supporting multiple transactions in a single entry.
             </Text>
             <View style={styles.examplesContainer}>
               <Text style={[styles.exampleText, { color: theme.textTertiary }]}>

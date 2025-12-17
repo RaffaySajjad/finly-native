@@ -5,9 +5,14 @@
     "version": "1.0.0",
     "jsEngine": "hermes",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "android": {
       "package": "com.raffay.finly",
-      "googleServicesFile": "./android/app/google-services.json"
+      "googleServicesFile": "./android/app/google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#4F46E5"
+      }
     },
     "ios": {
       "bundleIdentifier": "com.raffay.finly",

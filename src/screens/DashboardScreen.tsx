@@ -63,6 +63,9 @@ import { typography, spacing, borderRadius, elevation } from '../theme';
 import * as Haptics from 'expo-haptics';
 import FABQuickActions from '../components/FABQuickActions';
 import * as Notifications from 'expo-notifications';
+import { convertCurrencyAmountsInText } from '../utils/currencyFormatter';
+import { formatDateLabel } from '../utils/dateFormatter';
+import { getValidIcon } from '../utils/iconUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -70,58 +73,11 @@ const RECENT_TRANSACTIONS_LIMIT = 10;
 const ANIMATION_CYCLE_DURATION = 5000;
 const ANIMATION_FADE_DURATION = 800;
 
-
 interface GroupedTransactions {
   date: string;
   dateLabel: string;
   transactions: UnifiedTransaction[];
 }
-
-/**
- * Format date for display (same as InsightsScreen and CategoryDetailsScreen)
- */
-const formatDateLabel = (dateString: string): string => {
-  const date = new Date(dateString);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  // Reset time for comparison
-  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-
-  if (dateOnly.getTime() === todayOnly.getTime()) {
-    return 'Today';
-  } else if (dateOnly.getTime() === yesterdayOnly.getTime()) {
-    return 'Yesterday';
-  } else {
-    // Check if it's within the last 7 days
-    const daysDiff = Math.floor((todayOnly.getTime() - dateOnly.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysDiff <= 7) {
-      return date.toLocaleDateString('en-US', { weekday: 'long' });
-    } else {
-      // Check if it's in the past year
-      const oneYearAgo = new Date(today);
-      oneYearAgo.setFullYear(today.getFullYear() - 1);
-
-      if (date.getFullYear() < today.getFullYear()) {
-        // Past year - include year: "26 November, 2024"
-        return date.toLocaleDateString('en-US', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric'
-        });
-      } else {
-        // Current year but more than 7 days ago - no year: "26 November"
-        return date.toLocaleDateString('en-US', {
-          day: 'numeric',
-          month: 'long'
-        });
-      }
-    }
-  }
-};
 
 /**
  * Group transactions by date
@@ -899,14 +855,14 @@ const DashboardScreen: React.FC = () => {
                 onPress={() => navigation.navigate('Insights')}
               >
                 <View style={[styles.insightIconContainer, { backgroundColor: insights[0].color + '15' }]}>
-                  <Icon name={insights[0].icon as any} size={24} color={insights[0].color} />
+                  <Icon name={getValidIcon(insights[0].icon) as any} size={24} color={insights[0].color} />
                 </View>
                 <View style={styles.smartInsightContent}>
                   <Text style={[styles.smartInsightCardTitle, { color: theme.text }]}>
-                    {insights[0].title}
+                    {convertCurrencyAmountsInText(insights[0].title, formatCurrency)}
                   </Text>
                   <Text style={[styles.smartInsightCardDescription, { color: theme.textSecondary }]}>
-                    {insights[0].description}
+                    {convertCurrencyAmountsInText(insights[0].description, formatCurrency)}
                   </Text>
                 </View>
               </TouchableOpacity>

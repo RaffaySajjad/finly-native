@@ -50,3 +50,6 @@ export { Toast } from './Toast';
 export type { ToastType, ToastProps } from './Toast';
 export { NotificationPermissionBanner } from './NotificationPermissionBanner';
 
+// Filter components
+export * from './filters';
+

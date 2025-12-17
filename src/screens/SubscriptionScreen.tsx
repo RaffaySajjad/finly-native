@@ -102,7 +102,7 @@ const SubscriptionScreen: React.FC = () => {
   const premiumFeatures = [
     { icon: 'camera-outline', title: 'Unlimited Receipt Scanning', description: 'Scan unlimited receipts with advanced AI OCR' },
     { icon: 'microphone', title: 'Smart Entry', description: 'Speak or type to add multiple transactions' },
-    { icon: 'chart-line', title: 'Advanced Analytics', description: 'Year-over-year comparisons & predictions' },
+    { icon: 'chart-line', title: 'Advanced Analytics', description: 'Year over year comparisons & predictions' },
     { icon: 'brain', title: 'Smart Insights', description: 'Unlimited AI-powered financial insights' },
     { icon: 'shape', title: 'Unlimited Categories', description: 'Create as many categories as you need' },
     { icon: 'file-export', title: 'Data Export', description: 'Export reports in PDF format' },

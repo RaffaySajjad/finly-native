@@ -1,6 +1,6 @@
 /**
  * AnalyticsScreen Component
- * Purpose: Advanced analytics with year-over-year comparisons and predictions
+ * Purpose: Advanced analytics with year over year comparisons and predictions
  * Premium feature
  */
 
@@ -86,7 +86,7 @@ const AnalyticsScreen: React.FC = () => {
         <EmptyState
           icon="chart-line"
           title="See the Full Picture"
-          subtitle="Unlock advanced trends, year-over-year comparisons, and predictive insights to grow your wealth."
+          subtitle="Unlock advanced trends, year over year comparisons, and predictive insights to grow your wealth."
           actionLabel="Unlock Finly Pro"
           onActionPress={() => navigation.navigate('Subscription')}
         />
@@ -172,9 +172,9 @@ const AnalyticsScreen: React.FC = () => {
           ))}
         </ChartCard>
 
-        {/* Year-over-Year Comparison */}
+        {/* Year over Year Comparison */}
         <View style={[styles.comparisonCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
-          <Text style={[styles.chartTitle, { color: theme.text }]}>Year-over-Year</Text>
+          <Text style={[styles.chartTitle, { color: theme.text }]}>Year over Year</Text>
           <View style={styles.comparisonRow}>
             <View style={styles.comparisonItem}>
               <Text style={[styles.comparisonLabel, { color: theme.textSecondary }]}>Last Year</Text>

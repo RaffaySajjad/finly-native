@@ -11,44 +11,13 @@ import { Insight } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { convertCurrencyAmountsInText } from '../utils/currencyFormatter';
+import { getValidIcon } from '../utils/iconUtils';
 
 interface InsightCardProps {
   insight: Insight;
   onPress?: () => void;
 }
-
-/**
- * Convert USD amounts in text to user's active currency
- * @param text - Text containing USD amounts (e.g., "$150", "$1,234.56")
- * @param formatCurrency - Function to format currency amounts (already converts from USD internally)
- * @returns Text with converted amounts
- */
-const convertCurrencyAmountsInText = (
-  text: string,
-  formatCurrency: (amount: number) => string
-): string => {
-  // Regex to match USD amounts: $123, $1,234.56, $123.45, etc.
-  // Matches: $ followed by digits, optional commas, optional decimal point and digits
-  const usdAmountRegex = /\$([\d,]+(?:\.\d{1,2})?)/g;
-
-  return text.replace(usdAmountRegex, (match, amountStr) => {
-    try {
-      // Remove commas and parse the amount
-      const usdAmount = parseFloat(amountStr.replace(/,/g, ''));
-
-      if (isNaN(usdAmount)) {
-        return match; // Return original if parsing fails
-      }
-
-      // formatCurrency already converts from USD to user's currency internally
-      // So we just pass the USD amount directly
-      return formatCurrency(usdAmount);
-    } catch (error) {
-      console.warn('[InsightCard] Error converting currency amount:', error);
-      return match; // Return original if conversion fails
-    }
-  });
-};
 
 /**
  * InsightCard component renders an AI insight with icon and description
@@ -110,7 +79,7 @@ export const InsightCard: React.FC<InsightCardProps> = ({ insight, onPress }) =>
         ]}
       >
       <View style={[styles.iconContainer, { backgroundColor: insight.color + '20' }]}>
-        <Icon name={insight.icon as any} size={28} color={insight.color} />
+          <Icon name={getValidIcon(insight.icon) as any} size={28} color={insight.color} />
       </View>
 
       <View style={styles.content}>

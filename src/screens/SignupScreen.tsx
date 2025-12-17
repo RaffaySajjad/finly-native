@@ -368,16 +368,16 @@ const SignupScreen: React.FC = () => {
                 By creating an account, you agree to our{' '}
                 <Text
                   style={[styles.linkText, { color: theme.primary }]}
-                  onPress={() => navigation.navigate('PrivacyPolicy')}
+                  onPress={() => navigation.navigate('TermsOfService')}
                 >
-                  Privacy Policy
+                  Terms of Service
                 </Text>
                 {' '}and{' '}
                 <Text
                   style={[styles.linkText, { color: theme.primary }]}
                   onPress={() => navigation.navigate('PrivacyPolicy')}
                 >
-                  Terms of Service
+                  Privacy Policy
                 </Text>
               </Text>
 

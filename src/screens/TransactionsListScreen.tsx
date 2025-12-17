@@ -29,6 +29,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useBottomSheetActions } from '../contexts/BottomSheetContext';
 import { TransactionCard, ExpenseOptionsSheet } from '../components';
 import { logger } from '../utils/logger';
+import { formatDateLabel } from '../utils/dateFormatter';
 import { apiService } from '../services/api';
 import tagsService from '../services/tagsService';
 import { Expense, PaymentMethod, Tag, UnifiedTransaction, Category, IncomeTransaction } from '../types';
@@ -43,7 +44,6 @@ interface GroupedTransactions {
   transactions: UnifiedTransaction[];
 }
 
-// Payment method display configuration (stable reference; avoids re-allocations every render)
 const PAYMENT_METHOD_DISPLAY: Record<PaymentMethod, { name: string; icon: string }> = {
   CREDIT_CARD: { name: 'Credit Card', icon: 'credit-card' },
   DEBIT_CARD: { name: 'Debit Card', icon: 'card' },
@@ -52,52 +52,6 @@ const PAYMENT_METHOD_DISPLAY: Record<PaymentMethod, { name: string; icon: string
   BANK_TRANSFER: { name: 'Bank Transfer', icon: 'bank-transfer' },
   DIGITAL_WALLET: { name: 'Digital Wallet', icon: 'wallet' },
   OTHER: { name: 'Other', icon: 'dots-horizontal' },
-};
-
-/**
- * Format date for display (same as InsightsScreen and DashboardScreen)
- */
-const formatDateLabel = (dateString: string): string => {
-  const date = new Date(dateString);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  // Reset time for comparison
-  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-
-  if (dateOnly.getTime() === todayOnly.getTime()) {
-    return 'Today';
-  } else if (dateOnly.getTime() === yesterdayOnly.getTime()) {
-    return 'Yesterday';
-  } else {
-    // Check if it's within the last 7 days
-    const daysDiff = Math.floor((todayOnly.getTime() - dateOnly.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysDiff <= 7) {
-      return date.toLocaleDateString('en-US', { weekday: 'long' });
-    } else {
-      // Check if it's in the past year
-      const oneYearAgo = new Date(today);
-      oneYearAgo.setFullYear(today.getFullYear() - 1);
-
-      if (date.getFullYear() < today.getFullYear()) {
-        // Past year - include year: "26 November, 2024"
-        return date.toLocaleDateString('en-US', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric'
-        });
-      } else {
-        // Current year but more than 7 days ago - no year: "26 November"
-        return date.toLocaleDateString('en-US', {
-          day: 'numeric',
-          month: 'long'
-        });
-      }
-    }
-  }
 };
 
 /**

@@ -205,6 +205,27 @@ const TransactionDetailsScreen: React.FC = () => {
   const categoryName = isExpense ? getCategoryName(category) : 'Income';
   const categoryIcon = isExpense ? getCategoryIcon(category) : 'cash-plus';
 
+  // Build informative AI query with full transaction context
+  const buildAIQuery = (): string => {
+    const amount = formatCurrency(transaction.amount);
+    const date = new Date(transaction.date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    
+    if (isExpense) {
+      const categoryStr = transaction.category?.name || 'Uncategorized';
+      const paymentStr = transaction.paymentMethod 
+        ? ` paid via ${getPaymentMethodName(transaction.paymentMethod)}`
+        : '';
+      return `Analyze my ${categoryStr} expense: "${transaction.description}" for ${amount} on ${date}${paymentStr}. What insights can you share?`;
+    } else {
+      const sourceStr = transaction.incomeSource?.name || 'Income';
+      return `Analyze my ${sourceStr}: "${transaction.description}" for ${amount} on ${date}. What insights can you share?`;
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
       {/* Header */}
@@ -357,8 +378,15 @@ const TransactionDetailsScreen: React.FC = () => {
                 { backgroundColor: theme.card, borderColor: theme.border },
               ]}
               onPress={() => navigation.navigate('AIAssistant', {
-                context: { transactionId: transaction.id },
-                initialQuery: `Tell me about this transaction: ${transaction.description}`,
+                context: { 
+                  transactionId: transaction.id,
+                  transactionType: transaction.type,
+                  amount: transaction.amount,
+                  description: transaction.description,
+                  category: transaction.category?.name,
+                  date: transaction.date,
+                },
+                initialQuery: buildAIQuery(),
               })}
             >
               <Icon name="robot" size={18} color={theme.primary} />

@@ -97,8 +97,16 @@ async function generateIcons() {
     await sharp(svgPath).resize(size, size).png().toFile(outputPath);
   }
 
+  // Copy main icon.png for Expo (1024x1024)
+  const mainIconPath = path.join(outputDir, 'ios', 'App-Icon-1024x1024@1x.png');
+  const expoIconPath = path.join(__dirname, '../assets/icon.png');
+  await copyFile(mainIconPath, expoIconPath);
+  console.log('📱 Created assets/icon.png for Expo');
+
   // Automatically copy icons to correct locations
-  sawait copyIconsToDestinations(outputDir);
+  await copyIconsToDestinations(outputDir);
+  
+  console.log('✅ Icons generated successfully!');
 }
 
 /**
@@ -107,8 +115,8 @@ async function generateIcons() {
 async function copyIconsToDestinations(outputDir) {
   const projectRoot = path.join(__dirname, '..');
   
-  // iOS destination
-  const iosDest = path.join(projectRoot, 'ios', 'finly', 'Images.xcassets', 'AppIcon.appiconset');
+  // iOS destination (note: folder is 'Finly' with capital F)
+  const iosDest = path.join(projectRoot, 'ios', 'Finly', 'Images.xcassets', 'AppIcon.appiconset');
   
   // Android destination base
   const androidDestBase = path.join(projectRoot, 'android', 'app', 'src', 'main', 'res');

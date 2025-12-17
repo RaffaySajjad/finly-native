@@ -284,12 +284,12 @@ const TermsOfServiceScreen: React.FC = () => {
             If you have questions about these Terms of Service, please contact us:
           </Paragraph>
           <TouchableOpacity 
-            onPress={() => Linking.openURL('mailto:legal@finly.app')}
+            onPress={() => Linking.openURL('mailto:support@heyfinly.ai')}
             style={[styles.contactButton, { backgroundColor: theme.primary + '10' }]}
           >
             <Icon name="email-outline" size={20} color={theme.primary} />
             <Text style={[styles.contactButtonText, { color: theme.primary }]}>
-              legal@finly.app
+              support@heyfinly.ai
             </Text>
           </TouchableOpacity>
         </Section>

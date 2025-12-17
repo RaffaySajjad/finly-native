@@ -699,7 +699,7 @@ const ProfileScreen: React.FC = () => {
             <TouchableOpacity
               style={[styles.helpContactButton, { backgroundColor: theme.primary + '20', borderColor: theme.primary }]}
               onPress={() => {
-                Alert.alert('Contact Support', 'Email: support@finly.app\n\nWe typically respond within 24 hours.');
+                Alert.alert('Contact Support', 'Email: support@heyfinly.ai\n\nWe typically respond within 24 hours.');
               }}
             >
               <Icon name="email-outline" size={20} color={theme.primary} />

@@ -267,12 +267,12 @@ const PrivacyPolicyScreen: React.FC = () => {
             If you have questions, concerns, or requests regarding this Privacy Policy or your personal data, please contact our Privacy Team:
           </Paragraph>
           <TouchableOpacity 
-            onPress={() => Linking.openURL('mailto:privacy@finly.app')}
+            onPress={() => Linking.openURL('mailto:support@heyfinly.ai')}
             style={[styles.contactButton, { backgroundColor: theme.primary + '10' }]}
           >
             <Icon name="email-outline" size={20} color={theme.primary} />
             <Text style={[styles.contactButtonText, { color: theme.primary }]}>
-              privacy@finly.app
+              support@heyfinly.ai
             </Text>
           </TouchableOpacity>
         </Section>

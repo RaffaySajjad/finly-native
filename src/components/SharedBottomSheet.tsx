@@ -4,7 +4,7 @@
  * Features: Manual entry, scan receipt, voice entry, bulk add
  */
 
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -158,8 +158,15 @@ const SharedBottomSheet: React.FC = () => {
 
   // Track bottom sheet state to know when it opens
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
-  // Track if we've already handled the form reset/pre-fill for this open
-  const hasHandledFormState = useRef(false);
+  // Track the ID of the transaction we've populated the form for (to avoid re-populating)
+  const populatedTransactionId = useRef<string | null>(null);
+  // Track editing state in a ref (always current, no stale closures)
+  const isEditingRef = useRef(false);
+
+  // Keep the ref in sync with editing state
+  useLayoutEffect(() => {
+    isEditingRef.current = !!(editingExpense?.id) || !!(editingIncome?.id);
+  }, [editingExpense, editingIncome]);
 
   // Helper function to reset form fields
   const resetFormFields = useCallback(() => {
@@ -175,101 +182,103 @@ const SharedBottomSheet: React.FC = () => {
     setTransactionType('expense');
     setSelectedIncomeCurrency(undefined);
     setSelectedExpenseCurrency(undefined);
+    populatedTransactionId.current = null;
     // Reset category to first available (will be set when categories load)
     if (categories.length > 0) {
       setNewExpenseCategoryId(categories[0].id);
     }
   }, [categories]);
 
-  // Handle form state when bottom sheet opens or editing state changes
-  useEffect(() => {
-    // Only handle form state when bottom sheet is open
-    if (!isBottomSheetOpen) {
-      hasHandledFormState.current = false;
-      return;
+  // Helper function to populate expense form - called synchronously
+  const populateExpenseForm = useCallback((expense: typeof editingExpense) => {
+    if (!expense) return;
+
+    // If the transaction has originalAmount and originalCurrency, use those directly
+    // This preserves the exact values the user originally entered
+    if (expense.originalAmount && expense.originalCurrency) {
+      setNewExpenseAmount(expense.originalAmount.toString());
+      setSelectedExpenseCurrency(expense.originalCurrency);
+    } else if (expense.amount) {
+      // Fallback: convert USD amount to user's active currency
+      const amountInDisplayCurrency = getTransactionDisplayAmount(
+        expense.amount,
+        expense.originalAmount,
+        expense.originalCurrency
+      );
+      setNewExpenseAmount(amountInDisplayCurrency.toString());
+      setSelectedExpenseCurrency(undefined); // Use user's active currency
     }
-
-    // If we've already handled this open, don't do it again
-    if (hasHandledFormState.current) {
-      return;
-    }
-
-    // Check if we're editing
-    const isEditing = (editingExpense && isEditingExpense) || (editingIncome && isEditingIncome);
-
-    if (isEditing) {
-      // We're editing - mark as handled, pre-fill will happen in separate useEffect
-      hasHandledFormState.current = true;
+    if (expense.description) setNewExpenseDescription(expense.description);
+    if (expense.date) setNewExpenseDate(new Date(expense.date));
+    // Set payment method (can be undefined)
+    setNewExpensePaymentMethod(expense.paymentMethod || undefined);
+    if (expense.tags && expense.tags.length > 0) {
+    // Handle both string IDs and tag objects
+      const tagIds = expense.tags.map(tag => typeof tag === 'string' ? tag : tag.id);
+      setNewExpenseTags(tagIds);
     } else {
-      // We're not editing - reset form fields
-      resetFormFields();
-      hasHandledFormState.current = true;
+      setNewExpenseTags([]);
     }
-  }, [isBottomSheetOpen, editingExpense, editingIncome, isEditingExpense, isEditingIncome, resetFormFields]);
+    // Set transaction type to expense
+    setTransactionType('expense');
+    // Set category
+    if (expense.categoryId) {
+      setNewExpenseCategoryId(expense.categoryId);
+    }
+    // Track that we've populated for this transaction
+    populatedTransactionId.current = expense.id || null;
+  }, [getTransactionDisplayAmount]);
 
-  // Pre-fill form when editing expense
-  useEffect(() => {
-    if (editingExpense && isEditingExpense && isBottomSheetOpen) {
-      // getTransactionDisplayAmount always returns amount in user's current currency
-      // (either originalAmount if originalCurrency matches, or converted from USD)
-      if (editingExpense.amount) {
-        const amountInDisplayCurrency = getTransactionDisplayAmount(
-          editingExpense.amount,
-          editingExpense.originalAmount,
-          editingExpense.originalCurrency
-        );
-        setNewExpenseAmount(amountInDisplayCurrency.toString());
-      }
-      if (editingExpense.description) setNewExpenseDescription(editingExpense.description);
-      if (editingExpense.date) setNewExpenseDate(new Date(editingExpense.date));
-      // Set payment method (can be undefined)
-      setNewExpensePaymentMethod(editingExpense.paymentMethod || undefined);
-      if (editingExpense.tags && editingExpense.tags.length > 0) {
-        // Handle both string IDs and tag objects
-        const tagIds = editingExpense.tags.map(tag => typeof tag === 'string' ? tag : tag.id);
-        setNewExpenseTags(tagIds);
-      } else {
-        setNewExpenseTags([]);
-      }
-      // IMPORTANT: The displayed amount is always in user's current currency (from getTransactionDisplayAmount)
-      // So the currency selector must match - leave undefined to default to user's currencyCode
-      // This ensures proper conversion on save (user's currency → USD)
-      setSelectedExpenseCurrency(undefined);
-      // Set transaction type to expense
-      setTransactionType('expense');
-      // Category will be set in loadCategoriesAndTags after categories load
-      if (editingExpense.categoryId) {
-        setNewExpenseCategoryId(editingExpense.categoryId);
-      }
-    }
-  }, [editingExpense, isEditingExpense, isBottomSheetOpen, getTransactionDisplayAmount]);
+  // Helper function to populate income form - called synchronously
+  const populateIncomeForm = useCallback((income: typeof editingIncome) => {
+    if (!income) return;
 
-  // Pre-fill form when editing income
-  useEffect(() => {
-    if (editingIncome && isEditingIncome && isBottomSheetOpen) {
-      // getTransactionDisplayAmount always returns amount in user's current currency
-      // (either originalAmount if originalCurrency matches, or converted from USD)
-      if (editingIncome.amount) {
-        const amountInDisplayCurrency = getTransactionDisplayAmount(
-          editingIncome.amount,
-          editingIncome.originalAmount,
-          editingIncome.originalCurrency
-        );
-        setNewIncomeAmount(amountInDisplayCurrency.toString());
-      }
-      if (editingIncome.description) setNewIncomeDescription(editingIncome.description);
-      if (editingIncome.date) setNewIncomeDate(new Date(editingIncome.date));
-      if (editingIncome.incomeSourceId) {
-        setNewIncomeSourceId(editingIncome.incomeSourceId);
-      }
-      // IMPORTANT: The displayed amount is always in user's current currency (from getTransactionDisplayAmount)
-      // So the currency selector must match - leave undefined to default to user's currencyCode
-      // This ensures proper conversion on save (user's currency → USD)
-      setSelectedIncomeCurrency(undefined);
-      // Set transaction type to income
-      setTransactionType('income');
+    // If the transaction has originalAmount and originalCurrency, use those directly
+    // This preserves the exact values the user originally entered
+    if (income.originalAmount && income.originalCurrency) {
+      setNewIncomeAmount(income.originalAmount.toString());
+      setSelectedIncomeCurrency(income.originalCurrency);
+    } else if (income.amount) {
+      // Fallback: convert USD amount to user's active currency
+      const amountInDisplayCurrency = getTransactionDisplayAmount(
+        income.amount,
+        income.originalAmount,
+        income.originalCurrency
+      );
+      setNewIncomeAmount(amountInDisplayCurrency.toString());
+      setSelectedIncomeCurrency(undefined); // Use user's active currency
     }
-  }, [editingIncome, isEditingIncome, isBottomSheetOpen, getTransactionDisplayAmount]);
+    if (income.description) setNewIncomeDescription(income.description);
+    if (income.date) setNewIncomeDate(new Date(income.date));
+    if (income.incomeSourceId) {
+      setNewIncomeSourceId(income.incomeSourceId);
+    }
+    // Set transaction type to income
+    setTransactionType('income');
+    // Track that we've populated for this transaction
+    populatedTransactionId.current = income.id || null;
+  }, [getTransactionDisplayAmount]);
+
+  // Pre-fill form when editing expense - useLayoutEffect runs synchronously before paint
+  // This eliminates the flash of stale data
+  useLayoutEffect(() => {
+    if (editingExpense && isEditingExpense) {
+      // Only populate if we haven't already populated for this transaction
+      if (populatedTransactionId.current !== editingExpense.id) {
+        populateExpenseForm(editingExpense);
+      }
+    }
+  }, [editingExpense, isEditingExpense, populateExpenseForm]);
+
+  // Pre-fill form when editing income - useLayoutEffect runs synchronously before paint
+  useLayoutEffect(() => {
+    if (editingIncome && isEditingIncome) {
+      // Only populate if we haven't already populated for this transaction
+      if (populatedTransactionId.current !== editingIncome.id) {
+        populateIncomeForm(editingIncome);
+      }
+    }
+  }, [editingIncome, isEditingIncome, populateIncomeForm]);
 
   // Register bottom sheet ref with context - cleanup on unmount
   useEffect(() => {
@@ -303,35 +312,12 @@ const SharedBottomSheet: React.FC = () => {
       toValue: 1,
       useNativeDriver: true,
     }).start();
-    // Reset expense form
-    setNewExpenseAmount('');
-    setNewExpenseDescription('');
-    setNewExpenseDate(new Date());
-    setNewExpensePaymentMethod(undefined);
-    setNewExpenseTags([]);
-    // Reset income form
-    setNewIncomeAmount('');
-    setNewIncomeDescription('');
-    setNewIncomeDate(new Date());
-    setNewIncomeSourceId('');
-    // Reset currency selections
-    setSelectedIncomeCurrency(undefined);
-    setSelectedExpenseCurrency(undefined);
-    // Reset transaction type to expense
-    setTransactionType('expense');
+    // Reset form fields
+    resetFormFields();
     // Clear editing state
     setEditingExpense(null);
     setEditingIncome(null);
-    // Reset the handled flag
-    hasHandledFormState.current = false;
-    // Reset category to first available
-    setCategories((prevCategories) => {
-      if (prevCategories.length > 0) {
-        setNewExpenseCategoryId(prevCategories[0].id);
-      }
-      return prevCategories;
-    });
-  }, [setEditingExpense, setEditingIncome]);
+  }, [setEditingExpense, setEditingIncome, resetFormFields]);
 
   const handleAddExpense = async (): Promise<void> => {
     // Clear previous errors
@@ -630,31 +616,26 @@ const SharedBottomSheet: React.FC = () => {
           // Track when bottom sheet opens (index >= 0) or closes (index === -1)
           const isOpen = index >= 0;
           setIsBottomSheetOpen(isOpen);
-          
-          // Reset the handled flag and form state when closing
+
           if (index === -1) {
-            hasHandledFormState.current = false;
-            // Reset currency selections to prevent stale state affecting next edit
-            setSelectedExpenseCurrency(undefined);
-            setSelectedIncomeCurrency(undefined);
-            // Clear editing state
+            // Closing - reset form and clear editing state
+            // Form reset happens here so it's clean for next open
+            resetFormFields();
             setEditingExpense(null);
             setEditingIncome(null);
             Animated.spring(fabScale, {
               toValue: 1,
               useNativeDriver: true,
             }).start();
-          } else {
-            // When opening, reset the flag so form state can be handled
-            hasHandledFormState.current = false;
           }
+          // When opening:
+          // - For editing: useLayoutEffect already populated the form synchronously
+          // - For new: form is already clean from when it was last closed
         }}
         onClose={() => {
           setIsBottomSheetOpen(false);
-          // Reset currency selections to prevent stale state affecting next edit
-          setSelectedExpenseCurrency(undefined);
-          setSelectedIncomeCurrency(undefined);
-          // Clear editing state
+          // Reset form and clear editing state
+          resetFormFields();
           setEditingExpense(null);
           setEditingIncome(null);
           Animated.spring(fabScale, {

@@ -142,9 +142,7 @@ const ExportTransactionsScreen: React.FC = () => {
     setExporting(true);
 
     try {
-      if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const { startDate, endDate } = selectedOption.getDateRange();
       
@@ -182,9 +180,7 @@ const ExportTransactionsScreen: React.FC = () => {
             UTI: 'public.comma-separated-values-text', // iOS UTI for CSV
           });
 
-          if (Platform.OS === 'ios') {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          }
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
           showSuccess(
             'Export Complete',
@@ -264,9 +260,7 @@ const ExportTransactionsScreen: React.FC = () => {
                   ]}
                   onPress={() => {
                     setSelectedRange(option.id);
-                    if (Platform.OS === 'ios') {
-                      Haptics.selectionAsync();
-                    }
+                    Haptics.selectionAsync();
                   }}
                 >
                   <View style={styles.rangeButtonContent}>

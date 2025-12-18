@@ -263,9 +263,7 @@ const IncomeSetupScreen: React.FC = () => {
     setSelectedCurrency(currencyCode);
     await saveUserCurrency(currencyCode);
     await setCurrencyGlobal(currencyCode); // Update global currency context
-    if (Platform.OS === 'ios') {
-      Haptics.selectionAsync();
-    }
+    Haptics.selectionAsync();
   };
 
   useEffect(() => {
@@ -292,17 +290,13 @@ const IncomeSetupScreen: React.FC = () => {
   };
 
   const handleSkip = async () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     // Mark income setup as complete, user skipped setup
     await markIncomeSetupComplete();
   };
 
   const handleNext = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     if (currentStep === 0) {
       // Currency selection - move to income setup
@@ -340,9 +334,7 @@ const IncomeSetupScreen: React.FC = () => {
   };
 
   const handleBack = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (currentStep > 0) {
       setCurrentStep((currentStep - 1) as SetupStep);
     }
@@ -373,9 +365,7 @@ const IncomeSetupScreen: React.FC = () => {
       setIncomeSourceSaved(true);
       setCurrentStep(4); // Move to starting balance step
       
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       Alert.alert('Oops!', 'Failed to save income source. Please try again.');
       console.error('Error saving income source:', error);
@@ -418,9 +408,7 @@ const IncomeSetupScreen: React.FC = () => {
       // Mark income setup as complete
       await markIncomeSetupComplete();
       
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       Alert.alert(
         'Perfect! 🎉',
@@ -605,9 +593,7 @@ const IncomeSetupScreen: React.FC = () => {
             ]}
             onPress={() => {
               setFrequency(option.value);
-              if (Platform.OS === 'ios') {
-                Haptics.selectionAsync();
-              }
+              Haptics.selectionAsync();
             }}
           >
             <Icon name={option.icon as any} size={24} color={frequency === option.value ? theme.primary : theme.textSecondary} />
@@ -644,9 +630,7 @@ const IncomeSetupScreen: React.FC = () => {
                 ]}
                 onPress={() => {
                   setDayOfWeek(index);
-                  if (Platform.OS === 'ios') {
-                    Haptics.selectionAsync();
-                  }
+                  Haptics.selectionAsync();
                 }}
               >
                 <Text style={[
@@ -677,9 +661,7 @@ const IncomeSetupScreen: React.FC = () => {
                 ]}
                 onPress={() => {
                   setDayOfMonth(day);
-                  if (Platform.OS === 'ios') {
-                    Haptics.selectionAsync();
-                  }
+                  Haptics.selectionAsync();
                 }}
               >
                 <Text style={[

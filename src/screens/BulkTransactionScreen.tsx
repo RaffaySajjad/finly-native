@@ -546,7 +546,7 @@ const BulkTransactionScreen: React.FC = () => {
         visible={showUpgradePrompt}
         onClose={() => setShowUpgradePrompt(false)}
         feature="Bulk Transaction Entry"
-        message="This premium feature allows you to add multiple transactions at once using a convenient form interface."
+        message="Bulk entry is a Premium feature. Upgrade to add multiple transactions at once using a convenient form interface!"
       />
     </SafeAreaView>
   );

@@ -93,7 +93,7 @@ export const UpgradePrompt: React.FC<UpgradePromptProps> = ({
             />
             <FeatureItem
               icon="microphone"
-              text="Smart Entry (Voice & AI)"
+              text="Unlimited Smart Entry (Voice & AI)"
               theme={theme}
             />
             <FeatureItem
@@ -103,7 +103,12 @@ export const UpgradePrompt: React.FC<UpgradePromptProps> = ({
             />
             <FeatureItem
               icon="shape"
-              text="Unlimited Categories"
+              text="Unlimited Custom Categories"
+              theme={theme}
+            />
+            <FeatureItem
+              icon="file-multiple"
+              text="Bulk Transaction Entry"
               theme={theme}
             />
           </View>

@@ -6,7 +6,7 @@
  */
 
 import React, { useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Expense, PaymentMethod, UnifiedTransaction } from '../types';
@@ -57,10 +57,8 @@ const TransactionCardComponent: React.FC<TransactionCardProps> = ({ expense, tra
 
   // Memoize callbacks for better performance
   const handleLongPress = useCallback(() => {
-    // Haptic feedback on iOS
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    // Haptic feedback on iOS and Android
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onLongPress?.();
   }, [onLongPress]);
 

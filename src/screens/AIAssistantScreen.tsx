@@ -201,9 +201,7 @@ const AIAssistantScreen: React.FC = () => {
     const assistantMessageId = `assistant_${Date.now()}`;
 
     try {
-      if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       // Create placeholder assistant message for streaming
       const assistantMessage: Message = {
@@ -239,9 +237,7 @@ const AIAssistantScreen: React.FC = () => {
       const updatedLimits = await getQueryLimits(isPremium);
       setQueryLimits(updatedLimits);
 
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
       // Remove the placeholder assistant message on error
       setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));

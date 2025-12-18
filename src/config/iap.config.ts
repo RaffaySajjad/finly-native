@@ -40,8 +40,8 @@ export const IAP_CONFIG = {
     PREMIUM_YEARLY: {
       ios: 'finly_premium_yearly',
       android: 'finly.premium.yearly',
-      price: '$35.99',
-      priceValue: 35.99,
+      price: '$34.99',
+      priceValue: 34.99,
     },
   },
   

@@ -69,9 +69,9 @@ const OnboardingScreen: React.FC = () => {
     },
     {
       id: '3',
-      icon: 'camera-outline',
-      title: 'No More Paper Clutter',
-      description: 'Snap a photo, and let Finly AI organize the details for you. Keep your wallet clean and your records perfect.',
+      icon: 'receipt-text-outline',
+      title: 'Scan Anything, Anywhere',
+      description: 'Paper receipts, screenshots, emails, or photos—Finly AI reads them all. Just scan, and watch your expenses log themselves.',
       color: '#F59E0B',
     },
     {

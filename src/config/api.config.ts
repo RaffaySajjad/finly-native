@@ -85,6 +85,7 @@ export const API_ENDPOINTS = {
     SETUP_DEFAULTS: '/categories/setup-defaults',
     SETUP_STATUS: '/categories/setup-status',
     DETAIL: '/categories/:id',
+    ROLLOVER: '/categories/:id/rollover', // Get rollover summary for sinking fund categories
     IMPORT: '/categories/import',
     IMPORT_BATCH: '/categories/import/batch'
   },

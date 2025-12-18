@@ -37,8 +37,13 @@ const initialState: SubscriptionState = {
       limit: 3, // Free tier: 3 insights/week
       resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     },
+    voiceEntries: {
+      used: 0,
+      limit: 3, // Free tier: 3 voice entries/month
+      resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    },
     categories: {
-      used: 5, // Default categories count
+      used: 0, // Will be updated when categories are loaded
       limit: 5, // Free tier: 5 categories max
     },
   },
@@ -70,8 +75,13 @@ export const checkSubscriptionStatus = createAsyncThunk(
               limit: Infinity,
               resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
             },
+            voiceEntries: {
+              used: 0,
+              limit: Infinity,
+              resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            },
             categories: {
-              used: 5,
+              used: 0,
               limit: Infinity,
             },
           }
@@ -86,8 +96,13 @@ export const checkSubscriptionStatus = createAsyncThunk(
               limit: 3,
               resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
             },
+            voiceEntries: {
+              used: 0,
+              limit: 3,
+              resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            },
             categories: {
-              used: 5,
+              used: 0,
               limit: 5,
             },
           };
@@ -163,8 +178,13 @@ export const subscribeToPremium = createAsyncThunk(
             limit: Infinity, // Unlimited for premium
             resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           },
+          voiceEntries: {
+            used: 0,
+            limit: Infinity, // Unlimited for premium
+            resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          },
           categories: {
-            used: 5,
+            used: 0,
             limit: Infinity, // Unlimited for premium
           },
         };
@@ -189,8 +209,13 @@ export const subscribeToPremium = createAsyncThunk(
             limit: Infinity,
             resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           },
+          voiceEntries: {
+            used: 0,
+            limit: Infinity,
+            resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          },
           categories: {
-            used: 5,
+            used: 0,
             limit: Infinity,
           },
         };
@@ -236,8 +261,13 @@ export const startFreeTrial = createAsyncThunk(
           limit: Infinity,
           resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         },
+        voiceEntries: {
+          used: 0,
+          limit: Infinity,
+          resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        },
         categories: {
-          used: 5,
+          used: 0,
           limit: Infinity,
         },
       };
@@ -284,8 +314,13 @@ export const cancelSubscription = createAsyncThunk(
           limit: 3,
           resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         },
+        voiceEntries: {
+          used: 0,
+          limit: 3,
+          resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        },
         categories: {
-          used: 5,
+          used: 0,
           limit: 5,
         },
       };
@@ -320,6 +355,16 @@ const subscriptionSlice = createSlice({
         state.usageLimits.insights.used += 1;
         AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(state.usageLimits));
       }
+    },
+    incrementVoiceEntries: (state) => {
+      if (state.subscription.tier === 'FREE') {
+        state.usageLimits.voiceEntries.used += 1;
+        AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(state.usageLimits));
+      }
+    },
+    updateCategoryCount: (state, action: PayloadAction<number>) => {
+      state.usageLimits.categories.used = action.payload;
+      AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(state.usageLimits));
     },
     clearError: (state) => {
       state.error = null;
@@ -393,6 +438,6 @@ const subscriptionSlice = createSlice({
   },
 });
 
-export const { incrementReceiptScans, incrementInsights, clearError } = subscriptionSlice.actions;
+export const { incrementReceiptScans, incrementInsights, incrementVoiceEntries, updateCategoryCount, clearError } = subscriptionSlice.actions;
 export default subscriptionSlice.reducer;
 

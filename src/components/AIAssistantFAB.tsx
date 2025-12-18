@@ -35,9 +35,7 @@ const AIAssistantFAB: React.FC<AIAssistantFABProps> = ({ context, initialQuery }
   const insets = useSafeAreaInsets();
 
   const handlePress = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     navigation.navigate('AIAssistant', {
       context,

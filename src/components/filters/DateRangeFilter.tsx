@@ -112,9 +112,7 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
 
   // Handle period preset selection
   const handlePeriodSelect = useCallback((preset: PeriodPreset) => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const range = getDateRangeFromPeriod(preset);
     onChange({
       ...range,
@@ -125,9 +123,7 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
 
   // Handle tab change
   const handleTabChange = useCallback((index: number) => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveTab(index);
     tabIndicatorPosition.value = withTiming(index, { duration: 200 });
     scrollViewRef.current?.scrollTo({ x: index * SCREEN_WIDTH, animated: true });

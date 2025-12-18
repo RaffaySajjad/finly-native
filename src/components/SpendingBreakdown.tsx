@@ -106,9 +106,7 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
 
   // Memoized because it's passed to chartData which creates objects for PieChart
   const handleSlicePress = useCallback((index: number) => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     const category = sortedCategories[index];
     if (!category) return;
@@ -139,9 +137,7 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
 
   const handleNavigateToCategory = () => {
     if (!selectedSlice) return;
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     navigation.navigate('CategoryDetails', { categoryId: selectedSlice.category.id });
   };
 
@@ -194,9 +190,7 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
           <Text style={[styles.title, { color: theme.text }]}>Spending Breakdown</Text>
           <TouchableOpacity
             onPress={() => {
-              if (Platform.OS === 'ios') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               navigation.navigate('MainTabs', { screen: 'Categories' } as any);
             }}
             activeOpacity={0.7}

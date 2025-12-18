@@ -100,13 +100,13 @@ const SubscriptionScreen: React.FC = () => {
   };
 
   const premiumFeatures = [
-    { icon: 'camera-outline', title: 'Unlimited Receipt Scanning', description: 'Scan unlimited receipts with advanced AI OCR' },
-    { icon: 'microphone', title: 'Smart Entry', description: 'Speak or type to add multiple transactions' },
+    { icon: 'camera-outline', title: 'Unlimited Receipt Scanning', description: 'Scan unlimited receipts (Free: 3/month)' },
+    { icon: 'microphone', title: 'Unlimited Smart Entry', description: 'Voice & AI-powered entry (Free: 3/month)' },
     { icon: 'chart-line', title: 'Advanced Analytics', description: 'Year over year comparisons & predictions' },
-    { icon: 'brain', title: 'Smart Insights', description: 'Unlimited AI-powered financial insights' },
-    { icon: 'shape', title: 'Unlimited Categories', description: 'Create as many categories as you need' },
+    { icon: 'brain', title: 'Smart Insights', description: 'Unlimited AI-powered insights (Free: 3/week)' },
+    { icon: 'shape', title: 'Unlimited Categories', description: 'Create unlimited custom categories (Free: 5)' },
     { icon: 'file-export', title: 'Data Export', description: 'Export reports in PDF format' },
-    { icon: 'repeat', title: 'Bulk Transaction Entry', description: 'Import CSV or add multiple at once' },
+    { icon: 'repeat', title: 'Bulk Transaction Entry', description: 'Add multiple transactions at once' },
     { icon: 'image-multiple', title: 'Receipt Gallery', description: 'Organize and search all your receipts' },
   ];
 
@@ -269,7 +269,7 @@ const SubscriptionScreen: React.FC = () => {
                   <>
                       <Text style={styles.trialButtonText}>Start 7-Day Free Trial</Text>
                       <Text style={styles.trialButtonSubtext}>
-                      {selectedPlan === 'monthly' ? '$4.99/month' : '$35.99/year'} after trial • Cancel anytime
+                      {selectedPlan === 'monthly' ? '$4.99/month' : '$34.99/year'} after trial • Cancel anytime
                     </Text>
                   </>
                 )}
@@ -291,7 +291,7 @@ const SubscriptionScreen: React.FC = () => {
                   <>
                     <Text style={styles.trialButtonText}>Upgrade to Premium</Text>
                     <Text style={styles.trialButtonSubtext}>
-                      Continue enjoying Premium features • {selectedPlan === 'monthly' ? '$4.99/month' : '$35.99/year'}
+                      Continue enjoying Premium features • {selectedPlan === 'monthly' ? '$4.99/month' : '$34.99/year'}
                     </Text>
                   </>
                 )}

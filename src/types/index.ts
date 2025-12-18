@@ -104,6 +104,18 @@ export interface UnifiedTransaction {
   originalCurrency?: string;
 }
 
+// Budget type determines how budget is tracked over time
+export type BudgetType = 'MONTHLY' | 'ROLLOVER';
+
+// Rollover budget data for sinking fund categories
+export interface CategoryRollover {
+  accumulatedBudget: number; // Total available (carriedOver + allocatedAmount)
+  carriedOver: number; // Amount carried from previous months
+  monthlyAllocation: number; // This month's allocation
+  monthsAccumulating: number; // How many months have been accumulating
+  percentUsed: number; // Percentage of accumulated budget used
+}
+
 export interface Category {
   id: string; // UUID string from database
   name: string;
@@ -111,6 +123,7 @@ export interface Category {
   color: string;
   totalSpent?: number; // Computed field, may not always be present
   budgetLimit?: number;
+  budgetType?: BudgetType; // MONTHLY (default) or ROLLOVER (sinking fund)
   originalAmount?: number; // Budget amount in original currency
   originalCurrency?: string; // Original currency code when budget was set
   userId?: string | null;
@@ -119,6 +132,42 @@ export interface Category {
   isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  // Rollover-specific fields (only populated for ROLLOVER type)
+  rollover?: CategoryRollover;
+}
+
+// Rollover state for a specific month
+export interface RolloverState {
+  id: string;
+  categoryId: string;
+  month: string; // ISO date string
+  allocatedAmount: number;
+  spentAmount: number;
+  carriedOver: number;
+  totalAvailable: number;
+  percentUsed: number;
+}
+
+// Budget history entry for tracking changes
+export interface BudgetHistoryEntry {
+  id: string;
+  categoryId: string;
+  previousAmount: number | null;
+  newAmount: number;
+  effectiveFrom: string; // ISO date string
+  appliedToCurrentMonth: boolean;
+  note: string | null;
+  createdAt: string;
+}
+
+// Complete rollover summary for a category
+export interface RolloverSummary {
+  categoryId: string;
+  currentMonth: RolloverState;
+  totalAccumulated: number;
+  monthsAccumulating: number;
+  history: BudgetHistoryEntry[];
+  monthlyBreakdown: RolloverState[];
 }
 
 export interface Insight {
@@ -176,6 +225,11 @@ export interface UsageLimits {
     resetDate: string;
   };
   insights: {
+    used: number;
+    limit: number;
+    resetDate: string;
+  };
+  voiceEntries: {
     used: number;
     limit: number;
     resetDate: string;

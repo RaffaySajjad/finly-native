@@ -8,6 +8,8 @@ import { logger } from '../utils/logger';
 import {
   Expense,
   Category,
+  BudgetType,
+  RolloverSummary,
   Insight,
   MonthlyStats,
   Receipt,
@@ -102,12 +104,14 @@ export const apiService = {
 
   /**
    * Create a new category
+   * Supports both MONTHLY and ROLLOVER budget types
    */
   async createCategory(data: {
     name: string;
     icon: string;
     color: string;
     budgetLimit?: number;
+    budgetType?: BudgetType;
     originalAmount?: number;
     originalCurrency?: string;
   }): Promise<Category> {
@@ -128,6 +132,7 @@ export const apiService = {
 
   /**
    * Update an existing category
+   * Supports budget type changes and "apply to current month" for rollover categories
    */
   async updateCategory(
     categoryId: string,
@@ -136,9 +141,11 @@ export const apiService = {
       icon?: string;
       color?: string;
       budgetLimit?: number | null;
+      budgetType?: BudgetType;
       originalAmount?: number | null;
       originalCurrency?: string | null;
       isActive?: boolean;
+      applyToCurrentMonth?: boolean; // For rollover: update current month's allocation
     }
   ): Promise<Category> {
     try {
@@ -152,6 +159,25 @@ export const apiService = {
       return response.data!;
     } catch (error) {
       console.error('[API] Update category error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get rollover summary for a category (sinking fund details)
+   * Returns current state, budget history, and monthly breakdown
+   */
+  async getRolloverSummary(categoryId: string): Promise<RolloverSummary> {
+    try {
+      const response = await api.get<RolloverSummary>(
+        API_ENDPOINTS.CATEGORIES.ROLLOVER.replace(':id', categoryId)
+      );
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to get rollover summary');
+      }
+      return response.data!;
+    } catch (error) {
+      console.error('[API] Get rollover summary error:', error);
       throw error;
     }
   },

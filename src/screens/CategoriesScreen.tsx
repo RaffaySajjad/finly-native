@@ -21,16 +21,15 @@ import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { useSelector } from 'react-redux';
 import { useTheme } from '../contexts/ThemeContext';
 import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { CategoryCard, AIAssistantFAB } from '../components';
+import { useSubscription } from '../hooks/useSubscription';
+import { CategoryCard, AIAssistantFAB, UpgradePrompt } from '../components';
 import { useCreateCategoryModal } from '../contexts/CreateCategoryModalContext';
 import { apiService } from '../services/api';
 import { Category } from '../types';
 import { RootStackParamList } from '../navigation/types';
-import { RootState } from '../store';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 
 type CategoriesNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -42,13 +41,13 @@ const CategoriesScreen: React.FC = () => {
   const { theme } = useTheme();
   const { formatCurrency } = useCurrency();
   const navigation = useNavigation<CategoriesNavigationProp>();
-  const subscription = useSelector((state: RootState) => state.subscription);
-  const isPremium = subscription.subscription.tier === 'PREMIUM';
+  const { isPremium, requiresUpgrade, setCategoryCount, getRemainingUsage } = useSubscription();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [setupCompleted, setSetupCompleted] = useState(false);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const { openCreateCategoryModal } = useCreateCategoryModal();
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -79,6 +78,10 @@ const CategoriesScreen: React.FC = () => {
       ]);
       setCategories(data || []);
       setSetupCompleted(completed);
+
+      // Track category count for free tier limits (only count custom categories)
+      const customCategoryCount = (data || []).filter(cat => !cat.isSystemCategory).length;
+      setCategoryCount(customCategoryCount);
     } catch (error) {
       console.error('Error loading categories:', error);
       setCategories([]);
@@ -110,11 +113,14 @@ const CategoriesScreen: React.FC = () => {
   }): Promise<void> => {
     try {
       const newCategory = await apiService.createCategory(data);
-      setCategories([...categories, newCategory]);
+      const updatedCategories = [...categories, newCategory];
+      setCategories(updatedCategories);
 
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      // Update category count for free tier limits
+      const customCategoryCount = updatedCategories.filter(cat => !cat.isSystemCategory).length;
+      setCategoryCount(customCategoryCount);
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
       console.error('[CategoriesScreen] Create category error:', error);
       throw error; // Re-throw to let modal handle the error display
@@ -125,27 +131,13 @@ const CategoriesScreen: React.FC = () => {
    * Handles opening create modal with premium check
    */
   const handleOpenCreateModal = (): void => {
-    if (!isPremium) {
-      Alert.alert(
-        'Premium Feature',
-        'Custom categories are available for Premium users. Upgrade to create unlimited custom categories.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Learn More',
-            onPress: () => {
-              // Navigate to subscription/premium screen if available
-              // navigation.navigate('Subscription');
-            },
-          },
-        ]
-      );
+    // Check if user has hit category limit (free tier: 5 custom categories)
+    if (requiresUpgrade('unlimitedCategories')) {
+      setShowUpgradePrompt(true);
       return;
     }
 
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     openCreateCategoryModal({
       onCreate: handleCreateCategory,
       isPremium,
@@ -155,6 +147,14 @@ const CategoriesScreen: React.FC = () => {
 
   const totalSpent = categories.reduce((sum, cat) => sum + (cat.totalSpent || 0), 0);
   const existingCategoryNames = categories.map(cat => cat.name);
+
+  // Calculate overspent categories
+  const overspentCategories = categories.filter(
+    cat => cat.budgetLimit && (cat.totalSpent || 0) > cat.budgetLimit
+  );
+  const totalOverspent = overspentCategories.reduce((sum, cat) => {
+    return sum + ((cat.totalSpent || 0) - (cat.budgetLimit || 0));
+  }, 0);
 
   // Group categories by system vs custom
   const systemCategories = categories.filter(cat => cat.isSystemCategory === true);
@@ -251,6 +251,25 @@ const CategoriesScreen: React.FC = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
         }
       >
+        {/* Overspent Alert Banner */}
+        {overspentCategories.length > 0 && (
+          <View style={[styles.overspentBanner, { backgroundColor: theme.error + '15' }]}>
+            <View style={[styles.overspentIconContainer, { backgroundColor: theme.error }]}>
+              <Icon name="alert-circle" size={20} color="#FFFFFF" />
+            </View>
+            <View style={styles.overspentTextContainer}>
+              <Text style={[styles.overspentTitle, { color: theme.error }]}>
+                {overspentCategories.length === 1
+                  ? '1 Category Over Budget'
+                  : `${overspentCategories.length} Categories Over Budget`}
+              </Text>
+              <Text style={[styles.overspentSubtitle, { color: theme.textSecondary }]}>
+                Total overspent: {formatCurrency(totalOverspent)}
+              </Text>
+            </View>
+          </View>
+        )}
+
         <View style={styles.content}>
           {/* System Categories (Default) */}
           {systemCategories.length > 0 && (
@@ -297,6 +316,14 @@ const CategoriesScreen: React.FC = () => {
 
         <View style={{ height: Platform.OS === 'ios' ? spacing.xl : 0 }} />
       </ScrollView>
+
+      {/* Upgrade Prompt for Category Limit */}
+      <UpgradePrompt
+        visible={showUpgradePrompt}
+        onClose={() => setShowUpgradePrompt(false)}
+        feature="Unlimited Categories"
+        message={`You've reached the limit of ${5} custom categories. Upgrade to Premium to create unlimited categories!`}
+      />
     </SafeAreaView>
   );
 };
@@ -357,6 +384,34 @@ const styles = StyleSheet.create({
     ...typography.bodyMedium,
     marginTop: spacing.md,
     textAlign: 'center',
+  },
+  overspentBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  overspentIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  overspentTextContainer: {
+    flex: 1,
+  },
+  overspentTitle: {
+    ...typography.titleSmall,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  overspentSubtitle: {
+    ...typography.bodySmall,
   },
   onboardingContent: {
     flexGrow: 1,

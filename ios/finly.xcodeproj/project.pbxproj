@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 70;
+	objectVersion = 56;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -13,8 +13,8 @@
 		9A576F2E2EE18151003A11A9 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A576F2D2EE18151003A11A9 /* WidgetKit.framework */; };
 		9A576F302EE18151003A11A9 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A576F2F2EE18151003A11A9 /* SwiftUI.framework */; };
 		9A576F412EE18154003A11A9 /* FinlyWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9A576F2C2EE18151003A11A9 /* FinlyWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		9A58966D2EE194E100C0F11C /* finly/WidgetDataSync.m in Sources */ = {isa = PBXBuildFile; fileRef = 9A58966B2EE194E100C0F11C /* finly/WidgetDataSync.m */; };
-		9A58966E2EE194E100C0F11C /* finly/WidgetDataSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A58966C2EE194E100C0F11C /* finly/WidgetDataSync.swift */; };
+		9A58966D2EE194E100C0F11C /* WidgetDataSync.m in Sources */ = {isa = PBXBuildFile; fileRef = 9A58966B2EE194E100C0F11C /* WidgetDataSync.m */; };
+		9A58966E2EE194E100C0F11C /* WidgetDataSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A58966C2EE194E100C0F11C /* WidgetDataSync.swift */; };
 		ADACE5CE549958CF3412ED7E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BD2326D99C677B14A4776512 /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
@@ -56,8 +56,8 @@
 		9A576F2D2EE18151003A11A9 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		9A576F2F2EE18151003A11A9 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		9A576F5B2EE18273003A11A9 /* FinlyWidgetExtensionRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FinlyWidgetExtensionRelease.entitlements; sourceTree = "<group>"; };
-		9A58966B2EE194E100C0F11C /* finly/WidgetDataSync.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = finly/WidgetDataSync.m; sourceTree = "<group>"; };
-		9A58966C2EE194E100C0F11C /* finly/WidgetDataSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = finly/WidgetDataSync.swift; sourceTree = "<group>"; };
+		9A58966B2EE194E100C0F11C /* WidgetDataSync.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = finly/WidgetDataSync.m; sourceTree = "<group>"; };
+		9A58966C2EE194E100C0F11C /* WidgetDataSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = finly/WidgetDataSync.swift; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = finly/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		BD2326D99C677B14A4776512 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = finly/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -69,7 +69,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		9A576F452EE18154003A11A9 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		9A576F452EE18154003A11A9 /* Exceptions for "FinlyWidget" folder in "FinlyWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -79,7 +79,18 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		9A576F312EE18151003A11A9 /* FinlyWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (9A576F452EE18154003A11A9 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = FinlyWidget; sourceTree = "<group>"; };
+		9A576F312EE18151003A11A9 /* FinlyWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				9A576F452EE18154003A11A9 /* Exceptions for "FinlyWidget" folder in "FinlyWidgetExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = FinlyWidget;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -107,8 +118,8 @@
 			isa = PBXGroup;
 			children = (
 				9A06E0652EF024D100F3423E /* finlyDebug.entitlements */,
-				9A58966B2EE194E100C0F11C /* finly/WidgetDataSync.m */,
-				9A58966C2EE194E100C0F11C /* finly/WidgetDataSync.swift */,
+				9A58966B2EE194E100C0F11C /* WidgetDataSync.m */,
+				9A58966C2EE194E100C0F11C /* WidgetDataSync.swift */,
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
 				F11748442D0722820044C1D9 /* finly-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
@@ -435,8 +446,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9A58966D2EE194E100C0F11C /* finly/WidgetDataSync.m in Sources */,
-				9A58966E2EE194E100C0F11C /* finly/WidgetDataSync.swift in Sources */,
+				9A58966D2EE194E100C0F11C /* WidgetDataSync.m in Sources */,
+				9A58966E2EE194E100C0F11C /* WidgetDataSync.swift in Sources */,
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
 				69A5FE3F1B4E5FD092341686 /* ExpoModulesProvider.swift in Sources */,
 			);
@@ -475,7 +486,7 @@
 					"FB_SONARKIT_ENABLED=1",
 				);
 				INFOPLIST_FILE = finly/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Finly AI Debug";
+				INFOPLIST_KEY_CFBundleDisplayName = "Finly AI (Alpha)";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

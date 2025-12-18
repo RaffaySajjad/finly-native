@@ -61,9 +61,9 @@ export const BottomSheetBackground: React.FC<BottomSheetBackgroundProps> = ({ st
             width: 0,
             height: -4, // Negative height creates shadow above
           },
-          shadowOpacity: 0.15,
-          shadowRadius: 8,
-          elevation: 8, // Android elevation
+          shadowOpacity: 0.2, // Increased from 0.15 for better visibility
+          shadowRadius: 12, // Increased from 8 for more prominent shadow
+          elevation: 12, // Increased from 8 for Android elevation
         },
         style,
       ]}

@@ -175,9 +175,7 @@ const BalanceHistoryScreen: React.FC = () => {
 
   // Haptic feedback helper
   const triggerHaptic = useCallback(() => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, []);
 
   useFocusEffect(

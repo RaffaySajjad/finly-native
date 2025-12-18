@@ -13,6 +13,8 @@ import {
   cancelSubscription,
   incrementReceiptScans,
   incrementInsights,
+  incrementVoiceEntries,
+  updateCategoryCount,
 } from '../store/slices/subscriptionSlice';
 
 /**
@@ -75,8 +77,11 @@ export const useSubscription = () => {
       case 'advancedInsights':
         return usageLimits.insights.used < usageLimits.insights.limit;
       case 'voiceEntry':
+        // Free tier gets 3 voice entries/month
+        return usageLimits.voiceEntries.used < usageLimits.voiceEntries.limit;
       case 'bulkEntry':
-        return true;
+        // Bulk entry is premium-only
+        return false;
       case 'unlimitedCategories':
         return usageLimits.categories.used < usageLimits.categories.limit;
       default:
@@ -87,7 +92,7 @@ export const useSubscription = () => {
   /**
    * Get remaining usage for a feature
    */
-  const getRemainingUsage = (feature: 'receiptScanning' | 'advancedInsights' | 'unlimitedCategories'): number => {
+  const getRemainingUsage = (feature: 'receiptScanning' | 'advancedInsights' | 'voiceEntry' | 'unlimitedCategories'): number => {
     if (isPremium) return Infinity;
 
     switch (feature) {
@@ -95,6 +100,8 @@ export const useSubscription = () => {
         return Math.max(0, usageLimits.receiptScans.limit - usageLimits.receiptScans.used);
       case 'advancedInsights':
         return Math.max(0, usageLimits.insights.limit - usageLimits.insights.used);
+      case 'voiceEntry':
+        return Math.max(0, usageLimits.voiceEntries.limit - usageLimits.voiceEntries.used);
       case 'unlimitedCategories':
         return Math.max(0, usageLimits.categories.limit - usageLimits.categories.used);
       default:
@@ -112,14 +119,23 @@ export const useSubscription = () => {
   /**
    * Track usage of a feature
    */
-  const trackUsage = (feature: 'receiptScanning' | 'advancedInsights'): void => {
+  const trackUsage = (feature: 'receiptScanning' | 'advancedInsights' | 'voiceEntry'): void => {
     if (isPremium) return; // No limits for premium
 
     if (feature === 'receiptScanning') {
       dispatch(incrementReceiptScans());
     } else if (feature === 'advancedInsights') {
       dispatch(incrementInsights());
+    } else if (feature === 'voiceEntry') {
+      dispatch(incrementVoiceEntries());
     }
+  };
+
+  /**
+   * Update category count for limit tracking
+   */
+  const setCategoryCount = (count: number): void => {
+    dispatch(updateCategoryCount(count));
   };
 
   return {
@@ -138,6 +154,7 @@ export const useSubscription = () => {
     getRemainingUsage,
     requiresUpgrade,
     trackUsage,
+    setCategoryCount,
 
     // Actions (memoized to prevent re-renders)
     checkStatus,

@@ -126,9 +126,7 @@ const IncomeManagementScreen: React.FC = () => {
   };
 
   const handleOpenAddSheet = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     resetForm();
     bottomSheetRef.current?.expand();
   };
@@ -197,9 +195,7 @@ const IncomeManagementScreen: React.FC = () => {
       await loadIncomeSources();
 
       handleCloseSheet();
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       Alert.alert('Error', 'Failed to save income source');
       console.error('Error saving income source:', error);
@@ -209,9 +205,7 @@ const IncomeManagementScreen: React.FC = () => {
   };
 
   const handleDelete = (source: IncomeSource) => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     Alert.alert(
       'Delete Income Source',
@@ -226,9 +220,7 @@ const IncomeManagementScreen: React.FC = () => {
               await deleteIncomeSource(source.id);
               await loadIncomeSources();
 
-              if (Platform.OS === 'ios') {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              }
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (error) {
               Alert.alert('Error', 'Failed to delete income source');
             }
@@ -239,9 +231,7 @@ const IncomeManagementScreen: React.FC = () => {
   };
 
   const handleEdit = (source: IncomeSource) => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setEditingSource(source);
   };
 

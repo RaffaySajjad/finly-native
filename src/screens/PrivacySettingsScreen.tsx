@@ -105,9 +105,7 @@ const PrivacySettingsScreen: React.FC = () => {
 
               if (biometricAvailable) {
                 // Trigger biometric authentication as final step
-                if (Platform.OS === 'ios') {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                }
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
                 const biometricName = await getBiometricName();
                 const authenticated = await authenticateForAccountDeletion();
@@ -261,27 +259,6 @@ const PrivacySettingsScreen: React.FC = () => {
           />
         </View>
 
-        {/* Privacy Policy Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>INFORMATION</Text>
-          <SettingItem
-            icon="file-document-outline"
-            title="Privacy Policy"
-            subtitle="Read our privacy policy"
-            onPress={() => navigation.navigate('PrivacyPolicy')}
-          />
-          {/* <SettingItem
-            icon="information-outline"
-            title="About Data Storage"
-            subtitle="Learn how your data is stored"
-            onPress={() => {
-              Alert.alert(
-                'Data Storage',
-                'All your expenses, categories, and insights are stored locally on your device using encrypted storage. No data is sent to external servers unless you explicitly choose to export it.'
-              );
-            }}
-          /> */}
-        </View>
 
         <View style={{ height: spacing.xl }} />
       </ScrollView>

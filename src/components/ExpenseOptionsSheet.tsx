@@ -52,9 +52,7 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
   }, [expense]);
 
   const handleEdit = useCallback(() => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     bottomSheetRef.current?.close();
     if (expense) {
       onEdit(expense);
@@ -62,9 +60,7 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
   }, [expense, onEdit]);
 
   const handleDelete = useCallback(() => {
-    if (Platform.OS === 'ios') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     
     Alert.alert(
       'Delete Transaction',
@@ -74,18 +70,14 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
           text: 'Cancel',
           style: 'cancel',
           onPress: () => {
-            if (Platform.OS === 'ios') {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            }
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           },
         },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            if (Platform.OS === 'ios') {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            }
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             bottomSheetRef.current?.close();
             if (expense) {
               onDelete(expense);

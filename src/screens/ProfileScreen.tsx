@@ -112,14 +112,16 @@ const ProfileScreen: React.FC = () => {
       const success = await enableBiometricLogin();
       if (success) {
         setBiometricEnabled(true);
-        if (Platform.OS === 'ios') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Haptic feedback on iOS and Android
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
         Alert.alert('Error', 'Failed to enable biometric login');
       }
     } else {
       await disableBiometricLogin();
       setBiometricEnabled(false);
-      if (Platform.OS === 'ios') Haptics.selectionAsync();
+      // Haptic feedback on iOS and Android
+      Haptics.selectionAsync();
     }
   };
 
@@ -149,16 +151,12 @@ const ProfileScreen: React.FC = () => {
   };
 
   const handleOpenNotificationSettings = async () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await notificationService.openAppSettings();
   };
 
   const handleEditProfile = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     editProfileSheetRef.current?.expand();
   };
 
@@ -170,9 +168,7 @@ const ProfileScreen: React.FC = () => {
 
     try {
       await dispatch(updateProfileAction({ name: editName, email: editEmail })).unwrap();
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       editProfileSheetRef.current?.close();
       Alert.alert('Success', 'Profile updated successfully!');
     } catch (error) {
@@ -184,9 +180,7 @@ const ProfileScreen: React.FC = () => {
     setCurrency(curr);
     await saveUserCurrency(curr); // This already calls saveLastUsedCurrency
     await setCurrencyGlobal(curr); // Update global currency context
-    if (Platform.OS === 'ios') {
-      Haptics.selectionAsync();
-    }
+    Haptics.selectionAsync();
     currencySheetRef.current?.close();
   };
 
@@ -195,23 +189,17 @@ const ProfileScreen: React.FC = () => {
   };
 
   const handleOpenHelp = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     helpSheetRef.current?.expand();
   };
 
   const handleOpenAbout = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     aboutSheetRef.current?.expand();
   };
 
   const handleLogout = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     Alert.alert(
       'Logout',
@@ -227,9 +215,7 @@ const ProfileScreen: React.FC = () => {
           onPress: async () => {
             try {
               await dispatch(logoutAction()).unwrap();
-              if (Platform.OS === 'ios') {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              }
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (error) {
               Alert.alert('Error', 'Failed to logout');
             }
@@ -240,9 +226,7 @@ const ProfileScreen: React.FC = () => {
   };
 
   const handleDeleteAccount = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
     // Reset feedback fields
     setReasonForDeletion('');
@@ -275,9 +259,7 @@ const ProfileScreen: React.FC = () => {
 
               if (biometricAvailable) {
                 // Trigger biometric authentication
-                if (Platform.OS === 'ios') {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                }
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
                 const biometricName = await getBiometricName();
                 const authenticated = await authenticateForAccountDeletion();
@@ -301,9 +283,7 @@ const ProfileScreen: React.FC = () => {
                 feedback: feedback.trim() || undefined,
               })).unwrap();
 
-              if (Platform.OS === 'ios') {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-              }
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             } catch (error) {
               Alert.alert('Error', 'Failed to delete account. Please try again.');
             }
@@ -315,29 +295,21 @@ const ProfileScreen: React.FC = () => {
 
   const handleToggleMockIAP = (value: boolean) => {
     dispatch(toggleMockIAP(value));
-    if (Platform.OS === 'ios') {
-      Haptics.selectionAsync();
-    }
+    Haptics.selectionAsync();
   };
 
   const handleSendTestNotification = async () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
       await notificationService.sendTestNotification();
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
       Alert.alert(
         'Error',
         error.message || 'Failed to send test notification. Make sure notifications are enabled.'
       );
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 

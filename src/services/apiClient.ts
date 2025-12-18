@@ -71,6 +71,7 @@ const createApiClient = (): AxiosInstance => {
    */
   client.interceptors.request.use(
     async (config: InternalAxiosRequestConfig) => {
+      // Add authentication token
       const token = await tokenManager.getAccessToken();
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
@@ -80,14 +81,16 @@ const createApiClient = (): AxiosInstance => {
       if (config.data instanceof FormData && config.headers) {
         delete config.headers['Content-Type'];
       }
-      
+
       // Log request details (debug level)
       const fullUrl = `${config.baseURL}${config.url}`;
-      logger.debug(`[API] Request: ${config.method?.toUpperCase()} ${fullUrl}`, {
-        data: config.data instanceof FormData ? '[FormData]' : config.data,
-        headers: config.headers,
-      });
-      
+      logger.debug(
+        `[API] Request: ${config.method?.toUpperCase()} ${fullUrl}`,
+        {
+          data: config.data instanceof FormData ? '[FormData]' : config.data
+        }
+      );
+
       return config;
     },
     (error) => {
@@ -112,26 +115,33 @@ const createApiClient = (): AxiosInstance => {
         url: error.config?.url,
         data: error.response?.data,
       });
-      
-      const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+      const originalRequest = error.config as AxiosRequestConfig & {
+        _retry?: boolean;
+      };
 
       // Handle 401 Unauthorized - attempt token refresh
       // Skip token refresh for auth endpoints (login, signup, etc.) as they have their own error handling
       const isAuthEndpoint = originalRequest.url?.includes('/auth/');
-      if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+      if (
+        error.response?.status === 401 &&
+        !originalRequest._retry &&
+        !isAuthEndpoint
+      ) {
         originalRequest._retry = true;
 
         try {
           const refreshToken = await tokenManager.getRefreshToken();
           if (refreshToken) {
             // Attempt to refresh the token
-            const response = await axios.post<ApiResponse<{ tokens: { accessToken: string; refreshToken: string } }>>(
-              buildApiUrl('auth/refresh-token'),
-              { refreshToken }
-            );
+            const response = await axios.post<
+              ApiResponse<{
+                tokens: { accessToken: string; refreshToken: string };
+              }>
+            >(buildApiUrl('auth/refresh-token'), { refreshToken });
 
             if (response.data.success && response.data.data?.tokens) {
-              const { accessToken, refreshToken: newRefreshToken } = response.data.data.tokens;
+              const { accessToken, refreshToken: newRefreshToken } =
+                response.data.data.tokens;
               await tokenManager.setTokens(accessToken, newRefreshToken);
 
               // Retry the original request with new token

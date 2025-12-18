@@ -61,9 +61,7 @@ const FABQuickActions: React.FC<FABQuickActionsProps> = ({
   useEffect(() => {
     if (visible) {
       // Haptic feedback
-      if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       // Animate backdrop and menu container
       Animated.parallel([
@@ -110,9 +108,7 @@ const FABQuickActions: React.FC<FABQuickActionsProps> = ({
   }, [visible]);
 
   const handleActionPress = (action: QuickAction) => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     action.onPress();
     onClose();
   };

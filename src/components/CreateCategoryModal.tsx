@@ -124,6 +124,7 @@ export const CreateCategoryModal: React.FC = () => {
   const [selectedColor, setSelectedColor] = useState('#6B7280');
   const [budgetAmount, setBudgetAmount] = useState('');
   const [selectedBudgetCurrency, setSelectedBudgetCurrency] = useState<string | undefined>(undefined);
+  const [budgetType, setBudgetType] = useState<'MONTHLY' | 'ROLLOVER'>('MONTHLY');
   const [isCreating, setIsCreating] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -185,9 +186,7 @@ export const CreateCategoryModal: React.FC = () => {
    */
   const handleCreate = async (): Promise<void> => {
     if (!validateForm()) {
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
 
@@ -209,6 +208,7 @@ export const CreateCategoryModal: React.FC = () => {
           icon: selectedIcon,
           color: selectedColor,
           budgetLimit: budgetInUSD,
+          budgetType,
           originalAmount: budgetValue,
           originalCurrency: budgetValue !== undefined ? amountCurrency : undefined,
         });
@@ -220,11 +220,10 @@ export const CreateCategoryModal: React.FC = () => {
       setSelectedColor('#6B7280');
       setBudgetAmount('');
       setSelectedBudgetCurrency(undefined);
+      setBudgetType('MONTHLY');
       setErrors({});
 
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       closeCreateCategoryModal();
     } catch (error: any) {
@@ -234,9 +233,7 @@ export const CreateCategoryModal: React.FC = () => {
         error?.message || 'Failed to create category. Please try again.',
         [{ text: 'OK' }]
       );
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setIsCreating(false);
     }
@@ -261,6 +258,7 @@ export const CreateCategoryModal: React.FC = () => {
               setSelectedColor('#6B7280');
               setBudgetAmount('');
               setSelectedBudgetCurrency(undefined);
+              setBudgetType('MONTHLY');
               setErrors({});
               closeCreateCategoryModal();
             },
@@ -383,7 +381,7 @@ export const CreateCategoryModal: React.FC = () => {
           {/* Budget Input */}
           <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: getSecondaryTextColor(theme.textSecondary) }]}>
-              Monthly Budget (Optional)
+              {budgetType === 'ROLLOVER' ? 'Monthly Savings (Optional)' : 'Monthly Budget (Optional)'}
             </Text>
             <View
               style={[
@@ -415,6 +413,79 @@ export const CreateCategoryModal: React.FC = () => {
             {errors.budget && (
               <Text style={[styles.errorText, { color: theme.expense }]}>
                 {errors.budget}
+              </Text>
+            )}
+          </View>
+
+          {/* Budget Type Toggle */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: getSecondaryTextColor(theme.textSecondary) }]}>
+              Budget Type
+            </Text>
+            <View style={styles.budgetTypeContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.budgetTypeOption,
+                  {
+                    backgroundColor: budgetType === 'MONTHLY' ? theme.primary + '20' : theme.background,
+                    borderColor: budgetType === 'MONTHLY' ? theme.primary : getBorderColor(theme.border),
+                  },
+                ]}
+                onPress={() => {
+                  setBudgetType('MONTHLY');
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
+                activeOpacity={0.7}
+              >
+                <Icon 
+                  name="calendar-month" 
+                  size={20} 
+                  color={budgetType === 'MONTHLY' ? theme.primary : getSecondaryTextColor(theme.textSecondary)} 
+                />
+                <Text style={[
+                  styles.budgetTypeText, 
+                  { color: budgetType === 'MONTHLY' ? theme.primary : getTextColor(theme.text) }
+                ]}>
+                  Monthly
+                </Text>
+                <Text style={[styles.budgetTypeDescription, { color: getSecondaryTextColor(theme.textTertiary) }]}>
+                  Resets each month
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.budgetTypeOption,
+                  {
+                    backgroundColor: budgetType === 'ROLLOVER' ? theme.primary + '20' : theme.background,
+                    borderColor: budgetType === 'ROLLOVER' ? theme.primary : getBorderColor(theme.border),
+                  },
+                ]}
+                onPress={() => {
+                  setBudgetType('ROLLOVER');
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
+                activeOpacity={0.7}
+              >
+                <Icon 
+                  name="piggy-bank" 
+                  size={20} 
+                  color={budgetType === 'ROLLOVER' ? theme.primary : getSecondaryTextColor(theme.textSecondary)} 
+                />
+                <Text style={[
+                  styles.budgetTypeText, 
+                  { color: budgetType === 'ROLLOVER' ? theme.primary : getTextColor(theme.text) }
+                ]}>
+                  Savings
+                </Text>
+                <Text style={[styles.budgetTypeDescription, { color: getSecondaryTextColor(theme.textTertiary) }]}>
+                  Accumulates over time
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {budgetType === 'ROLLOVER' && (
+              <Text style={[styles.budgetTypeHint, { color: getSecondaryTextColor(theme.textSecondary) }]}>
+                💡 Perfect for goals like vacations, emergency funds, or big purchases
               </Text>
             )}
           </View>
@@ -513,9 +584,7 @@ export const CreateCategoryModal: React.FC = () => {
                     ]}
                     onPress={() => {
                       setSelectedIcon(iconName);
-                      if (Platform.OS === 'ios') {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      }
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       setShowIconPicker(false);
                     }}
                     activeOpacity={0.7}
@@ -569,9 +638,7 @@ export const CreateCategoryModal: React.FC = () => {
                     ]}
                     onPress={() => {
                       setSelectedColor(colorValue);
-                      if (Platform.OS === 'ios') {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      }
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       setShowColorPicker(false);
                     }}
                     activeOpacity={0.8}
@@ -818,6 +885,34 @@ const styles = StyleSheet.create({
   premiumBannerText: {
     ...typography.labelSmall,
     fontWeight: '600',
+  },
+  budgetTypeContainer: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  budgetTypeOption: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  budgetTypeText: {
+    ...typography.labelMedium,
+    fontWeight: '600',
+  },
+  budgetTypeDescription: {
+    ...typography.bodySmall,
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  budgetTypeHint: {
+    ...typography.bodySmall,
+    marginTop: spacing.sm,
+    fontStyle: 'italic',
   },
 });
 

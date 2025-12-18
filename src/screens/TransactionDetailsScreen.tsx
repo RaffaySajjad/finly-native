@@ -122,9 +122,7 @@ const TransactionDetailsScreen: React.FC = () => {
   };
 
   const handleEdit = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (isExpense) {
       const expense: Expense = {
         id: transaction.id,
@@ -163,9 +161,7 @@ const TransactionDetailsScreen: React.FC = () => {
   };
 
   const handleDelete = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const deleteTransaction = async () => {
       try {
@@ -174,9 +170,7 @@ const TransactionDetailsScreen: React.FC = () => {
         } else {
           await apiService.deleteIncomeTransaction(transaction.id);
         }
-        if (Platform.OS === 'ios') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         navigation.goBack();
       } catch (error) {
         showError('Error', 'Failed to delete transaction');

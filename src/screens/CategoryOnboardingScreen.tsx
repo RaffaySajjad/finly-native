@@ -118,9 +118,7 @@ const CategoryOnboardingScreen: React.FC = () => {
       return;
     }
 
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // Calculate suggested budgets based on income
     const baseCategories = Object.entries(BUDGET_ALLOCATIONS)
@@ -176,9 +174,7 @@ const CategoryOnboardingScreen: React.FC = () => {
     setCustomCategoryColor('#6B7280');
     setCustomCategoryBudget('');
 
-    if (Platform.OS === 'ios') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const handleDeleteCategory = (index: number) => {
@@ -186,9 +182,7 @@ const CategoryOnboardingScreen: React.FC = () => {
     newCategories.splice(index, 1);
     setCategories(newCategories);
 
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const handleSetupComplete = async () => {
@@ -236,9 +230,7 @@ const CategoryOnboardingScreen: React.FC = () => {
 
       await Promise.all(promises);
 
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       // Navigate back to categories screen
       setTimeout(() => {
@@ -266,9 +258,7 @@ const CategoryOnboardingScreen: React.FC = () => {
             setStep('loading');
             try {
               await apiService.setupDefaultCategories();
-              if (Platform.OS === 'ios') {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              }
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               setTimeout(() => navigation.goBack(), 500);
             } catch (error) {
               Alert.alert('Error', 'Failed to set up categories.');
@@ -564,9 +554,7 @@ const CategoryOnboardingScreen: React.FC = () => {
                       ]}
                       onPress={() => {
                         setCustomCategoryIcon(iconName);
-                        if (Platform.OS === 'ios') {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        }
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       }}
                       activeOpacity={0.7}
                     >
@@ -592,9 +580,7 @@ const CategoryOnboardingScreen: React.FC = () => {
                       ]}
                       onPress={() => {
                         setCustomCategoryColor(colorValue);
-                        if (Platform.OS === 'ios') {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        }
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       }}
                       activeOpacity={0.8}
                     >

@@ -56,14 +56,10 @@ export const BiometricLockScreen: React.FC<BiometricLockScreenProps> = ({ onUnlo
       );
 
       if (success) {
-        if (Platform.OS === 'ios') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         onUnlock();
       } else {
-         if (Platform.OS === 'ios') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } catch (error) {
       console.error('Auth error in lock screen:', error);
@@ -79,7 +75,7 @@ export const BiometricLockScreen: React.FC<BiometricLockScreenProps> = ({ onUnlo
           <Icon name="shield-lock" size={64} color={theme.primary} />
         </View>
         
-        <Text style={[styles.title, { color: theme.text }]}>Finly is Locked</Text>
+        <Text style={[styles.title, { color: theme.text }]}>Finly AI is Locked</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
           Please authenticate with {biometricName} to access your finances.
         </Text>

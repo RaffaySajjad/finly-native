@@ -466,9 +466,7 @@ const TransactionsListScreen: React.FC = () => {
 
   const handleTransactionLongPress = useCallback((transaction: UnifiedTransaction) => {
     setSelectedTransaction(transaction);
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, []);
 
   const handleTransactionPress = useCallback((transaction: UnifiedTransaction) => {

@@ -483,9 +483,7 @@ const DashboardScreen: React.FC = () => {
     if (transaction.type === 'expense') {
       setSelectedTransaction(transaction);
       optionsSheetRef.current?.expand();
-      if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   };
 
@@ -658,9 +656,7 @@ const DashboardScreen: React.FC = () => {
 
   // Scroll back to balance card when pill is tapped
   const handlePillPress = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     scrollViewRef.current?.scrollTo({
       y: 0,
       animated: true,
@@ -775,9 +771,7 @@ const DashboardScreen: React.FC = () => {
                 activeOpacity={0.9}
                 onPress={handleOpenBalanceAdjust}
                 onLongPress={() => {
-                  if (Platform.OS === 'ios') {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  }
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   navigation.navigate('BalanceHistory');
                 }}
               >

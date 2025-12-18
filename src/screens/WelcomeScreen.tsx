@@ -37,8 +37,10 @@ interface FeatureItem {
 
 const features: FeatureItem[] = [
   { icon: 'lightning-bolt', title: 'Track expenses instantly', delay: 400 },
-  { icon: 'microphone', title: 'Voice-powered entries', delay: 550 },
-  { icon: 'chart-line', title: 'AI-driven insights', delay: 700 },
+  { icon: 'receipt-text-outline', title: 'Scan any receipt or screenshot', delay: 550 },
+  { icon: 'microphone', title: 'Voice-powered entries', delay: 700 },
+  { icon: 'chart-line', title: 'AI-driven insights', delay: 850 },
+  { icon: 'shield-check-outline', title: 'Your data stays private & secure', delay: 1000 },
 ];
 
 /**
@@ -142,16 +144,12 @@ const WelcomeScreen: React.FC = () => {
   }, []);
 
   const handleGetStarted = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     navigation.navigate('Signup');
   };
 
   const handleSignIn = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     navigation.navigate('Login');
   };
 

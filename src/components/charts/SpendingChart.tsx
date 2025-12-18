@@ -1,147 +1,343 @@
-import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+/**
+ * SpendingChart Component
+ * Premium spending trend visualization with range selection and dynamic Y-axis
+ * Features: Time range toggle, two-point comparison, dynamic scaling
+ */
+
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useCurrency } from '../../contexts/CurrencyContext';
-import { typography, spacing, borderRadius } from '../../theme';
+import { typography, spacing, borderRadius, elevation } from '../../theme';
+import { ChartDataPoint, TimeRange } from './types';
+import { CHART_CONFIG } from './constants';
+import { formatYAxisLabel, formatChartDate } from './utils';
+import { useRangeSelection } from './hooks/useRangeSelection';
+import { useDynamicYAxis } from './hooks/useDynamicYAxis';
+import { RangeSelectionBadge } from './RangeSelectionBadge';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface SpendingChartProps {
   data: Array<{ date: string; amount: number }>;
   timeRange: 'week' | 'month';
   onTimeRangeChange: (range: 'week' | 'month') => void;
+  enableRangeSelection?: boolean;
+  enableDynamicYAxis?: boolean;
 }
 
-export const SpendingChart: React.FC<SpendingChartProps> = ({ 
-  data, 
+export const SpendingChart: React.FC<SpendingChartProps> = ({
+  data,
   timeRange,
-  onTimeRangeChange 
+  onTimeRangeChange,
+  enableRangeSelection = true,
+  enableDynamicYAxis = true,
 }) => {
-  const { theme } = useTheme();
-  const { formatCurrency, convertFromUSD } = useCurrency();
+  const { theme, isDark } = useTheme();
+  const { formatCurrency, convertFromUSD, getCurrencySymbol } = useCurrency();
+  const currencySymbol = getCurrencySymbol();
 
-  const chartData = data.map((item, index) => ({
-    value: convertFromUSD(item.amount),
-    originalValue: item.amount,
-    // Show label only for every 2nd item if in month view to reduce clutter
-    label: timeRange === 'month' && index % 2 !== 0 ? '' : new Date(item.date).getDate().toString(),
-    dataPointText: '',
-    date: item.date,
-  }));
+  const chartWidth = SCREEN_WIDTH - 50;
+  const chartHeight = CHART_CONFIG.defaultHeight;
+  
+  const chartSpacing = useMemo(() => {
+    if (timeRange === 'week') {
+      return Math.max((chartWidth - 60) / Math.max(data.length - 1, 1), 40);
+    }
+    return 35;
+  }, [timeRange, chartWidth, data.length]);
 
-  const formatYLabel = (val: string) => {
-      const num = parseFloat(val);
-      if (isNaN(num)) return val;
-      const absNum = Math.abs(num);
-      
-      if (absNum >= 1000000000) return (num / 1000000000).toFixed(1) + 'B';
-      if (absNum >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-      if (absNum >= 1000) return (num / 1000).toFixed(0) + 'k';
-      
-      return Math.round(num).toString();
+  const chartData: ChartDataPoint[] = useMemo(() => {
+    return data.map((item, index) => ({
+      value: convertFromUSD(item.amount),
+      originalValue: item.amount,
+      label: timeRange === 'month' && index % 2 !== 0 
+        ? '' 
+        : formatChartDate(item.date, 'short'),
+      date: item.date,
+    }));
+  }, [data, convertFromUSD, timeRange]);
+
+  const {
+    selection,
+    metrics: rangeMetrics,
+    hasSelection,
+    isSelecting,
+    selectPoint,
+    clearSelection,
+  } = useRangeSelection({
+    data: chartData,
+    enabled: enableRangeSelection,
+  });
+
+  const {
+    yAxisBounds,
+    handleScroll,
+  } = useDynamicYAxis({
+    data: chartData,
+    itemSpacing: chartSpacing,
+    chartWidth,
+    enabled: enableDynamicYAxis && timeRange === 'month',
+  });
+
+  const formatYLabel = useCallback((val: string) => {
+    const num = parseFloat(val);
+    if (isNaN(num)) return val;
+    return formatYAxisLabel(num, currencySymbol);
+  }, [currencySymbol]);
+
+  const handleDataPointClick = useCallback((item: any, index: number) => {
+    if (enableRangeSelection) {
+      selectPoint(index);
+    }
+  }, [enableRangeSelection, selectPoint]);
+
+  const selectionLabels = useMemo(() => {
+    if (!hasSelection || selection.startIndex === null) {
+      return { start: '', end: '', startFormatted: '', endFormatted: '' };
+    }
+
+    const startPoint = chartData[selection.startIndex!];
+    const endPoint = chartData[selection.endIndex!];
+
+    return {
+      start: startPoint?.date ? formatChartDate(startPoint.date, 'medium') : '',
+      end: endPoint?.date ? formatChartDate(endPoint.date, 'medium') : '',
+      startFormatted: formatCurrency(startPoint?.originalValue || 0),
+      endFormatted: formatCurrency(endPoint?.originalValue || 0),
+    };
+  }, [hasSelection, selection, chartData, formatCurrency]);
+
+  const totalSpending = useMemo(() => {
+    return data.reduce((sum, item) => sum + item.amount, 0);
+  }, [data]);
+
+  const avgSpending = useMemo(() => {
+    return data.length > 0 ? totalSpending / data.length : 0;
+  }, [totalSpending, data.length]);
+
+  const pointerConfig = {
+    pointerStripUptoDataPoint: true,
+    pointerStripColor: theme.border,
+    pointerStripWidth: 1.5,
+    strokeDashArray: [4, 4],
+    pointerColor: theme.expense,
+    radius: CHART_CONFIG.dataPoints.radius,
+    pointerLabelWidth: 140,
+    pointerLabelHeight: 90,
+    activatePointersOnLongPress: !enableRangeSelection,
+    autoAdjustPointerLabelPosition: true,
+    pointerLabelComponent: (items: any) => {
+      const item = items[0];
+      if (!item) return null;
+
+      return (
+        <View style={[
+          styles.tooltip,
+          {
+            backgroundColor: theme.card,
+            borderColor: theme.border,
+          },
+          elevation.md,
+        ]}>
+          <View style={[styles.tooltipAccent, { backgroundColor: theme.expense }]} />
+          <Text style={[styles.tooltipDate, { color: theme.textSecondary }]}>
+            {item.date ? formatChartDate(item.date, 'medium') : ''}
+          </Text>
+          <Text style={[styles.tooltipValue, { color: theme.text }]}>
+            {formatCurrency(item.originalValue)}
+          </Text>
+          {enableRangeSelection && (
+            <Text style={[styles.tooltipHint, { color: theme.textTertiary }]}>
+              {isSelecting ? 'Tap another point' : 'Tap to select'}
+            </Text>
+          )}
+        </View>
+      );
+    },
   };
 
-  // Dynamic spacing: 'week' fits to screen, 'month' scrolls
-  // Week has ~7 items. (Width - padding) / 6 spaces
-  const screenWidth = width - 48; // Container width roughly
-  const weekSpacing = (screenWidth - 40) / 6; 
-  const monthSpacing = 45; // Fixed scrollable spacing
+  if (!data || data.length === 0) return null;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.card, borderColor: theme.border }]}>
+    <View style={[
+      styles.container,
+      { backgroundColor: theme.card, borderColor: theme.border }
+    ]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Spending History</Text>
-        <View style={styles.tabContainer}>
-           {/* Simple custom tabs */}
-           {['week', 'month'].map((range) => (
-             <Text 
-                key={range}
-                onPress={() => onTimeRangeChange(range as 'week' | 'month')}
+        <View style={styles.titleSection}>
+          <Text style={[styles.title, { color: theme.text }]}>
+            Spending History
+          </Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={[styles.statLabel, { color: theme.textTertiary }]}>Total</Text>
+              <Text style={[styles.statValue, { color: theme.expense }]}>
+                {formatCurrency(totalSpending)}
+              </Text>
+            </View>
+            <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statLabel, { color: theme.textTertiary }]}>Avg/Day</Text>
+              <Text style={[styles.statValue, { color: theme.textSecondary }]}>
+                {formatCurrency(avgSpending)}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.toggleContainer}>
+          {(['week', 'month'] as const).map((range) => (
+            <TouchableOpacity
+              key={range}
+              onPress={() => {
+                if (range !== timeRange) {
+                  clearSelection();
+                  onTimeRangeChange(range);
+                }
+              }}
+              style={[
+                styles.toggleButton,
+                {
+                  backgroundColor: timeRange === range 
+                    ? theme.primary 
+                    : 'transparent',
+                  borderColor: timeRange === range 
+                    ? theme.primary 
+                    : theme.border,
+                },
+              ]}
+            >
+              <Text
                 style={[
-                    styles.tabText, 
-                    { 
-                        color: timeRange === range ? theme.primary : theme.textSecondary,
-                        fontWeight: timeRange === range ? '700' : '400'
-                    }
+                  styles.toggleText,
+                  {
+                    color: timeRange === range 
+                      ? '#FFFFFF' 
+                      : theme.textSecondary,
+                  },
                 ]}
-             >
-                 {range.charAt(0).toUpperCase() + range.slice(1)}
-             </Text>
-           ))}
+              >
+                {range === 'week' ? '7D' : '30D'}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
-      <View style={{ marginLeft: -10 }}> 
+      {hasSelection && rangeMetrics && (
+        <RangeSelectionBadge
+          visible={hasSelection}
+          metrics={rangeMetrics}
+          startLabel={selectionLabels.start}
+          endLabel={selectionLabels.end}
+          startFormatted={selectionLabels.startFormatted}
+          endFormatted={selectionLabels.endFormatted}
+          onClear={clearSelection}
+        />
+      )}
+
+      {!hasSelection && enableRangeSelection && (
+        <View style={[styles.hintRow, { borderColor: theme.border }]}>
+          <Icon name="gesture-tap" size={14} color={theme.textTertiary} />
+          <Text style={[styles.hintText, { color: theme.textTertiary }]}>
+            Tap two points to compare spending
+          </Text>
+        </View>
+      )}
+
+      <View style={styles.chartWrapper}>
         <LineChart
-          key={timeRange} // Force re-render on range change
+          key={timeRange}
           data={chartData}
+          width={chartWidth}
+          height={chartHeight}
+          spacing={chartSpacing}
+          initialSpacing={20}
+          endSpacing={20}
+          color={theme.expense}
+          thickness={CHART_CONFIG.line.thickness}
+          startFillColor={theme.expense}
+          endFillColor={theme.expense}
+          startOpacity={CHART_CONFIG.area.startOpacity}
+          endOpacity={CHART_CONFIG.area.endOpacity}
           areaChart
           curved
-          height={180} // Reduced height like BalanceChart
-          width={width - 50}
-          
-          // Spacing logic
-          spacing={timeRange === 'week' ? weekSpacing : monthSpacing}
-          initialSpacing={20}
-
-          startFillColor={theme.primary}
-          startOpacity={0.2}
-          endFillColor={theme.primary}
-          endOpacity={0.05}
-          color={theme.primary}
-          thickness={3}
-          hideDataPoints={false}
-          dataPointsColor={theme.primary}
-          dataPointsRadius={4}
+          curvature={CHART_CONFIG.line.curveIntensity}
+          hideRules={false}
+          rulesType="solid"
+          rulesColor={theme.border + '50'}
+          rulesThickness={0.5}
           yAxisColor="transparent"
-          xAxisColor="transparent"
-          xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
-          yAxisTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
-          yAxisLabelWidth={45}
-          
+          xAxisColor={theme.border}
+          xAxisThickness={0.5}
+          yAxisTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
+          xAxisLabelTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
+          yAxisLabelWidth={CHART_CONFIG.axis.yLabelWidth}
+          maxValue={yAxisBounds.max}
+          mostNegativeValue={yAxisBounds.min}
+          noOfSections={yAxisBounds.sections}
           formatYLabel={formatYLabel}
-          scrollToEnd={timeRange === 'month'} // Only scroll to end for month view
-          
-          pointerConfig={{
-            pointerStripUptoDataPoint: true,
-            pointerStripColor: theme.border,
-            pointerStripWidth: 2,
-            strokeDashArray: [2, 5],
-            pointerColor: theme.primary,
-            radius: 4,
-            pointerLabelWidth: 100,
-            pointerLabelHeight: 120,
-            activatePointersOnLongPress: true, // Allow scrolling
-            autoAdjustPointerLabelPosition: true,
-            pointerLabelComponent: (items: any) => {
-              const item = items[0];
-              return (
-                <View style={{
-                    height: 90, 
-                    width: 100, 
-                    backgroundColor: theme.card, 
-                    borderRadius: 8, 
-                    justifyContent:'center', 
-                    alignItems:'center',
-                    padding: 4,
-                    borderWidth: 1,
-                    borderColor: theme.border,
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.1,
-                    shadowRadius: 4,
-                    elevation: 3
-                }}>
-                  <Text style={{color: theme.textSecondary, fontSize: 10, marginBottom: 4}}>
-                      {new Date(item.date).toLocaleDateString(undefined, {month:'short', day:'numeric'})}
-                  </Text>
-                  <Text style={{color: theme.text, fontWeight: 'bold', fontSize: 14}}>
-                    {formatCurrency(item.originalValue)} 
-                  </Text>
-                </View>
-              );
-            },
+          scrollToEnd={timeRange === 'month'}
+          onScroll={(e: any) => {
+            if (enableDynamicYAxis && timeRange === 'month' && e?.nativeEvent?.contentOffset) {
+              handleScroll(e.nativeEvent.contentOffset.x);
+            }
+          }}
+          hideDataPoints={false}
+          dataPointsColor={theme.expense}
+          dataPointsRadius={CHART_CONFIG.dataPoints.radius}
+          focusEnabled={true}
+          showDataPointOnFocus={true}
+          focusedDataPointColor={theme.expense}
+          focusedDataPointRadius={CHART_CONFIG.dataPoints.activeRadius}
+          onFocus={handleDataPointClick}
+          delayBeforeUnFocus={3000}
+          pointerConfig={pointerConfig}
+          showVerticalLines={hasSelection}
+          verticalLinesUptoDataPoint
+          verticalLinesColor={
+            hasSelection
+              ? (rangeMetrics?.isPositive ? theme.expense : theme.success) + '30'
+              : theme.border + '30'
+          }
+          verticalLinesThickness={1}
+          verticalLinesStrokeDashArray={[4, 4]}
+          customDataPoint={(item: any, index: number) => {
+            const isSelected = selection.startIndex === index || selection.endIndex === index;
+            const isInRange = hasSelection &&
+              selection.startIndex !== null &&
+              selection.endIndex !== null &&
+              index >= selection.startIndex &&
+              index <= selection.endIndex;
+
+            if (!isSelected && !isInRange) return null;
+
+            const pointColor = isSelected
+              ? theme.expense
+              : theme.expense + '60';
+            const pointRadius = isSelected
+              ? CHART_CONFIG.dataPoints.activeRadius + 2
+              : CHART_CONFIG.dataPoints.radius;
+
+            return (
+              <View
+                style={[
+                  styles.customDataPoint,
+                  {
+                    width: pointRadius * 2,
+                    height: pointRadius * 2,
+                    borderRadius: pointRadius,
+                    backgroundColor: pointColor,
+                    borderWidth: isSelected ? 2 : 0,
+                    borderColor: theme.card,
+                  },
+                  isSelected && elevation.sm,
+                ]}
+              />
+            );
           }}
         />
       </View>
@@ -155,23 +351,123 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: spacing.md,
     marginBottom: spacing.md,
-    overflow: 'hidden' // ensure tooltips don't clip weirdly if possible, though they might need Z-index
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: spacing.md,
+  },
+  titleSection: {
+    flex: 1,
   },
   title: {
     ...typography.titleMedium,
     fontWeight: '600',
   },
-  tabContainer: {
+  statsRow: {
     flexDirection: 'row',
-    gap: spacing.md,
+    alignItems: 'center',
+    marginTop: spacing.xs,
+    gap: spacing.sm,
   },
-  tabText: {
-    ...typography.bodySmall,
-  }
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statLabel: {
+    ...typography.caption,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statValue: {
+    ...typography.labelSmall,
+    fontWeight: '600',
+  },
+  statDivider: {
+    width: 1,
+    height: 12,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  toggleButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    minWidth: 44,
+    alignItems: 'center',
+  },
+  toggleText: {
+    ...typography.labelSmall,
+    fontWeight: '600',
+  },
+  hintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.sm,
+    gap: 6,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderStyle: 'dashed',
+  },
+  hintText: {
+    ...typography.caption,
+    fontSize: 11,
+    fontStyle: 'italic',
+  },
+  chartWrapper: {
+    marginLeft: -10,
+    marginRight: -5,
+  },
+  tooltip: {
+    width: 140,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingLeft: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  tooltipAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+  },
+  tooltipDate: {
+    ...typography.caption,
+    fontSize: 11,
+    marginBottom: 4,
+    letterSpacing: 0.3,
+  },
+  tooltipValue: {
+    ...typography.titleMedium,
+    fontWeight: '700',
+  },
+  tooltipHint: {
+    ...typography.caption,
+    fontSize: 10,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  axisLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  customDataPoint: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+  },
 });
+
+export default SpendingChart;

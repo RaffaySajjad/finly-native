@@ -30,7 +30,7 @@ import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { getDateKey, formatDateLabel, isCurrentMonth, getMonthLabel } from '../utils/dateFormatter';
 import { TransactionCard, BottomSheetBackground, CurrencyInput } from '../components';
-import { Expense, Category, UnifiedTransaction } from '../types';
+import { Expense, Category, UnifiedTransaction, RolloverSummary, BudgetType } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { RootStackParamList } from '../navigation/types';
 
@@ -174,8 +174,14 @@ const CategoryDetailsScreen: React.FC = () => {
   const [newBudget, setNewBudget] = useState('');
   const [savingBudget, setSavingBudget] = useState(false);
   const [selectedBudgetCurrency, setSelectedBudgetCurrency] = useState<string | undefined>(undefined);
+  const [budgetType, setBudgetType] = useState<BudgetType>('MONTHLY');
+  const [originalBudgetType, setOriginalBudgetType] = useState<BudgetType>('MONTHLY'); // Track original type for conversion detection
+  const [applyToCurrentMonth, setApplyToCurrentMonth] = useState(false);
+  const [rolloverSummary, setRolloverSummary] = useState<RolloverSummary | null>(null);
+  const [showBudgetHistory, setShowBudgetHistory] = useState(false);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
+  const historySheetRef = useRef<BottomSheet>(null);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -221,6 +227,7 @@ const CategoryDetailsScreen: React.FC = () => {
       const cat = categoriesData.find(c => c.id === categoryId);
       if (cat) {
         setCategory(cat);
+        setBudgetType(cat.budgetType || 'MONTHLY');
         // Use originalAmount if available (preserves user's original input)
         // Otherwise fall back to converting budgetLimit from USD
         if (cat.originalAmount !== undefined && cat.originalAmount !== null) {
@@ -232,6 +239,18 @@ const CategoryDetailsScreen: React.FC = () => {
           setNewBudget(budgetInDisplayCurrency > 0 ? budgetInDisplayCurrency.toString() : '');
           // Reset currency selection to user's active currency
           setSelectedBudgetCurrency(undefined);
+        }
+
+        // Load rollover summary for ROLLOVER type categories
+        if (cat.budgetType === 'ROLLOVER') {
+          try {
+            const summary = await apiService.getRolloverSummary(categoryId);
+            setRolloverSummary(summary);
+          } catch (rolloverError) {
+            logger.warn('[CategoryDetailsScreen] Failed to load rollover summary:', rolloverError);
+          }
+        } else {
+          setRolloverSummary(null);
         }
       }
 
@@ -322,10 +341,61 @@ const CategoryDetailsScreen: React.FC = () => {
   }, [expenses]);
 
   const handleEditBudget = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Store original budget type when sheet opens to detect conversions
+    if (category) {
+      setOriginalBudgetType(category.budgetType || 'MONTHLY');
+      setBudgetType(category.budgetType || 'MONTHLY');
     }
     bottomSheetRef.current?.expand();
+  };
+
+  /**
+   * Handle budget type change with confirmation dialog
+   * Shows warning when converting between MONTHLY and ROLLOVER types
+   */
+  const handleBudgetTypeChange = (newType: BudgetType) => {
+    if (!category) return;
+    
+    const currentOriginalType = category.budgetType || 'MONTHLY';
+    
+    // If changing to a different type, show confirmation
+    if (newType !== currentOriginalType) {
+      if (newType === 'ROLLOVER') {
+        // Converting from MONTHLY to ROLLOVER
+        Alert.alert(
+          'Enable Savings Goal',
+          'This will convert your category to a savings goal. Unspent budget will accumulate over time, helping you save for larger purchases.\n\nWould you like to proceed?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Enable Savings', 
+              onPress: () => {
+                setBudgetType('ROLLOVER');
+                setApplyToCurrentMonth(true); // Default to applying to current month for new rollover
+              }
+            },
+          ]
+        );
+      } else {
+        // Converting from ROLLOVER to MONTHLY
+        Alert.alert(
+          'Switch to Monthly Budget',
+          'This will convert your savings goal back to a regular monthly budget that resets each month.\n\nNote: Your accumulated savings history will be preserved for reference, but the category will no longer track rollover amounts.\n\nWould you like to proceed?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Switch to Monthly', 
+              style: 'destructive',
+              onPress: () => setBudgetType('MONTHLY')
+            },
+          ]
+        );
+      }
+    } else {
+      // Same as original type, just set it
+      setBudgetType(newType);
+    }
   };
 
   const handleSaveBudget = async () => {
@@ -348,11 +418,13 @@ const CategoryDetailsScreen: React.FC = () => {
         ? budgetValue
         : convertToUSD(budgetValue);
 
-      // Update category budget via API - include originalAmount and originalCurrency
+      // Update category budget via API - include originalAmount, originalCurrency, budgetType
       await apiService.updateCategory(category.id, {
         budgetLimit: budgetInUSD,
+        budgetType,
         originalAmount: budgetValue,
         originalCurrency: amountCurrency,
+        applyToCurrentMonth: budgetType === 'ROLLOVER' ? applyToCurrentMonth : undefined,
       });
 
       // Reload category data to reflect changes
@@ -360,6 +432,7 @@ const CategoryDetailsScreen: React.FC = () => {
       const cat = categoriesData.find(c => c.id === categoryId);
       if (cat) {
         setCategory(cat);
+        setBudgetType(cat.budgetType || 'MONTHLY');
         // Use originalAmount if available (preserves user's original input)
         if (cat.originalAmount !== undefined && cat.originalAmount !== null) {
           setNewBudget(cat.originalAmount > 0 ? cat.originalAmount.toString() : '');
@@ -369,11 +442,22 @@ const CategoryDetailsScreen: React.FC = () => {
           setNewBudget(budgetInDisplayCurrency > 0 ? budgetInDisplayCurrency.toString() : '');
           setSelectedBudgetCurrency(undefined);
         }
+
+        // Reload rollover summary for ROLLOVER type categories
+        if (cat.budgetType === 'ROLLOVER') {
+          try {
+            const summary = await apiService.getRolloverSummary(categoryId);
+            setRolloverSummary(summary);
+          } catch (rolloverError) {
+            logger.warn('[CategoryDetailsScreen] Failed to reload rollover summary:', rolloverError);
+          }
+        } else {
+          setRolloverSummary(null);
+        }
       }
 
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setApplyToCurrentMonth(false); // Reset after save
 
       bottomSheetRef.current?.close();
       Alert.alert('Success', 'Budget updated successfully!');
@@ -526,47 +610,113 @@ const CategoryDetailsScreen: React.FC = () => {
                 </View>
               </View>
 
-              {/* Progress Ring/Bar */}
+              {/* Budget Section - Different display for ROLLOVER vs MONTHLY */}
               {category.budgetLimit && (
                 <View style={styles.budgetSection}>
-                  <View style={styles.budgetInfo}>
-                    <Text style={[styles.budgetLabel, { color: theme.textSecondary }]}>
-                      Monthly Budget
-                    </Text>
-                    <Text style={[styles.budgetValue, { color: theme.text }]}>
-                      {formatTransactionAmount(category.budgetLimit, category.originalAmount, category.originalCurrency)}
-                    </Text>
-                  </View>
+                  {category.budgetType === 'ROLLOVER' && category.rollover ? (
+                    // Rollover (Sinking Fund) Budget Display
+                    <>
+                      <View style={[styles.rolloverBadge, { backgroundColor: theme.primary + '20' }]}>
+                        <Icon name="piggy-bank" size={14} color={theme.primary} />
+                        <Text style={[styles.rolloverBadgeText, { color: theme.primary }]}>
+                          Savings Goal
+                        </Text>
+                      </View>
 
-                  {/* Progress Bar */}
-                  <View style={[styles.progressBarContainer, { backgroundColor: theme.border }]}>
-                    <Animated.View
-                      style={[
-                        styles.progressBar,
-                        {
-                          backgroundColor: budgetPercentage > 80 ? theme.expense : categoryColor,
-                          width: progressAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: ['0%', '100%'],
-                          }),
-                        },
-                      ]}
-                    />
-                  </View>
+                      <View style={styles.budgetInfo}>
+                        <Text style={[styles.budgetLabel, { color: theme.textSecondary }]}>
+                          Monthly Contribution
+                        </Text>
+                        <Text style={[styles.budgetValue, { color: theme.text }]}>
+                          {formatTransactionAmount(category.budgetLimit, category.originalAmount, category.originalCurrency)}
+                        </Text>
+                      </View>
 
-                  <View style={styles.budgetStats}>
-                    <Text style={[styles.budgetStat, { color: theme.textSecondary }]}>
-                      {budgetPercentage.toFixed(1)}% used
-                    </Text>
-                    <Text
-                      style={[
-                        styles.budgetStat,
-                        { color: remaining >= 0 ? theme.income : theme.expense },
-                      ]}
-                    >
-                      {formatCurrency(Math.abs(remaining))} {remaining >= 0 ? 'remaining' : 'over'}
-                    </Text>
-                  </View>
+                      <View style={[styles.rolloverAccumulatedCard, { backgroundColor: theme.income + '15', borderColor: theme.income + '30' }]}>
+                        <Text style={[styles.rolloverAccumulatedLabel, { color: theme.textSecondary }]}>
+                          Available to Spend
+                        </Text>
+                        <Text style={[styles.rolloverAccumulatedAmount, { color: theme.income }]}>
+                          {formatCurrency(category.rollover.accumulatedBudget)}
+                        </Text>
+                        <Text style={[styles.rolloverAccumulatedHint, { color: theme.textTertiary }]}>
+                          {category.rollover.monthsAccumulating} month{category.rollover.monthsAccumulating !== 1 ? 's' : ''} saved
+                          {category.rollover.carriedOver > 0 && ` • ${formatCurrency(category.rollover.carriedOver)} carried over`}
+                        </Text>
+                      </View>
+
+                      {/* Progress Bar for Rollover - shows spending against accumulated */}
+                      <View style={[styles.progressBarContainer, { backgroundColor: theme.border }]}>
+                        <Animated.View
+                          style={[
+                            styles.progressBar,
+                            {
+                              backgroundColor: category.rollover.percentUsed > 80 ? theme.expense : categoryColor,
+                              width: `${Math.min(category.rollover.percentUsed, 100)}%`,
+                            },
+                          ]}
+                        />
+                      </View>
+
+                      <View style={styles.budgetStats}>
+                        <Text style={[styles.budgetStat, { color: theme.textSecondary }]}>
+                          {category.rollover.percentUsed.toFixed(1)}% used this month
+                        </Text>
+                        <TouchableOpacity 
+                          onPress={() => {
+                            setShowBudgetHistory(true);
+                            historySheetRef.current?.expand();
+                          }}
+                          style={styles.historyButton}
+                        >
+                          <Icon name="history" size={14} color={theme.primary} />
+                          <Text style={[styles.historyButtonText, { color: theme.primary }]}>History</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  ) : (
+                    // Monthly Budget Display (Original)
+                    <>
+                      <View style={styles.budgetInfo}>
+                        <Text style={[styles.budgetLabel, { color: theme.textSecondary }]}>
+                          Monthly Budget
+                        </Text>
+                        <Text style={[styles.budgetValue, { color: theme.text }]}>
+                          {formatTransactionAmount(category.budgetLimit, category.originalAmount, category.originalCurrency)}
+                        </Text>
+                      </View>
+
+                      {/* Progress Bar */}
+                      <View style={[styles.progressBarContainer, { backgroundColor: theme.border }]}>
+                        <Animated.View
+                          style={[
+                            styles.progressBar,
+                            {
+                              backgroundColor: budgetPercentage > 80 ? theme.expense : categoryColor,
+                              width: progressAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: ['0%', '100%'],
+                              }),
+                            },
+                          ]}
+                        />
+                      </View>
+
+                      <View style={styles.budgetStats}>
+                        <Text style={[styles.budgetStat, { color: theme.textSecondary }]}>
+                          {budgetPercentage.toFixed(1)}% used
+                        </Text>
+                        <Text
+                          style={[
+                            styles.budgetStat,
+                            { color: remaining >= 0 ? theme.income : theme.expense },
+                          ]}
+                        >
+                          {formatCurrency(Math.abs(remaining))} {remaining >= 0 ? 'remaining' : 'over'}
+                        </Text>
+                      </View>
+                    </>
+                  )}
                 </View>
               )}
             </Animated.View>
@@ -606,7 +756,7 @@ const CategoryDetailsScreen: React.FC = () => {
       <BottomSheet
         ref={bottomSheetRef}
         index={-1}
-        snapPoints={['35%']}
+        snapPoints={['65%']}
         enablePanDownToClose
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
@@ -617,9 +767,53 @@ const CategoryDetailsScreen: React.FC = () => {
         >
           <Text style={[styles.sheetTitle, { color: theme.text }]}>Edit Budget</Text>
 
+          {/* Budget Type Toggle */}
           <View style={styles.budgetInputGroup}>
             <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-              Monthly Budget Limit
+              Budget Type
+            </Text>
+            <View style={styles.budgetTypeToggle}>
+              <TouchableOpacity
+                style={[
+                  styles.budgetTypeToggleOption,
+                  { 
+                    backgroundColor: budgetType === 'MONTHLY' ? theme.primary : theme.background,
+                    borderColor: theme.border,
+                  },
+                ]}
+                onPress={() => handleBudgetTypeChange('MONTHLY')}
+              >
+                <Icon name="calendar-month" size={16} color={budgetType === 'MONTHLY' ? '#FFFFFF' : theme.text} />
+                <Text style={[styles.budgetTypeToggleText, { color: budgetType === 'MONTHLY' ? '#FFFFFF' : theme.text }]}>
+                  Monthly
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.budgetTypeToggleOption,
+                  { 
+                    backgroundColor: budgetType === 'ROLLOVER' ? theme.primary : theme.background,
+                    borderColor: theme.border,
+                  },
+                ]}
+                onPress={() => handleBudgetTypeChange('ROLLOVER')}
+              >
+                <Icon name="piggy-bank" size={16} color={budgetType === 'ROLLOVER' ? '#FFFFFF' : theme.text} />
+                <Text style={[styles.budgetTypeToggleText, { color: budgetType === 'ROLLOVER' ? '#FFFFFF' : theme.text }]}>
+                  Savings
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {budgetType === 'ROLLOVER' && (
+              <Text style={[styles.budgetTypeHint, { color: theme.textTertiary }]}>
+                💡 Unspent budget accumulates over time
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.budgetInputGroup}>
+            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+              {budgetType === 'ROLLOVER' ? 'Monthly Contribution' : 'Monthly Budget Limit'}
             </Text>
             <View style={[styles.budgetInput, { backgroundColor: theme.background, borderColor: theme.border }]}>
               <CurrencyInput
@@ -637,6 +831,32 @@ const CategoryDetailsScreen: React.FC = () => {
             </View>
           </View>
 
+          {/* Apply to Current Month Toggle (show for ROLLOVER or when converting to ROLLOVER) */}
+          {budgetType === 'ROLLOVER' && (
+            <TouchableOpacity
+              style={[styles.applyCurrentMonthToggle, { borderColor: theme.border }]}
+              onPress={() => setApplyToCurrentMonth(!applyToCurrentMonth)}
+            >
+              <View style={styles.applyCurrentMonthContent}>
+                <Icon 
+                  name={applyToCurrentMonth ? 'checkbox-marked' : 'checkbox-blank-outline'} 
+                  size={22} 
+                  color={applyToCurrentMonth ? theme.primary : theme.textSecondary} 
+                />
+                <View style={styles.applyCurrentMonthTextContainer}>
+                  <Text style={[styles.applyCurrentMonthText, { color: theme.text }]}>
+                    {originalBudgetType === 'MONTHLY' ? 'Start with this month' : 'Apply to current month'}
+                  </Text>
+                  <Text style={[styles.applyCurrentMonthHint, { color: theme.textTertiary }]}>
+                    {originalBudgetType === 'MONTHLY' 
+                      ? 'Include this month\'s contribution in your savings goal'
+                      : 'Update this month\'s allocation (future months always use new amount)'}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={[styles.saveButton, { backgroundColor: theme.primary }, elevation.sm]}
             onPress={handleSaveBudget}
@@ -648,6 +868,101 @@ const CategoryDetailsScreen: React.FC = () => {
               <Text style={styles.saveButtonText}>Save Budget</Text>
             )}
           </TouchableOpacity>
+        </BottomSheetScrollView>
+      </BottomSheet>
+
+      {/* Budget History Bottom Sheet (for ROLLOVER categories) */}
+      <BottomSheet
+        ref={historySheetRef}
+        index={-1}
+        snapPoints={['60%']}
+        enablePanDownToClose
+        backgroundComponent={BottomSheetBackground}
+        handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+        onClose={() => setShowBudgetHistory(false)}
+      >
+        <BottomSheetScrollView
+          style={styles.bottomSheetContent}
+          contentContainerStyle={styles.bottomSheetContentContainer}
+        >
+          <Text style={[styles.sheetTitle, { color: theme.text }]}>Budget History</Text>
+          
+          {rolloverSummary?.history && rolloverSummary.history.length > 0 ? (
+            rolloverSummary.history.map((entry, index) => (
+              <View 
+                key={entry.id} 
+                style={[
+                  styles.historyEntry, 
+                  { borderBottomColor: index < rolloverSummary.history.length - 1 ? theme.border : 'transparent' }
+                ]}
+              >
+                <View style={styles.historyEntryHeader}>
+                  <Text style={[styles.historyEntryDate, { color: theme.textSecondary }]}>
+                    {new Date(entry.effectiveFrom).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric' 
+                    })}
+                  </Text>
+                  {entry.appliedToCurrentMonth && (
+                    <View style={[styles.historyEntryBadge, { backgroundColor: theme.primary + '20' }]}>
+                      <Text style={[styles.historyEntryBadgeText, { color: theme.primary }]}>
+                        Applied to current month
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.historyEntryAmounts}>
+                  {entry.previousAmount !== null && (
+                    <Text style={[styles.historyEntryPrevious, { color: theme.textTertiary }]}>
+                      {formatCurrency(entry.previousAmount)}
+                    </Text>
+                  )}
+                  <Icon name="arrow-right" size={14} color={theme.textTertiary} />
+                  <Text style={[styles.historyEntryNew, { color: theme.income }]}>
+                    {formatCurrency(entry.newAmount)}
+                  </Text>
+                </View>
+                {entry.note && (
+                  <Text style={[styles.historyEntryNote, { color: theme.textTertiary }]}>
+                    {entry.note}
+                  </Text>
+                )}
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyHistory}>
+              <Icon name="history" size={48} color={theme.textTertiary} />
+              <Text style={[styles.emptyHistoryText, { color: theme.textSecondary }]}>
+                No budget changes yet
+              </Text>
+            </View>
+          )}
+
+          {/* Monthly Breakdown */}
+          {rolloverSummary?.monthlyBreakdown && rolloverSummary.monthlyBreakdown.length > 0 && (
+            <>
+              <Text style={[styles.sheetSubtitle, { color: theme.text }]}>Monthly Breakdown</Text>
+              {rolloverSummary.monthlyBreakdown.slice(0, 6).map((month) => (
+                <View key={month.id} style={[styles.monthlyBreakdownItem, { borderColor: theme.border }]}>
+                  <Text style={[styles.monthlyBreakdownMonth, { color: theme.text }]}>
+                    {new Date(month.month).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                  </Text>
+                  <View style={styles.monthlyBreakdownDetails}>
+                    <Text style={[styles.monthlyBreakdownText, { color: theme.textSecondary }]}>
+                      +{formatCurrency(month.allocatedAmount)} allocated
+                    </Text>
+                    <Text style={[styles.monthlyBreakdownText, { color: theme.expense }]}>
+                      -{formatCurrency(month.spentAmount)} spent
+                    </Text>
+                    <Text style={[styles.monthlyBreakdownText, { color: theme.income }]}>
+                      = {formatCurrency(month.totalAvailable)} available
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
         </BottomSheetScrollView>
       </BottomSheet>
     </SafeAreaView>
@@ -857,6 +1172,172 @@ const styles = StyleSheet.create({
     ...typography.labelLarge,
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  // Rollover-specific styles
+  rolloverBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  rolloverBadgeText: {
+    ...typography.labelSmall,
+    fontWeight: '600',
+  },
+  rolloverAccumulatedCard: {
+    width: '100%',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  rolloverAccumulatedLabel: {
+    ...typography.labelSmall,
+    marginBottom: spacing.xs,
+  },
+  rolloverAccumulatedAmount: {
+    ...typography.displaySmall,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  rolloverAccumulatedHint: {
+    ...typography.bodySmall,
+    textAlign: 'center',
+  },
+  historyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  historyButtonText: {
+    ...typography.labelSmall,
+    fontWeight: '600',
+  },
+  // Budget type toggle styles
+  budgetTypeToggle: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  budgetTypeToggleOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+  },
+  budgetTypeToggleText: {
+    ...typography.labelMedium,
+    fontWeight: '600',
+  },
+  budgetTypeHint: {
+    ...typography.bodySmall,
+    marginTop: spacing.sm,
+    fontStyle: 'italic',
+  },
+  // Apply to current month toggle
+  applyCurrentMonthToggle: {
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  applyCurrentMonthContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  applyCurrentMonthTextContainer: {
+    flex: 1,
+  },
+  applyCurrentMonthText: {
+    ...typography.labelMedium,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  applyCurrentMonthHint: {
+    ...typography.bodySmall,
+  },
+  // History bottom sheet styles
+  sheetSubtitle: {
+    ...typography.titleMedium,
+    fontWeight: '600',
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  historyEntry: {
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+  },
+  historyEntryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  historyEntryDate: {
+    ...typography.labelMedium,
+    fontWeight: '600',
+  },
+  historyEntryBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  historyEntryBadgeText: {
+    ...typography.labelSmall,
+    fontWeight: '500',
+  },
+  historyEntryAmounts: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  historyEntryPrevious: {
+    ...typography.bodyMedium,
+    textDecorationLine: 'line-through',
+  },
+  historyEntryNew: {
+    ...typography.bodyMedium,
+    fontWeight: '600',
+  },
+  historyEntryNote: {
+    ...typography.bodySmall,
+    marginTop: spacing.xs,
+    fontStyle: 'italic',
+  },
+  emptyHistory: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xxl,
+  },
+  emptyHistoryText: {
+    ...typography.bodyMedium,
+    marginTop: spacing.md,
+  },
+  monthlyBreakdownItem: {
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+  },
+  monthlyBreakdownMonth: {
+    ...typography.labelMedium,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
+  monthlyBreakdownDetails: {
+    gap: spacing.xs,
+  },
+  monthlyBreakdownText: {
+    ...typography.bodySmall,
   },
 });
 

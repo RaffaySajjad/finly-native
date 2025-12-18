@@ -143,9 +143,7 @@ const ReceiptUploadScreen: React.FC = () => {
 
       if (!result.canceled && result.assets[0]) {
         setImage(result.assets[0].uri);
-        if (Platform.OS === 'ios') {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        }
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to pick image');
@@ -173,9 +171,7 @@ const ReceiptUploadScreen: React.FC = () => {
 
       if (!result.canceled && result.assets[0]) {
         setImage(result.assets[0].uri);
-        if (Platform.OS === 'ios') {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        }
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to capture image');
@@ -196,9 +192,7 @@ const ReceiptUploadScreen: React.FC = () => {
     }
 
     setScanning(true);
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
       // Extract transactions from receipt using AI OCR
@@ -312,18 +306,14 @@ const ReceiptUploadScreen: React.FC = () => {
       }
 
       // Success haptic
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       setScanning(false);
     } catch (error: any) {
       setScanning(false);
 
       // Error haptic feedback
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 
       // Extract user-friendly error message
       const errorMessage = error?.message || 'Couldn\'t capture that. Try again with a clearer photo?';

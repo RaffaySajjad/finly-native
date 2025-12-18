@@ -182,9 +182,7 @@ const CSVImportScreen: React.FC = () => {
     setImportProgress({ current: 0, total: 0, percentage: 0, stage: 'starting' });
 
     try {
-      if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       // Start async import job
       const { jobId } = await startCSVImport(csvContent);
@@ -213,9 +211,7 @@ const CSVImportScreen: React.FC = () => {
         await AsyncStorage.setItem(IMPORT_SHOWN_KEY, 'true');
       }
 
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       const skippedMessage = result.skipped > 0
         ? `\n${result.skipped} transaction${result.skipped === 1 ? '' : 's'} ${result.skipped === 1 ? 'was' : 'were'} skipped (duplicates or invalid entries).`
@@ -337,9 +333,7 @@ const CSVImportScreen: React.FC = () => {
                 onPress={() => {
                   if (source.available) {
                     setSelectedSource(source);
-                    if (Platform.OS === 'ios') {
-                      Haptics.selectionAsync();
-                    }
+                    Haptics.selectionAsync();
                   } else {
                     showInfo('Coming Soon', `${source.name} import support is coming soon!`);
                   }

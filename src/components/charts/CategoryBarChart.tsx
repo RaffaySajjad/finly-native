@@ -1,66 +1,286 @@
-import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+/**
+ * CategoryBarChart Component
+ * Premium horizontal bar chart for category spending breakdown
+ * Features: Animated bars, interactive tooltips, sorted by value, premium design
+ */
+
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useCurrency } from '../../contexts/CurrencyContext';
-import { typography, spacing, borderRadius } from '../../theme';
+import { typography, spacing, borderRadius, elevation } from '../../theme';
+import { CHART_CONFIG } from './constants';
+import { formatYAxisLabel } from './utils';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-interface CategoryBarChartProps {
-  data: Array<{ category: string; amount: number; color: string }>;
+interface CategoryData {
+  category: string;
+  amount: number;
+  color: string;
 }
 
-export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({ data }) => {
-  const { theme } = useTheme();
-  const { convertFromUSD, getCurrencySymbol, formatCurrency } = useCurrency();
+interface CategoryBarChartProps {
+  data: CategoryData[];
+  title?: string;
+  showLegend?: boolean;
+  maxBars?: number;
+}
 
-  // Prepare data for BarChart
-  // Show all categories, chart will scroll
-  const chartData = data.map(item => ({
-    value: convertFromUSD(item.amount),
-    // Show full label, allow chart execution to handle x axis spacing
-    label: item.category,
-    frontColor: item.color || theme.primary,
-    topLabelComponent: () => (
-        <Text style={{color: theme.textSecondary, fontSize: 10, marginBottom: 4, width: 60, textAlign: 'center'}}>
-            {formatCurrency(item.amount, { disableAbbreviations: false })}
+export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
+  data,
+  title = 'Spending by Category',
+  showLegend = true,
+  maxBars = 6,
+}) => {
+  const { theme, isDark } = useTheme();
+  const { formatCurrency, convertFromUSD, getCurrencySymbol } = useCurrency();
+  const currencySymbol = getCurrencySymbol();
+  
+  const [selectedBar, setSelectedBar] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<'chart' | 'list'>('chart');
+
+  const sortedData = useMemo(() => {
+    return [...data]
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, maxBars);
+  }, [data, maxBars]);
+
+  const totalAmount = useMemo(() => {
+    return sortedData.reduce((sum, item) => sum + item.amount, 0);
+  }, [sortedData]);
+
+  const chartData = useMemo(() => {
+    return sortedData.map((item, index) => ({
+      value: convertFromUSD(item.amount),
+      label: item.category.length > 8 
+        ? item.category.substring(0, 7) + '…' 
+        : item.category,
+      frontColor: item.color || theme.primary,
+      originalAmount: item.amount,
+      fullLabel: item.category,
+      percentage: totalAmount > 0 
+        ? ((item.amount / totalAmount) * 100).toFixed(1) 
+        : '0',
+      topLabelComponent: () => (
+        <Text style={[styles.barTopLabel, { color: theme.textTertiary }]}>
+          {formatCurrency(item.amount)}
         </Text>
-    )
-  })).sort((a, b) => b.value - a.value);
+      ),
+    }));
+  }, [sortedData, convertFromUSD, theme, formatCurrency, totalAmount]);
 
-  const symbol = getCurrencySymbol();
+  const maxValue = useMemo(() => {
+    if (chartData.length === 0) return 100;
+    return Math.max(...chartData.map(d => d.value)) * 1.25;
+  }, [chartData]);
+
+  const formatYLabel = useCallback((val: string) => {
+    const num = parseFloat(val);
+    if (isNaN(num)) return val;
+    return formatYAxisLabel(num, currencySymbol);
+  }, [currencySymbol]);
+
+  const handleBarPress = useCallback((item: any, index: number) => {
+    setSelectedBar(selectedBar === index ? null : index);
+  }, [selectedBar]);
+
+  if (!data || data.length === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+        <View style={styles.emptyState}>
+          <Icon name="chart-bar" size={48} color={theme.textTertiary} />
+          <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+            No spending data yet
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.card, borderColor: theme.border }]}>
-      <Text style={[styles.title, { color: theme.text }]}>Top Categories</Text>
-      
-      <View style={{ marginTop: spacing.md, overflow: 'hidden' }}>
-        <BarChart
-            data={chartData}
-            barWidth={40}
-            spacing={40}
-            noOfSections={4}
-            barBorderRadius={4}
-            frontColor={theme.primary}
-            yAxisThickness={0}
-            xAxisThickness={1}
-            xAxisColor={theme.border}
-            yAxisTextStyle={{color: theme.textTertiary, fontSize: 10}}
-            xAxisLabelTextStyle={{color: theme.textSecondary, fontSize: 10, width: 80, textAlign: 'center'}}
-            // hideRules
-            height={220}
-            width={width - 80} // View width
-            // Enable scrolling by not constraining content width to view width if not needed, 
-            // but gifted-charts handles horizontal scroll if data * (barWidth+spacing) > width.
-            // We set a min width to ensure scrolling for few items? No, scrolling happens auto.
-            showYAxisIndices={false}
-            yAxisLabelPrefix={symbol}
-            yAxisLabelWidth={60}
-            // Ensure Y axis scales correctly
-            maxValue={Math.max(...chartData.map(d => d.value)) * 1.2} 
-        />
+      <View style={styles.header}>
+        <View>
+          <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+            Total: {formatCurrency(totalAmount)}
+          </Text>
+        </View>
+        
+        <View style={styles.viewToggle}>
+          <TouchableOpacity
+            onPress={() => setViewMode('chart')}
+            style={[
+              styles.viewToggleButton,
+              viewMode === 'chart' && { backgroundColor: theme.primary + '20' },
+            ]}
+          >
+            <Icon 
+              name="chart-bar" 
+              size={18} 
+              color={viewMode === 'chart' ? theme.primary : theme.textTertiary} 
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setViewMode('list')}
+            style={[
+              styles.viewToggleButton,
+              viewMode === 'list' && { backgroundColor: theme.primary + '20' },
+            ]}
+          >
+            <Icon 
+              name="format-list-bulleted" 
+              size={18} 
+              color={viewMode === 'list' ? theme.primary : theme.textTertiary} 
+            />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {viewMode === 'chart' ? (
+        <View style={styles.chartSection}>
+          <View style={styles.chartWrapper}>
+            <BarChart
+              data={chartData}
+              barWidth={36}
+              spacing={28}
+              noOfSections={4}
+              barBorderRadius={6}
+              frontColor={theme.primary}
+              yAxisThickness={0}
+              xAxisThickness={0.5}
+              xAxisColor={theme.border}
+              yAxisTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
+              xAxisLabelTextStyle={[styles.xAxisLabel, { color: theme.textSecondary }]}
+              height={180}
+              width={SCREEN_WIDTH - 80}
+              maxValue={maxValue}
+              formatYLabel={formatYLabel}
+              yAxisLabelWidth={50}
+              hideRules={false}
+              rulesType="solid"
+              rulesColor={theme.border + '30'}
+              rulesThickness={0.5}
+              showYAxisIndices={false}
+              isAnimated
+              animationDuration={600}
+              onPress={handleBarPress}
+              renderTooltip={(item: any, index: number) => {
+                if (selectedBar !== index) return null;
+                
+                return (
+                  <View style={[
+                    styles.barTooltip,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                    elevation.md,
+                  ]}>
+                    <View style={[styles.tooltipAccent, { backgroundColor: item.frontColor }]} />
+                    <Text style={[styles.tooltipCategory, { color: theme.text }]}>
+                      {item.fullLabel}
+                    </Text>
+                    <Text style={[styles.tooltipAmount, { color: theme.text }]}>
+                      {formatCurrency(item.originalAmount)}
+                    </Text>
+                    <Text style={[styles.tooltipPercent, { color: theme.textSecondary }]}>
+                      {item.percentage}% of total
+                    </Text>
+                  </View>
+                );
+              }}
+            />
+          </View>
+        </View>
+      ) : (
+        <View style={styles.listSection}>
+          {sortedData.map((item, index) => {
+            const percentage = totalAmount > 0 
+              ? (item.amount / totalAmount) * 100 
+              : 0;
+            
+            return (
+              <Animated.View
+                key={item.category}
+                entering={FadeInDown.delay(index * 50).duration(300)}
+              >
+                <TouchableOpacity
+                  style={[styles.listItem, { borderBottomColor: theme.border }]}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.listItemLeft}>
+                    <View 
+                      style={[
+                        styles.categoryDot, 
+                        { backgroundColor: item.color || theme.primary }
+                      ]} 
+                    />
+                    <Text style={[styles.categoryName, { color: theme.text }]}>
+                      {item.category}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.listItemRight}>
+                    <Text style={[styles.categoryAmount, { color: theme.text }]}>
+                      {formatCurrency(item.amount)}
+                    </Text>
+                    <View style={styles.percentageContainer}>
+                      <View 
+                        style={[
+                          styles.percentageBar,
+                          { backgroundColor: theme.border },
+                        ]}
+                      >
+                        <View 
+                          style={[
+                            styles.percentageFill,
+                            { 
+                              backgroundColor: item.color || theme.primary,
+                              width: `${Math.min(percentage, 100)}%`,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.percentageText, { color: theme.textSecondary }]}>
+                        {percentage.toFixed(0)}%
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
+            );
+          })}
+        </View>
+      )}
+
+      {showLegend && viewMode === 'chart' && (
+        <View style={styles.legend}>
+          {sortedData.slice(0, 4).map((item, index) => (
+            <View key={item.category} style={styles.legendItem}>
+              <View 
+                style={[
+                  styles.legendDot, 
+                  { backgroundColor: item.color || theme.primary }
+                ]} 
+              />
+              <Text 
+                style={[styles.legendText, { color: theme.textSecondary }]}
+                numberOfLines={1}
+              >
+                {item.category}
+              </Text>
+            </View>
+          ))}
+          {sortedData.length > 4 && (
+            <Text style={[styles.legendMore, { color: theme.textTertiary }]}>
+              +{sortedData.length - 4} more
+            </Text>
+          )}
+        </View>
+      )}
     </View>
   );
 };
@@ -72,8 +292,181 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
+  },
   title: {
     ...typography.titleMedium,
     fontWeight: '600',
   },
+  subtitle: {
+    ...typography.caption,
+    marginTop: 2,
+  },
+  viewToggle: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  viewToggleButton: {
+    padding: spacing.xs,
+    borderRadius: borderRadius.sm,
+  },
+  chartSection: {
+    marginTop: spacing.sm,
+  },
+  chartWrapper: {
+    marginLeft: -10,
+    overflow: 'hidden',
+  },
+  axisLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  xAxisLabel: {
+    fontSize: 9,
+    fontWeight: '500',
+    width: 60,
+    textAlign: 'center',
+  },
+  barTopLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  barTooltip: {
+    position: 'absolute',
+    bottom: '100%',
+    left: -40,
+    width: 120,
+    padding: spacing.sm,
+    paddingLeft: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  tooltipAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+  },
+  tooltipCategory: {
+    ...typography.labelSmall,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  tooltipAmount: {
+    ...typography.titleSmall,
+    fontWeight: '700',
+  },
+  tooltipPercent: {
+    ...typography.caption,
+    fontSize: 10,
+    marginTop: 2,
+  },
+  listSection: {
+    marginTop: spacing.xs,
+  },
+  listItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+  },
+  listItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  categoryDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: spacing.sm,
+  },
+  categoryName: {
+    ...typography.bodyMedium,
+    fontWeight: '500',
+    flex: 1,
+  },
+  listItemRight: {
+    alignItems: 'flex-end',
+    minWidth: 100,
+  },
+  categoryAmount: {
+    ...typography.titleSmall,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  percentageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  percentageBar: {
+    width: 60,
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  percentageFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  percentageText: {
+    ...typography.caption,
+    fontSize: 10,
+    fontWeight: '500',
+    minWidth: 28,
+    textAlign: 'right',
+  },
+  legend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(128, 128, 128, 0.1)',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: spacing.sm,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  legendText: {
+    ...typography.caption,
+    fontSize: 11,
+    maxWidth: 70,
+  },
+  legendMore: {
+    ...typography.caption,
+    fontSize: 10,
+    fontStyle: 'italic',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xxl,
+  },
+  emptyText: {
+    ...typography.bodyMedium,
+    marginTop: spacing.sm,
+  },
 });
+
+export default CategoryBarChart;

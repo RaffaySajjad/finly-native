@@ -54,3 +54,6 @@ export { AnimatedSplashScreen } from './AnimatedSplashScreen';
 // Filter components
 export * from './filters';
 
+// Chart components
+export * from './charts';
+

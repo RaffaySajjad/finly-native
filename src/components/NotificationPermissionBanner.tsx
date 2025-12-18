@@ -39,9 +39,7 @@ export const NotificationPermissionBanner: React.FC<NotificationPermissionBanner
   const handleEnable = async () => {
     setLoading(true);
     try {
-      if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const permissionResult = await notificationService.requestPermissions();
       
@@ -57,9 +55,7 @@ export const NotificationPermissionBanner: React.FC<NotificationPermissionBanner
         await notificationService.registerForPushNotifications();
         await notificationService.markPermissionBannerShown();
         
-        if (Platform.OS === 'ios') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
         onPermissionGranted?.();
         onClose();
@@ -80,9 +76,7 @@ export const NotificationPermissionBanner: React.FC<NotificationPermissionBanner
   };
 
   const handleNotNow = async () => {
-    if (Platform.OS === 'ios') {
-      Haptics.selectionAsync();
-    }
+    Haptics.selectionAsync();
     
     // Mark banner as shown
     await notificationService.markPermissionBannerShown();
@@ -93,9 +87,7 @@ export const NotificationPermissionBanner: React.FC<NotificationPermissionBanner
   };
 
   const handleOpenSettings = async () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await notificationService.openAppSettings();
     onClose();
   };

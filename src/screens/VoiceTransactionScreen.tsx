@@ -48,7 +48,7 @@ const VoiceTransactionScreen: React.FC = () => {
   const { theme } = useTheme();
   const { formatCurrency, getCurrencySymbol, currencyCode, convertToUSD } = useCurrency();
   const navigation = useNavigation<NavigationProp>();
-  const { isPremium, requiresUpgrade } = useSubscription();
+  const { requiresUpgrade, trackUsage } = useSubscription();
   const { openBottomSheet, setOnParsedTransactionUpdate } = useBottomSheetActions();
   const {
     state: recordingState,
@@ -124,9 +124,7 @@ const VoiceTransactionScreen: React.FC = () => {
 
     try {
       await startRecording();
-      if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (error) {
       Alert.alert('Recording Error', 'Failed to start recording. Please check microphone permissions.');
     }
@@ -138,9 +136,7 @@ const VoiceTransactionScreen: React.FC = () => {
       const uri = await stopRecording();
       setRecordingUri(uri);
 
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       // Recording is complete - transcription will happen when user clicks "Process with AI"
       if (uri) {
@@ -280,6 +276,9 @@ const VoiceTransactionScreen: React.FC = () => {
         ...transactions.map(tx => ({ ...tx, selected: true }))
       ]);
 
+      // Track voice entry usage for free tier
+      trackUsage('voiceEntry');
+
       // Clear input and recording for next batch
       setInput('');
       resetRecording();
@@ -289,9 +288,7 @@ const VoiceTransactionScreen: React.FC = () => {
         setSound(null);
       }
       
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       Alert.alert('Error', 'Failed to parse transactions. Please try again.');
       console.error(error);
@@ -340,9 +337,7 @@ const VoiceTransactionScreen: React.FC = () => {
 
       await Promise.all(promises);
 
-      if (Platform.OS === 'ios') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       Alert.alert(
         'Success!',
@@ -854,8 +849,8 @@ const VoiceTransactionScreen: React.FC = () => {
       <UpgradePrompt
         visible={showUpgradePrompt}
         onClose={() => setShowUpgradePrompt(false)}
-        feature="Voice Entry"
-        message="Voice entry complete! You’ve used your free allowance. Upgrade to Premium to log transactions by voice anytime."
+        feature="Smart Entry"
+        message="You've used all 3 free voice entries this month. Upgrade to Premium to log transactions by voice anytime!"
       />
     </SafeAreaView>
   );

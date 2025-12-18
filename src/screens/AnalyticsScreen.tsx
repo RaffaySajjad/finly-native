@@ -1,10 +1,10 @@
 /**
  * AnalyticsScreen Component
- * Purpose: Advanced analytics with year over year comparisons and predictions
- * Premium feature
+ * Advanced analytics with year over year comparisons and predictions
+ * Premium feature with refactored chart system
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,24 +12,32 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
-import { LineChart, BarChart } from 'react-native-chart-kit';
-import { Dimensions } from 'react-native';
+import { LineChart } from 'react-native-gifted-charts';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
-import { 
-  PremiumBadge, 
-  UpgradePrompt, 
-  Header, 
-  ToggleSelector, 
-  ChartCard, 
+import {
+  PremiumBadge,
+  UpgradePrompt,
+  Header,
+  ToggleSelector,
   EmptyState,
-  PrimaryButton,
   ProgressBar,
 } from '../components';
+import { 
+  ChartContainer, 
+  useRangeSelection,
+  useDynamicYAxis,
+  RangeSelectionBadge,
+  CHART_CONFIG,
+  formatYAxisLabel,
+  formatChartDate,
+} from '../components/charts';
 import { apiService } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -40,13 +48,24 @@ type NavigationProp = StackNavigationProp<RootStackParamList>;
 
 const { width } = Dimensions.get('window');
 
+interface ChartDataPoint {
+  value: number;
+  label?: string;
+  date?: string;
+  originalValue?: number;
+}
+
 const AnalyticsScreen: React.FC = () => {
-  const { theme } = useTheme();
-  const { formatCurrency } = useCurrency();
+  const { theme, isDark } = useTheme();
+  const { formatCurrency, getCurrencySymbol, convertFromUSD } = useCurrency();
   const navigation = useNavigation<NavigationProp>();
-  const { isPremium, requiresUpgrade } = useSubscription();
+  const { requiresUpgrade } = useSubscription();
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<'month' | 'year'>('month');
+  
+  const currencySymbol = getCurrencySymbol();
+  const chartWidth = width - 64;
+  const chartHeight = 200;
 
   useEffect(() => {
     if (requiresUpgrade('advancedInsights')) {
@@ -54,24 +73,118 @@ const AnalyticsScreen: React.FC = () => {
     }
   }, []);
 
-  // Mock analytics data
-  const monthlyData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-    datasets: [
-      {
-        data: [1200, 1350, 1400, 1100, 1500, 1450],
-        color: (opacity = 1) => theme.primary,
-      },
-    ],
-  };
+  const rawMonthlyData = useMemo(() => [
+    { date: '2024-01-15', amount: 1200 },
+    { date: '2024-02-15', amount: 1350 },
+    { date: '2024-03-15', amount: 1400 },
+    { date: '2024-04-15', amount: 1100 },
+    { date: '2024-05-15', amount: 1500 },
+    { date: '2024-06-15', amount: 1450 },
+  ], []);
+
+  const chartData: ChartDataPoint[] = useMemo(() => {
+    return rawMonthlyData.map((item, index) => ({
+      value: convertFromUSD(item.amount),
+      label: new Date(item.date).toLocaleDateString('en-US', { month: 'short' }),
+      date: item.date,
+      originalValue: item.amount,
+    }));
+  }, [rawMonthlyData, convertFromUSD]);
+
+  const {
+    selection,
+    metrics: rangeMetrics,
+    hasSelection,
+    isSelecting,
+    selectPoint,
+    clearSelection,
+  } = useRangeSelection({
+    data: chartData,
+    enabled: true,
+  });
+
+  const {
+    yAxisBounds,
+    handleScroll,
+  } = useDynamicYAxis({
+    data: chartData,
+    itemSpacing: 50,
+    chartWidth,
+    enabled: true,
+  });
+
+  const formatYLabel = useCallback((val: string) => {
+    const num = parseFloat(val);
+    if (isNaN(num)) return val;
+    return formatYAxisLabel(num, currencySymbol);
+  }, [currencySymbol]);
+
+  const handleDataPointClick = useCallback((item: any, index: number) => {
+    selectPoint(index);
+  }, [selectPoint]);
+
+  const selectionLabels = useMemo(() => {
+    if (!hasSelection || selection.startIndex === null) {
+      return { start: '', end: '', startFormatted: '', endFormatted: '' };
+    }
+
+    const startPoint = chartData[selection.startIndex!];
+    const endPoint = chartData[selection.endIndex!];
+
+    return {
+      start: startPoint?.date ? formatChartDate(startPoint.date, 'medium') : '',
+      end: endPoint?.date ? formatChartDate(endPoint.date, 'medium') : '',
+      startFormatted: formatCurrency(startPoint?.originalValue || 0),
+      endFormatted: formatCurrency(endPoint?.originalValue || 0),
+    };
+  }, [hasSelection, selection, chartData, formatCurrency]);
 
   const categoryData = [
-    { name: 'Food', amount: 485.50, percentage: 35 },
-    { name: 'Transport', amount: 120.00, percentage: 9 },
-    { name: 'Shopping', amount: 289.99, percentage: 21 },
-    { name: 'Entertainment', amount: 95.75, percentage: 7 },
-    { name: 'Other', amount: 50.00, percentage: 4 },
+    { name: 'Food', amount: 485.50, percentage: 35, color: theme.categories.food },
+    { name: 'Transport', amount: 120.00, percentage: 9, color: theme.categories.transport },
+    { name: 'Shopping', amount: 289.99, percentage: 21, color: theme.categories.shopping },
+    { name: 'Entertainment', amount: 95.75, percentage: 7, color: theme.categories.entertainment },
+    { name: 'Other', amount: 50.00, percentage: 4, color: theme.categories.other },
   ];
+
+  const pointerConfig = {
+    pointerStripUptoDataPoint: true,
+    pointerStripColor: theme.border,
+    pointerStripWidth: 1.5,
+    strokeDashArray: [4, 4],
+    pointerColor: theme.primary,
+    radius: CHART_CONFIG.dataPoints.radius,
+    pointerLabelWidth: 140,
+    pointerLabelHeight: 90,
+    activatePointersOnLongPress: false,
+    autoAdjustPointerLabelPosition: true,
+    pointerLabelComponent: (items: any) => {
+      const item = items[0];
+      if (!item) return null;
+
+      return (
+        <View style={[
+          styles.tooltip,
+          {
+            backgroundColor: theme.card,
+            borderColor: theme.border,
+          },
+          elevation.md,
+        ]}>
+          <View style={[styles.tooltipAccent, { backgroundColor: theme.primary }]} />
+          <Text style={[styles.tooltipDate, { color: theme.textSecondary }]}>
+            {item.date ? formatChartDate(item.date, 'medium') : item.label || ''}
+          </Text>
+          <Text style={[styles.tooltipValue, { color: theme.text }]}>
+            {formatCurrency(item.originalValue)}
+          </Text>
+          <Text style={[styles.tooltipHint, { color: theme.textTertiary }]}>
+            {isSelecting ? 'Tap another point' : 'Tap to compare'}
+          </Text>
+        </View>
+      );
+    },
+  };
 
   if (requiresUpgrade('advancedInsights')) {
     return (
@@ -102,7 +215,7 @@ const AnalyticsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-      <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
       <Header
         title="Analytics"
@@ -114,7 +227,6 @@ const AnalyticsScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        {/* Period Selector */}
         <View style={styles.periodSelector}>
           <ToggleSelector
             options={[
@@ -122,83 +234,210 @@ const AnalyticsScreen: React.FC = () => {
               { value: 'year', label: 'Yearly' },
             ]}
             selectedValue={selectedPeriod}
-            onValueChange={(value) => setSelectedPeriod(value as 'month' | 'year')}
+            onValueChange={(value) => {
+              clearSelection();
+              setSelectedPeriod(value as 'month' | 'year');
+            }}
             fullWidth
           />
         </View>
 
-        {/* Spending Trend Chart */}
-        <ChartCard title="Spending Trend">
-          <LineChart
-            data={monthlyData}
-            width={width - 64}
-            height={220}
-            chartConfig={{
-              backgroundColor: theme.card,
-              backgroundGradientFrom: theme.card,
-              backgroundGradientTo: theme.card,
-              decimalPlaces: 0,
-              color: (opacity = 1) => theme.primary,
-              labelColor: (opacity = 1) => theme.textSecondary,
-            }}
-            bezier
-            style={styles.chart}
-          />
-        </ChartCard>
+        <Animated.View entering={FadeInDown.delay(100).duration(400)}>
+          <ChartContainer
+            title="Spending Trend"
+            subtitle="Tap two points to compare"
+            showBorder
+            animateEntry={false}
+          >
+            {hasSelection && rangeMetrics && (
+              <RangeSelectionBadge
+                visible={hasSelection}
+                metrics={rangeMetrics}
+                startLabel={selectionLabels.start}
+                endLabel={selectionLabels.end}
+                startFormatted={selectionLabels.startFormatted}
+                endFormatted={selectionLabels.endFormatted}
+                onClear={clearSelection}
+              />
+            )}
 
-        {/* Category Breakdown */}
-        <ChartCard title="Category Breakdown">
-          {categoryData.map((category, index) => (
-            <View key={index} style={styles.categoryRow}>
-              <View style={styles.categoryInfo}>
-                <View
-                  style={[
-                    styles.categoryDot,
-                    { backgroundColor: theme.categories[category.name.toLowerCase() as keyof typeof theme.categories] || theme.primary },
-                  ]}
-                />
-                <Text style={[styles.categoryName, { color: theme.text }]}>{category.name}</Text>
+            <View style={styles.chartWrapper}>
+              <LineChart
+                data={chartData}
+                width={chartWidth}
+                height={chartHeight}
+                spacing={50}
+                initialSpacing={20}
+                endSpacing={20}
+                color={theme.primary}
+                thickness={CHART_CONFIG.line.thickness}
+                startFillColor={theme.primary}
+                endFillColor={theme.primary}
+                startOpacity={CHART_CONFIG.area.startOpacity}
+                endOpacity={CHART_CONFIG.area.endOpacity}
+                areaChart
+                curved
+                curvature={CHART_CONFIG.line.curveIntensity}
+                hideRules={false}
+                rulesType="solid"
+                rulesColor={theme.border + '50'}
+                rulesThickness={0.5}
+                yAxisColor="transparent"
+                xAxisColor={theme.border}
+                xAxisThickness={0.5}
+                yAxisTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
+                xAxisLabelTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
+                yAxisLabelWidth={CHART_CONFIG.axis.yLabelWidth}
+                maxValue={yAxisBounds.max}
+                mostNegativeValue={yAxisBounds.min}
+                noOfSections={yAxisBounds.sections}
+                formatYLabel={formatYLabel}
+                hideDataPoints={false}
+                dataPointsColor={theme.primary}
+                dataPointsRadius={CHART_CONFIG.dataPoints.radius}
+                focusEnabled={true}
+                showDataPointOnFocus={true}
+                focusedDataPointColor={theme.primary}
+                focusedDataPointRadius={CHART_CONFIG.dataPoints.activeRadius}
+                onFocus={handleDataPointClick}
+                delayBeforeUnFocus={3000}
+                pointerConfig={pointerConfig}
+                showVerticalLines={hasSelection}
+                verticalLinesUptoDataPoint
+                verticalLinesColor={
+                  hasSelection
+                    ? (rangeMetrics?.isPositive ? theme.expense : theme.success) + '30'
+                    : theme.border + '30'
+                }
+                customDataPoint={(item: any, index: number) => {
+                  const isSelected = selection.startIndex === index || selection.endIndex === index;
+                  if (!isSelected) return null;
+
+                  const pointColor = rangeMetrics?.isPositive ? theme.expense : theme.success;
+
+                  return (
+                    <View
+                      style={[
+                        styles.customDataPoint,
+                        {
+                          width: 16,
+                          height: 16,
+                          borderRadius: 8,
+                          backgroundColor: pointColor,
+                          borderWidth: 2,
+                          borderColor: theme.card,
+                        },
+                        elevation.sm,
+                      ]}
+                    />
+                  );
+                }}
+              />
+            </View>
+          </ChartContainer>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(200).duration(400)}>
+          <ChartContainer
+            title="Category Breakdown"
+            animateEntry={false}
+          >
+            {categoryData.map((category, index) => (
+              <View key={index} style={styles.categoryRow}>
+                <View style={styles.categoryInfo}>
+                  <View
+                    style={[
+                      styles.categoryDot,
+                      { backgroundColor: category.color || theme.primary },
+                    ]}
+                  />
+                  <Text style={[styles.categoryName, { color: theme.text }]}>
+                    {category.name}
+                  </Text>
+                </View>
+                <View style={styles.categoryStats}>
+                  <ProgressBar
+                    progress={category.percentage}
+                    color={category.color || theme.primary}
+                  />
+                  <Text style={[styles.categoryAmount, { color: theme.text }]}>
+                    {formatCurrency(category.amount)}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.categoryStats}>
-                <ProgressBar
-                  progress={category.percentage}
-                  color={theme.categories[category.name.toLowerCase() as keyof typeof theme.categories] || theme.primary}
-                />
-                <Text style={[styles.categoryAmount, { color: theme.text }]}>
-                  {formatCurrency(category.amount)}
+            ))}
+          </ChartContainer>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(300).duration(400)}>
+          <View style={[
+            styles.comparisonCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+            elevation.sm,
+          ]}>
+            <View style={styles.comparisonHeader}>
+              <Icon name="compare-horizontal" size={20} color={theme.primary} />
+              <Text style={[styles.chartTitle, { color: theme.text }]}>
+                Year over Year
+              </Text>
+            </View>
+            <View style={styles.comparisonRow}>
+              <View style={styles.comparisonItem}>
+                <Text style={[styles.comparisonLabel, { color: theme.textSecondary }]}>
+                  Last Year
+                </Text>
+                <Text style={[styles.comparisonValue, { color: theme.text }]}>
+                  {formatCurrency(1200)}
+                </Text>
+              </View>
+              <View style={[styles.comparisonArrow, { backgroundColor: theme.expense + '15' }]}>
+                <Icon name="arrow-right" size={20} color={theme.expense} />
+              </View>
+              <View style={styles.comparisonItem}>
+                <Text style={[styles.comparisonLabel, { color: theme.textSecondary }]}>
+                  This Year
+                </Text>
+                <Text style={[styles.comparisonValue, { color: theme.text }]}>
+                  {formatCurrency(1350)}
                 </Text>
               </View>
             </View>
-          ))}
-        </ChartCard>
-
-        {/* Year over Year Comparison */}
-        <View style={[styles.comparisonCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
-          <Text style={[styles.chartTitle, { color: theme.text }]}>Year over Year</Text>
-          <View style={styles.comparisonRow}>
-            <View style={styles.comparisonItem}>
-              <Text style={[styles.comparisonLabel, { color: theme.textSecondary }]}>Last Year</Text>
-              <Text style={[styles.comparisonValue, { color: theme.text }]}>{formatCurrency(1200)}</Text>
-            </View>
-            <Icon name="arrow-right" size={24} color={theme.textTertiary} />
-            <View style={styles.comparisonItem}>
-              <Text style={[styles.comparisonLabel, { color: theme.textSecondary }]}>This Year</Text>
-              <Text style={[styles.comparisonValue, { color: theme.success }]}>{formatCurrency(1350)}</Text>
+            <View style={[styles.changeIndicator, { backgroundColor: theme.expense + '15' }]}>
+              <Icon name="trending-up" size={16} color={theme.expense} />
+              <Text style={[styles.comparisonChange, { color: theme.expense }]}>
+                +12.5% increase in spending
+              </Text>
             </View>
           </View>
-          <Text style={[styles.comparisonChange, { color: theme.expense }]}>
-            +12.5% increase
-          </Text>
-        </View>
+        </Animated.View>
 
-        {/* Predictive Insights */}
-        <View style={[styles.predictionCard, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
-          <Icon name="crystal-ball" size={32} color={theme.primary} />
-          <Text style={[styles.chartTitle, { color: theme.text }]}>Predictive Insights</Text>
-          <Text style={[styles.predictionText, { color: theme.textSecondary }]}>
-            Based on your spending patterns, you're projected to spend approximately {formatCurrency(1400)} next month.
-          </Text>
-        </View>
+        <Animated.View entering={FadeInDown.delay(400).duration(400)}>
+          <View style={[
+            styles.predictionCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+            elevation.sm,
+          ]}>
+            <View style={[styles.predictionIcon, { backgroundColor: theme.primary + '15' }]}>
+              <Icon name="crystal-ball" size={28} color={theme.primary} />
+            </View>
+            <Text style={[styles.chartTitle, { color: theme.text }]}>
+              Predictive Insights
+            </Text>
+            <Text style={[styles.predictionText, { color: theme.textSecondary }]}>
+              Based on your spending patterns, you're projected to spend approximately{' '}
+              <Text style={{ color: theme.expense, fontWeight: '700' }}>
+                {formatCurrency(1400)}
+              </Text>
+              {' '}next month.
+            </Text>
+            <View style={[styles.predictionTip, { backgroundColor: theme.success + '10' }]}>
+              <Icon name="lightbulb-outline" size={16} color={theme.success} />
+              <Text style={[styles.predictionTipText, { color: theme.success }]}>
+                Reduce dining out to save ~{formatCurrency(150)}
+              </Text>
+            </View>
+          </View>
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -208,62 +447,57 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  headerTitle: {
-    ...typography.titleLarge,
-    fontWeight: '600',
-  },
   content: {
     padding: spacing.md,
     paddingBottom: spacing.xl,
   },
   periodSelector: {
-    flexDirection: 'row',
-    gap: spacing.sm,
     marginBottom: spacing.lg,
   },
-  periodButton: {
-    flex: 1,
-    paddingVertical: spacing.md,
+  chartWrapper: {
+    marginLeft: -10,
+    marginTop: spacing.sm,
+  },
+  axisLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  tooltip: {
+    width: 140,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingLeft: spacing.md,
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    alignItems: 'center',
+    overflow: 'hidden',
   },
-  periodButtonText: {
-    ...typography.labelMedium,
-    fontWeight: '600',
+  tooltipAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
   },
-  chartCard: {
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    marginBottom: spacing.lg,
+  tooltipDate: {
+    ...typography.caption,
+    fontSize: 11,
+    marginBottom: 4,
+    letterSpacing: 0.3,
   },
-  chartTitle: {
+  tooltipValue: {
     ...typography.titleMedium,
-    fontWeight: '600',
-    marginBottom: spacing.md,
+    fontWeight: '700',
   },
-  chart: {
-    marginVertical: spacing.sm,
-    borderRadius: borderRadius.md,
+  tooltipHint: {
+    ...typography.caption,
+    fontSize: 10,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  customDataPoint: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
   },
   categoryRow: {
     marginBottom: spacing.md,
@@ -288,21 +522,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
-  progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: borderRadius.sm,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: borderRadius.sm,
-  },
   categoryAmount: {
     ...typography.titleSmall,
     fontWeight: '600',
-    minWidth: 60,
+    minWidth: 70,
     textAlign: 'right',
   },
   comparisonCard: {
@@ -310,6 +533,16 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     marginBottom: spacing.lg,
+  },
+  comparisonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  chartTitle: {
+    ...typography.titleMedium,
+    fontWeight: '600',
   },
   comparisonRow: {
     flexDirection: 'row',
@@ -319,25 +552,51 @@ const styles = StyleSheet.create({
   },
   comparisonItem: {
     alignItems: 'center',
+    flex: 1,
   },
   comparisonLabel: {
-    ...typography.bodySmall,
+    ...typography.caption,
     marginBottom: spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   comparisonValue: {
     ...typography.headlineSmall,
     fontWeight: '700',
   },
+  comparisonArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  changeIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.xs,
+  },
   comparisonChange: {
-    ...typography.bodyMedium,
-    textAlign: 'center',
+    ...typography.labelMedium,
     fontWeight: '600',
   },
   predictionCard: {
-    padding: spacing.md,
+    padding: spacing.lg,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     alignItems: 'center',
+  },
+  predictionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
   },
   predictionText: {
     ...typography.bodyMedium,
@@ -345,34 +604,19 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     lineHeight: 22,
   },
-  emptyState: {
-    flex: 1,
+  predictionTip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  emptyStateText: {
-    ...typography.titleLarge,
     marginTop: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  emptyStateSubtext: {
-    ...typography.bodyMedium,
-    textAlign: 'center',
-    marginBottom: spacing.xl,
-    lineHeight: 22,
-  },
-  upgradeButton: {
-    paddingVertical: spacing.md + 4,
-    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
     borderRadius: borderRadius.md,
+    gap: spacing.xs,
   },
-  upgradeButtonText: {
-    ...typography.labelLarge,
-    color: '#FFFFFF',
-    fontWeight: '700',
+  predictionTipText: {
+    ...typography.labelSmall,
+    fontWeight: '500',
   },
 });
 
 export default AnalyticsScreen;
-

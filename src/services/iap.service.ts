@@ -220,9 +220,9 @@ class IAPService {
         productId: p.productId,
         title: p.title || 'Finly Premium',
         description: p.description || 'Unlock all premium features',
-        price: p.price || '$4.99',
+        price: p.price || '$9.99',
         currency: p.currency || 'USD',
-        localizedPrice: p.localizedPrice || p.price || '$4.99',
+        localizedPrice: p.localizedPrice || p.price || '$9.99',
       }));
     } catch (error) {
       console.error('[IAP] Failed to get products:', error);
@@ -422,7 +422,7 @@ class IAPService {
       {
         productId: getProductId('PREMIUM_YEARLY', Platform.OS as 'ios' | 'android'),
         title: 'Finly Premium Yearly',
-        description: 'Unlock all premium features - Save 40%!',
+        description: 'Unlock all premium features - Save 30%!',
         price: IAP_CONFIG.PRODUCTS.PREMIUM_YEARLY.price,
         currency: 'USD',
         localizedPrice: IAP_CONFIG.PRODUCTS.PREMIUM_YEARLY.price,

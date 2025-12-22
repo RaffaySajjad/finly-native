@@ -37,16 +37,20 @@ const CategoryCardComponent: React.FC<CategoryCardProps> = ({ category, onPress 
     // For rollover categories, compare against accumulated budget
     if (isRolloverCategory && category.rollover) {
       const accumulated = category.rollover.accumulatedBudget;
-      const pct = accumulated > 0
-        ? Math.min((totalSpent / accumulated) * 100, 100)
+      // Use totalBudget (carried + allocated) for percentage calculation, not accumulated (which can be negative)
+      const totalBudget = category.rollover.carriedOver + category.rollover.monthlyAllocation;
+      const pct = totalBudget > 0
+        ? Math.min((totalSpent / totalBudget) * 100, 100)
         : 0;
-      const overBudget = totalSpent > accumulated;
+      // Overspent when accumulated is negative or when spent exceeds available
+      const overBudget = accumulated < 0 || totalSpent > Math.max(0, accumulated);
 
       return {
         percentage: pct,
         isOverBudget: overBudget,
         formattedSpent: formatCurrency(totalSpent),
-        formattedBudget: formatCurrency(accumulated),
+        // Show absolute value for budget display - the badge/styling indicates overspent
+        formattedBudget: formatCurrency(Math.abs(accumulated)),
         accumulatedBudget: accumulated,
       };
     }
@@ -146,7 +150,7 @@ const CategoryCardComponent: React.FC<CategoryCardProps> = ({ category, onPress 
         </View>
       </View>
 
-      {category.budgetLimit && (
+      {category.budgetLimit ? (
         <View style={styles.progressContainer}>
           <View style={[styles.progressBar, { backgroundColor: theme.divider }]}>
             <View
@@ -166,6 +170,13 @@ const CategoryCardComponent: React.FC<CategoryCardProps> = ({ category, onPress 
             ]}
           >
             {percentage.toFixed(0)}%
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.setBudgetContainer}>
+          <Icon name="target" size={14} color={theme.textTertiary} />
+          <Text style={[styles.setBudgetText, { color: theme.textTertiary }]}>
+            Tap to set a budget
           </Text>
         </View>
       )}
@@ -276,6 +287,16 @@ const styles = StyleSheet.create({
     ...typography.labelMedium,
     minWidth: 40,
     textAlign: 'right',
+  },
+  setBudgetContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    gap: spacing.xs,
+  },
+  setBudgetText: {
+    ...typography.labelSmall,
+    fontStyle: 'italic',
   },
 });
 

@@ -13,6 +13,7 @@ import {
   Dimensions,
   StatusBar,
   Platform,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -233,11 +234,11 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({
           
           {/* Logo container */}
           <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>F</Text>
-            {/* Accent arrow */}
-            <View style={styles.logoAccent}>
-              <Icon name="trending-up" size={28} color="#22D3EE" />
-            </View>
+            <Image
+              source={require('../../assets/icon-white.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
         </Animated.View>
 
@@ -377,6 +378,11 @@ const styles = StyleSheet.create({
         elevation: 16,
       },
     }),
+  },
+  logoImage: {
+    width: 130,
+    height: 130,
+    borderRadius: 38,
   },
   logoText: {
     fontSize: 80,

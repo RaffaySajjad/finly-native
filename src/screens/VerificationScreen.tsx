@@ -15,9 +15,9 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Animated,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -42,6 +42,7 @@ const VerificationScreen: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigation = useNavigation<VerificationNavigationProp>();
   const route = useRoute<VerificationRouteProp>();
+  const { showError, showSuccess, AlertComponent } = useAlert();
 
   const email = route.params?.email || '';
 
@@ -148,11 +149,11 @@ const VerificationScreen: React.FC = () => {
 
     try {
       await authService.resendVerificationEmail(email);
-      Alert.alert('Code Sent', 'A new verification code has been sent to your email');
+      showSuccess('Code Sent', 'A new verification code has been sent to your email');
       setResendTimer(60);
       setCanResend(false);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to resend code');
+      showError('Error', error.message || 'Failed to resend code');
     }
   };
 
@@ -277,6 +278,7 @@ const VerificationScreen: React.FC = () => {
           </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
+      {AlertComponent}
     </SafeAreaView>
   );
 };

@@ -14,6 +14,7 @@ import {
   Dimensions,
   StatusBar,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -50,8 +51,6 @@ const WelcomeScreen: React.FC = () => {
   const navigation = useNavigation<WelcomeNavigationProp>();
 
   // Animation values
-  const logoScale = useRef(new Animated.Value(0)).current;
-  const logoRotate = useRef(new Animated.Value(0)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const titleSlide = useRef(new Animated.Value(30)).current;
   const subtitleOpacity = useRef(new Animated.Value(0)).current;
@@ -68,20 +67,6 @@ const WelcomeScreen: React.FC = () => {
   useEffect(() => {
     // Orchestrated entrance animation
     const animationSequence = Animated.sequence([
-      // Logo entrance with spring
-      Animated.parallel([
-        Animated.spring(logoScale, {
-          toValue: 1,
-          tension: 50,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-        Animated.timing(logoRotate, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ]),
       // Title fade in
       Animated.parallel([
         Animated.timing(titleOpacity, {
@@ -153,11 +138,6 @@ const WelcomeScreen: React.FC = () => {
     navigation.navigate('Login');
   };
 
-  const logoRotation = logoRotate.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['-10deg', '0deg'],
-  });
-
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -178,26 +158,16 @@ const WelcomeScreen: React.FC = () => {
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {/* Hero Section */}
         <View style={styles.heroSection}>
-          {/* Animated Logo */}
-          <Animated.View
-            style={[
-              styles.logoContainer,
-              {
-                transform: [
-                  { scale: logoScale },
-                  { rotate: logoRotation },
-                ],
-              },
-            ]}
-          >
+          {/* Static Logo Image */}
+          <View style={styles.logoContainer}>
             <View style={styles.logoInner}>
-              <Text style={styles.logoText}>F</Text>
-              {/* Accent arrow */}
-              <View style={styles.logoAccent}>
-                <Icon name="trending-up" size={24} color="#22D3EE" />
-              </View>
+              <Image
+                source={require('../../assets/icon-white.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
-          </Animated.View>
+          </View>
 
           {/* Title */}
           <Animated.Text
@@ -354,9 +324,10 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -369,16 +340,9 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  logoText: {
-    fontSize: 64,
-    fontWeight: '800',
-    color: '#4F46E5',
-    marginTop: -8,
-  },
-  logoAccent: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
+  logoImage: {
+    width: 120,
+    height: 120,
   },
   title: {
     fontSize: 48,
@@ -479,7 +443,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.85)',
     fontWeight: '600',
     textDecorationLine: 'underline',
-  },
+  }
 });
 
 export default WelcomeScreen;

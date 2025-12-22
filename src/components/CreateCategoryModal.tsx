@@ -11,11 +11,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Platform,
   Modal,
   ScrollView,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { logger } from '../utils/logger';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -64,6 +64,7 @@ export const CreateCategoryModal: React.FC = () => {
   
   // Get context
   const { setBottomSheetRef, closeCreateCategoryModal, config } = useCreateCategoryModal();
+  const { showError, showWarning, AlertComponent: AlertDialogComponent } = useAlert();
   
   const bottomSheetRef = useRef<BottomSheet>(null);
 
@@ -228,10 +229,9 @@ export const CreateCategoryModal: React.FC = () => {
       closeCreateCategoryModal();
     } catch (error: any) {
       console.error('[CreateCategoryModal] Creation error:', error);
-      Alert.alert(
+      showError(
         'Error',
-        error?.message || 'Failed to create category. Please try again.',
-        [{ text: 'OK' }]
+        error?.message || 'Failed to create category. Please try again.'
       );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
@@ -244,7 +244,7 @@ export const CreateCategoryModal: React.FC = () => {
    */
   const handleClose = (): void => {
     if (categoryName.trim() || budgetAmount) {
-      Alert.alert(
+      showWarning(
         'Discard Changes?',
         'You have unsaved changes. Are you sure you want to close?',
         [
@@ -653,6 +653,7 @@ export const CreateCategoryModal: React.FC = () => {
           </View>
         </TouchableOpacity>
       </Modal>
+      {AlertDialogComponent}
     </>
   );
 };

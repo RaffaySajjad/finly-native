@@ -22,6 +22,8 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { ErrorBoundary, AnimatedSplashScreen } from './src/components';
 import { BiometricLockScreen } from './src/screens/BiometricLockScreen';
 import { isBiometricLoginEnabled, isBiometricAvailable } from './src/services/biometricService';
+import { onAuthFailure } from './src/services/apiClient';
+import { clearAuth } from './src/store/slices/authSlice';
 
 // Prevent the native splash screen from auto-hiding
 // This allows our animated splash to control the transition
@@ -120,6 +122,14 @@ const AppContent = () => {
 
   // Track if initial data loading has been triggered
   const hasInitialized = useRef(false);
+
+  // Register auth failure listener to handle unrequested logouts (e.g., token revocation)
+  useEffect(() => {
+    onAuthFailure(() => {
+      console.warn('[App] Authentication failed unrecoverably, signing out user...');
+      dispatch(clearAuth());
+    });
+  }, [dispatch]);
 
   /**
    * Check if biometric login is enabled and available

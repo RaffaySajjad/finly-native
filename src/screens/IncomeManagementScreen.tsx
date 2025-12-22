@@ -12,11 +12,11 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   Switch,
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -51,6 +51,7 @@ const IncomeManagementScreen: React.FC = () => {
   const { theme } = useTheme();
   const { formatCurrency, getCurrencySymbol, convertToUSD, convertFromUSD, currencyCode } = useCurrency();
   const navigation = useNavigation<IncomeManagementNavigationProp>();
+  const { showError, showSuccess, showInfo, showWarning, AlertComponent } = useAlert();
   const [incomeSources, setIncomeSources] = useState<IncomeSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -106,7 +107,7 @@ const IncomeManagementScreen: React.FC = () => {
       setIncomeSources(sources);
     } catch (error) {
       console.error('Error loading income sources:', error);
-      Alert.alert('Error', 'Failed to load income sources');
+      showError('Error', 'Failed to load income sources');
     } finally {
       setLoading(false);
     }
@@ -140,28 +141,28 @@ const IncomeManagementScreen: React.FC = () => {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Missing Name', 'Please enter a name for this income source');
+      showInfo('Missing Name', 'Please enter a name for this income source');
       return;
     }
 
     if (!amount || parseFloat(amount) <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid amount');
+      showError('Invalid Amount', 'Please enter a valid amount');
       return;
     }
 
     // Validate frequency-specific fields
     if (frequency === 'WEEKLY' && dayOfWeek === undefined) {
-      Alert.alert('Missing Day', 'Please select a day of the week');
+      showInfo('Missing Day', 'Please select a day of the week');
       return;
     }
 
     if (frequency === 'MONTHLY' && dayOfMonth === undefined) {
-      Alert.alert('Missing Day', 'Please select a day of the month');
+      showInfo('Missing Day', 'Please select a day of the month');
       return;
     }
 
     if (frequency === 'CUSTOM' && customDates.length === 0) {
-      Alert.alert('Missing Dates', 'Please enter at least one custom date (e.g., 15, 30)');
+      showInfo('Missing Dates', 'Please enter at least one custom date (e.g., 15, 30)');
       return;
     }
 
@@ -186,10 +187,10 @@ const IncomeManagementScreen: React.FC = () => {
 
       if (editingSource) {
         await updateIncomeSource(editingSource.id, sourceData);
-        Alert.alert('Success', 'Income source updated successfully!');
+        showSuccess('Success', 'Income source updated successfully!');
       } else {
         await createIncomeSource(sourceData);
-        Alert.alert('Success', 'Income source added successfully!');
+        showSuccess('Success', 'Income source added successfully!');
       }
 
       await loadIncomeSources();
@@ -197,7 +198,7 @@ const IncomeManagementScreen: React.FC = () => {
       handleCloseSheet();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      Alert.alert('Error', 'Failed to save income source');
+      showError('Error', 'Failed to save income source');
       console.error('Error saving income source:', error);
     } finally {
       setSaving(false);
@@ -207,7 +208,7 @@ const IncomeManagementScreen: React.FC = () => {
   const handleDelete = (source: IncomeSource) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    Alert.alert(
+    showWarning(
       'Delete Income Source',
       `Are you sure you want to delete "${source.name}"?`,
       [
@@ -222,7 +223,7 @@ const IncomeManagementScreen: React.FC = () => {
 
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete income source');
+              showError('Error', 'Failed to delete income source');
             }
           },
         },
@@ -273,39 +274,51 @@ const IncomeManagementScreen: React.FC = () => {
     }
 
     const now = new Date();
+    now.setHours(0, 0, 0, 0); // Normalize to start of day for date comparison
     const start = new Date(source.startDate);
     let next = new Date(start);
 
-    // Simple calculation - in production, use incomeService.calculateNextPaymentDate
+    // Calculate next payment date based on frequency
+    // Use <= comparison because if today is the payment day and it's already processed,
+    // the "Next" should show the following occurrence
     switch (source.frequency) {
       case 'WEEKLY':
-        while (next < now) {
+        // Advance by weeks until we reach a future date
+        while (next <= now) {
           next.setDate(next.getDate() + 7);
         }
         break;
       case 'BIWEEKLY':
-        while (next < now) {
+        // Advance by 2 weeks until we reach a future date
+        while (next <= now) {
           next.setDate(next.getDate() + 14);
         }
         break;
       case 'MONTHLY':
         if (source.dayOfMonth) {
-          next.setDate(source.dayOfMonth);
-          if (next < now) {
+          // Start from current month with the specified day
+          next = new Date(now.getFullYear(), now.getMonth(), source.dayOfMonth);
+          // If the day has already passed this month (or is today and processed), advance to next month
+          if (next <= now) {
             next.setMonth(next.getMonth() + 1);
           }
         }
         break;
       case 'CUSTOM':
-        // Find next custom date
+        // Find next custom date in the sorted list
         if (source.customDates && source.customDates.length > 0) {
           const today = now.getDate();
-          const nextCustom = source.customDates.find(d => d >= today);
+          // Find the first custom date that's strictly after today
+          // (if today is a custom date, it's already processed, so show the next one)
+          const nextCustom = source.customDates.find(d => d > today);
+          // Use current month as base
+          next = new Date(now.getFullYear(), now.getMonth(), 1);
           if (nextCustom) {
             next.setDate(nextCustom);
           } else {
-            next.setDate(source.customDates[0]);
+            // No more custom dates this month, use first date of next month
             next.setMonth(next.getMonth() + 1);
+            next.setDate(source.customDates[0]);
           }
         }
         break;
@@ -682,6 +695,7 @@ const IncomeManagementScreen: React.FC = () => {
           </TouchableOpacity>
         </BottomSheetScrollView>
       </BottomSheet>
+      {AlertComponent}
     </SafeAreaView>
   );
 };

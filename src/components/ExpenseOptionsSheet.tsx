@@ -10,9 +10,9 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   Platform,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import * as Haptics from 'expo-haptics';
@@ -41,6 +41,7 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
   const { theme } = useTheme();
   const { formatCurrency, formatTransactionAmount } = useCurrency();
   const bottomSheetRef = useRef<BottomSheet>(null);
+  const { showWarning, AlertComponent } = useAlert();
 
   // Auto-expand when expense is set
   React.useEffect(() => {
@@ -62,7 +63,7 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
   const handleDelete = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     
-    Alert.alert(
+    showWarning(
       'Delete Transaction',
       'Are you sure you want to delete this transaction? This action cannot be undone.',
       [
@@ -86,7 +87,7 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
         },
       ]
     );
-  }, [expense, onDelete]);
+  }, [expense, onDelete, showWarning]);
 
   if (!expense) return null;
 
@@ -132,6 +133,7 @@ export const ExpenseOptionsSheet: React.FC<ExpenseOptionsSheetProps> = ({
           </TouchableOpacity>
         </View>
       </View>
+      {AlertComponent}
     </BottomSheet>
   );
 };

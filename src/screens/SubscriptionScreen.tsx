@@ -25,6 +25,7 @@ import { PremiumBadge } from '../components';
 import FeatureComparison from '../components/FeatureComparison';
 import TrialBadge from '../components/TrialBadge';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { PRICING_CONFIG } from '../config/pricing.config';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -108,6 +109,7 @@ const SubscriptionScreen: React.FC = () => {
     { icon: 'file-export', title: 'Data Export', description: 'Export reports in PDF format' },
     { icon: 'repeat', title: 'Bulk Transaction Entry', description: 'Add multiple transactions at once' },
     { icon: 'image-multiple', title: 'Receipt Gallery', description: 'Organize and search all your receipts' },
+    { icon: 'currency-usd', title: 'Multi-Currency Transactions', description: 'Record expenses in any of 150+ currencies' },
   ];
 
   return (
@@ -164,6 +166,26 @@ const SubscriptionScreen: React.FC = () => {
           </View>
         )}
 
+        {/* Web Signup Discount Banner */}
+        {subscription.hasPendingDiscount && !isPremium && (
+          <View
+            style={[
+              styles.discountBanner,
+              { backgroundColor: theme.primary + '15', borderColor: theme.primary },
+            ]}
+          >
+            <Text style={styles.discountIcon}>🎁</Text>
+            <View style={styles.discountContent}>
+              <Text style={[styles.discountTitle, { color: theme.primary }]}>
+                {PRICING_CONFIG.DISCOUNT.percentFormatted} OFF First Month!
+              </Text>
+              <Text style={[styles.discountSubtitle, { color: theme.textSecondary }]}>
+                Your web signup discount will be applied automatically
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Premium Plan Card */}
         <View
           style={[
@@ -175,8 +197,8 @@ const SubscriptionScreen: React.FC = () => {
           <View style={styles.planHeader}>
             <PremiumBadge size="medium" />
 
-            {/* Plan Selector */}
-            {(!isPremium || isCanceled) && (
+            {/* Plan Selector - Show for free users, canceled users, or trial users */}
+            {(isFree || isCanceled || isTrial) && (
               <View style={[styles.planSelector, { backgroundColor: theme.background }]}>
                 <TouchableOpacity
                   style={[
@@ -220,7 +242,7 @@ const SubscriptionScreen: React.FC = () => {
 
             <View style={styles.priceContainer}>
               <Text style={[styles.price, { color: theme.text }]}>
-                {selectedPlan === 'monthly' ? '$4.99' : '$2.99'}
+                {selectedPlan === 'monthly' ? PRICING_CONFIG.MONTHLY.priceFormatted : PRICING_CONFIG.YEARLY.monthlyEquivalentFormatted}
               </Text>
               <Text style={[styles.pricePeriod, { color: theme.textSecondary }]}>
                 /{selectedPlan === 'monthly' ? 'month' : 'month'}
@@ -229,7 +251,7 @@ const SubscriptionScreen: React.FC = () => {
 
             {selectedPlan === 'yearly' && (
               <Text style={[styles.savingsText, { color: theme.success }]}>
-                Build a long-term habit. (And save 40%)
+                Build a long-term habit. (And save {PRICING_CONFIG.SAVINGS.percentFormatted})
               </Text>
             )}
           </View>
@@ -269,7 +291,7 @@ const SubscriptionScreen: React.FC = () => {
                   <>
                       <Text style={styles.trialButtonText}>Start 7-Day Free Trial</Text>
                       <Text style={styles.trialButtonSubtext}>
-                      {selectedPlan === 'monthly' ? '$4.99/month' : '$34.99/year'} after trial • Cancel anytime
+                        {selectedPlan === 'monthly' ? `${PRICING_CONFIG.MONTHLY.priceFormatted}/month` : `${PRICING_CONFIG.YEARLY.priceFormatted}/year`} after trial • Cancel anytime
                     </Text>
                   </>
                 )}
@@ -291,7 +313,7 @@ const SubscriptionScreen: React.FC = () => {
                   <>
                     <Text style={styles.trialButtonText}>Upgrade to Premium</Text>
                     <Text style={styles.trialButtonSubtext}>
-                      Continue enjoying Premium features • {selectedPlan === 'monthly' ? '$4.99/month' : '$34.99/year'}
+                        Continue enjoying Premium features • {selectedPlan === 'monthly' ? `${PRICING_CONFIG.MONTHLY.priceFormatted}/month` : `${PRICING_CONFIG.YEARLY.priceFormatted}/year`}
                     </Text>
                   </>
                 )}
@@ -532,6 +554,31 @@ const styles = StyleSheet.create({
     ...typography.labelMedium,
     fontWeight: '600',
     marginTop: spacing.xs,
+  },
+  // Discount banner styles
+  discountBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.lg,
+  },
+  discountIcon: {
+    fontSize: 32,
+    marginRight: spacing.md,
+  },
+  discountContent: {
+    flex: 1,
+  },
+  discountTitle: {
+    ...typography.titleSmall,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  discountSubtitle: {
+    ...typography.bodySmall,
+    lineHeight: 18,
   },
 });
 

@@ -13,8 +13,8 @@ import {
   Image,
   TextInput,
   StatusBar,
-  Alert,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -35,6 +35,7 @@ const ReceiptGalleryScreen: React.FC = () => {
   const { formatCurrency } = useCurrency();
   const navigation = useNavigation<NavigationProp>();
   const { isPremium, requiresUpgrade } = useSubscription();
+  const { showError, showWarning, AlertComponent } = useAlert();
 
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [filteredReceipts, setFilteredReceipts] = useState<Receipt[]>([]);
@@ -88,7 +89,7 @@ const ReceiptGalleryScreen: React.FC = () => {
   };
 
   const handleDeleteReceipt = (receipt: Receipt) => {
-    Alert.alert(
+    showWarning(
       'Delete Receipt',
       'Are you sure you want to delete this receipt?',
       [
@@ -101,7 +102,7 @@ const ReceiptGalleryScreen: React.FC = () => {
               await receiptService.deleteReceipt(receipt.id);
               await loadReceipts();
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete receipt');
+              showError('Error', 'Failed to delete receipt');
             }
           },
         },
@@ -214,6 +215,7 @@ const ReceiptGalleryScreen: React.FC = () => {
         feature="Receipt Gallery"
         message="This premium feature allows you to view, search, and organize all your scanned receipts in one place."
       />
+      {AlertComponent}
     </SafeAreaView>
   );
 };

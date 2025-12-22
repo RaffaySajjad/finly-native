@@ -14,9 +14,9 @@ import {
   Switch,
   StatusBar,
   TextInput,
-  Alert,
   Platform,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -62,6 +62,7 @@ const ProfileScreen: React.FC = () => {
   const { isPremium, subscription } = useSubscription();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { animateBalancePill, setAnimateBalancePill } = usePreferences();
+  const { showError, showSuccess, showWarning, showInfo, AlertComponent } = useAlert();
 
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
@@ -115,7 +116,7 @@ const ProfileScreen: React.FC = () => {
         // Haptic feedback on iOS and Android
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        Alert.alert('Error', 'Failed to enable biometric login');
+        showError('Error', 'Failed to enable biometric login');
       }
     } else {
       await disableBiometricLogin();
@@ -162,7 +163,7 @@ const ProfileScreen: React.FC = () => {
 
   const handleSaveProfile = async () => {
     if (!editName || !editEmail) {
-      Alert.alert('Missing Fields', 'Please fill in both name and email');
+      showInfo('Missing Fields', 'Please fill in both name and email');
       return;
     }
 
@@ -170,9 +171,9 @@ const ProfileScreen: React.FC = () => {
       await dispatch(updateProfileAction({ name: editName, email: editEmail })).unwrap();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       editProfileSheetRef.current?.close();
-      Alert.alert('Success', 'Profile updated successfully!');
+      showSuccess('Success', 'Profile updated successfully!');
     } catch (error) {
-      Alert.alert('Error', 'Failed to update profile');
+      showError('Error', 'Failed to update profile');
     }
   };
 
@@ -201,7 +202,7 @@ const ProfileScreen: React.FC = () => {
   const handleLogout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    Alert.alert(
+    showWarning(
       'Logout',
       'Are you sure you want to logout?',
       [
@@ -217,7 +218,7 @@ const ProfileScreen: React.FC = () => {
               await dispatch(logoutAction()).unwrap();
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (error) {
-              Alert.alert('Error', 'Failed to logout');
+              showError('Error', 'Failed to logout');
             }
           },
         },
@@ -238,24 +239,21 @@ const ProfileScreen: React.FC = () => {
 
   const handleSubmitFeedbackAndDelete = async () => {
     // Show final confirmation alert before proceeding
-    Alert.alert(
+    showWarning(
       'Final Confirmation',
       'This will permanently delete all your data including:\n\n• All transactions\n• All categories and budgets\n• All income sources\n• All receipts\n• All tags\n• All preferences\n\nThis action cannot be undone. You will be signed out immediately.',
       [
         {
           text: 'Cancel',
           style: 'cancel',
-        onPress: () => {
-          // Keep feedback sheet open if user cancels
         },
-      },
-      {
-        text: 'Delete Account',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            // Check if biometric authentication is available
-            const biometricAvailable = await isBiometricAvailable();
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Check if biometric authentication is available
+              const biometricAvailable = await isBiometricAvailable();
 
               if (biometricAvailable) {
                 // Trigger biometric authentication
@@ -266,7 +264,7 @@ const ProfileScreen: React.FC = () => {
 
                 if (!authenticated) {
                   // Biometric authentication failed or was cancelled
-                  Alert.alert(
+                  showWarning(
                     'Authentication Required',
                     `${biometricName} authentication is required to delete your account. Please try again.`
                   );
@@ -285,7 +283,7 @@ const ProfileScreen: React.FC = () => {
 
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete account. Please try again.');
+              showError('Error', 'Failed to delete account. Please try again.');
             }
           },
         },
@@ -305,7 +303,7 @@ const ProfileScreen: React.FC = () => {
       await notificationService.sendTestNotification();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
-      Alert.alert(
+      showError(
         'Error',
         error.message || 'Failed to send test notification. Make sure notifications are enabled.'
       );
@@ -671,7 +669,7 @@ const ProfileScreen: React.FC = () => {
             <TouchableOpacity
               style={[styles.helpContactButton, { backgroundColor: theme.primary + '20', borderColor: theme.primary }]}
               onPress={() => {
-                Alert.alert('Contact Support', 'Email: support@heyfinly.ai\n\nWe typically respond within 24 hours.');
+                showInfo('Contact Support', 'Email: support@heyfinly.ai\n\nWe typically respond within 24 hours.');
               }}
             >
               <Icon name="email-outline" size={20} color={theme.primary} />
@@ -841,6 +839,7 @@ const ProfileScreen: React.FC = () => {
           </View>
         </BottomSheetScrollView>
       </BottomSheet>
+      {AlertComponent}
     </SafeAreaView>
   );
 };

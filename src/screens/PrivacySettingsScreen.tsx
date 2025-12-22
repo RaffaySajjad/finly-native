@@ -11,11 +11,11 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   Platform,
   Share,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -42,6 +42,7 @@ const PrivacySettingsScreen: React.FC = () => {
   const dispatch = useAppDispatch();
   const [isExporting, setIsExporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const { showError, showSuccess, showWarning, showInfo, AlertComponent } = useAlert();
 
   const handleExportJSON = async () => {
     setIsExporting(true);
@@ -54,10 +55,10 @@ const PrivacySettingsScreen: React.FC = () => {
           title: 'Finly Data Export',
         });
       } else {
-        Alert.alert('Data Exported', 'Your data has been exported successfully');
+        showSuccess('Data Exported', 'Your data has been exported successfully');
       }
     } catch (error) {
-      Alert.alert('Export Failed', 'Could not export your data. Please try again.');
+      showError('Export Failed', 'Could not export your data. Please try again.');
       console.error(error);
     } finally {
       setIsExporting(false);
@@ -75,10 +76,10 @@ const PrivacySettingsScreen: React.FC = () => {
           title: 'Finly Expenses Export',
         });
       } else {
-        Alert.alert('Data Exported', 'Your expenses have been exported as CSV');
+        showSuccess('Data Exported', 'Your expenses have been exported as CSV');
       }
     } catch (error) {
-      Alert.alert('Export Failed', 'Could not export your data. Please try again.');
+      showError('Export Failed', 'Could not export your data. Please try again.');
       console.error(error);
     } finally {
       setIsExporting(false);
@@ -87,7 +88,7 @@ const PrivacySettingsScreen: React.FC = () => {
 
   const handleDeleteAllData = async () => {
   // Show confirmation alert first
-    Alert.alert(
+    showWarning(
       'Delete All Data',
       'Are you sure you want to delete all your data? This action cannot be undone. You will be logged out.',
       [
@@ -112,7 +113,7 @@ const PrivacySettingsScreen: React.FC = () => {
 
                 if (!authenticated) {
                   // Biometric authentication failed or was cancelled
-                  Alert.alert(
+                  showWarning(
                     'Authentication Failed',
                     `${biometricName} authentication is required to delete all data.`
                   );
@@ -128,7 +129,7 @@ const PrivacySettingsScreen: React.FC = () => {
                 // Clear categories from Redux state before logout
                 dispatch(clearCategories());
 
-                Alert.alert(
+                showSuccess(
                   'Data Deleted',
                   'All your data has been deleted. You will be logged out.',
                   [
@@ -142,14 +143,14 @@ const PrivacySettingsScreen: React.FC = () => {
                   ]
                 );
               } catch (error) {
-                Alert.alert('Error', 'Failed to delete data. Please try again.');
+                showError('Error', 'Failed to delete data. Please try again.');
                 console.error(error);
               } finally {
                 setIsDeleting(false);
               }
             } catch (error) {
               console.error('Biometric check error:', error);
-              Alert.alert('Error', 'Authentication check failed. Please try again.');
+              showError('Error', 'Authentication check failed. Please try again.');
             }
           },
         },
@@ -262,6 +263,7 @@ const PrivacySettingsScreen: React.FC = () => {
 
         <View style={{ height: spacing.xl }} />
       </ScrollView>
+      {AlertComponent}
     </SafeAreaView>
   );
 };

@@ -6,10 +6,7 @@
 
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
-import { api } from './apiClient';
-import { API_CONFIG } from '../config/api.config';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { STORAGE_KEYS } from '../config/api.config';
+import { uploadFile } from './fileUploadService';
 
 /**
  * Validate that the audio file exists and is readable
@@ -114,24 +111,36 @@ export async function transcribeAudio(
       name: filename
     } as any);
 
-    // Build query params
+    // Build endpoint with query params
     const queryParams = languageCode
       ? `?languageCode=${encodeURIComponent(languageCode)}`
       : '';
+    const endpoint = `/ai/transcribe-audio${queryParams}`;
 
-    // Make request with FormData
-    // Note: Content-Type will be automatically removed by apiClient interceptor for FormData
-    // api.post returns ApiResponse<T> directly (already unwrapped from axios response)
-    const response = await api.post<{ text: string }>(
-      `/ai/transcribe-audio${queryParams}`,
-      formData,
-      {
-        timeout: 60000 // 60 seconds timeout for transcription
+    // Use native fetch-based upload (works on Android)
+    const response = await uploadFile<{ text: string }>(endpoint, formData, {
+      timeout: 60000 // 60 seconds timeout for transcription
+    });
+
+    // Check response
+    if (!response.success) {
+      const errorMessage = response.error?.message || 'Failed to transcribe audio. Please try again.';
+      
+      // Handle specific error codes
+      if (response.error?.statusCode === 413) {
+        throw new Error('Audio file is too large. Maximum size is 25MB.');
       }
-    );
+      if (response.error?.statusCode === 401) {
+        throw new Error('Authentication failed. Please log in again.');
+      }
+      if (response.error?.statusCode === 404) {
+        throw new Error('Transcription service not available. Please try again later.');
+      }
+      
+      throw new Error(errorMessage);
+    }
 
-    // api.post returns { success, data, message, error } directly
-    if (response.success && response.data?.text) {
+    if (response.data?.text) {
       const transcribedText = response.data.text.trim();
       console.log(
         '[VoiceTranscription] Transcription successful:',
@@ -140,67 +149,11 @@ export async function transcribeAudio(
       return transcribedText;
     }
 
-    console.warn('[VoiceTranscription] Unexpected response format:', response);
+    console.warn('[VoiceTranscription] No text in response:', response);
     return null;
   } catch (error: any) {
     console.error('[VoiceTranscription] Transcription error:', error);
-    console.error('[VoiceTranscription] Error details:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    });
-
-    // Re-throw file validation errors as-is
-    if (
-      error.message?.includes('Audio file') ||
-      error.message?.includes('recording')
-    ) {
-      throw error;
-    }
-
-    // Provide user-friendly error messages
-    if (error.response?.status === 413) {
-      throw new Error('Audio file is too large. Maximum size is 25MB.');
-    }
-
-    if (error.response?.status === 400) {
-      const serverMessage =
-        error.response.data?.error?.message || error.response.data?.message;
-      if (
-        serverMessage?.toLowerCase().includes('file') ||
-        serverMessage?.toLowerCase().includes('audio')
-      ) {
-        throw new Error(serverMessage);
-      }
-      throw new Error('Invalid audio file format. Please try recording again.');
-    }
-
-    if (error.response?.status === 401) {
-      throw new Error('Authentication failed. Please log in again.');
-    }
-
-    if (error.response?.status === 404) {
-      throw new Error(
-        'Transcription service not available. Please try again later.'
-      );
-    }
-
-    // Network errors
-    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-      throw new Error(
-        'Transcription timed out. Please try with a shorter recording.'
-      );
-    }
-
-    if (!error.response && error.message?.includes('Network')) {
-      throw new Error(
-        'Network error. Please check your connection and try again.'
-      );
-    }
-
-    throw new Error(
-      error.message || 'Failed to transcribe audio. Please try again.'
-    );
+    throw error;
   }
 }
 
@@ -211,4 +164,3 @@ export function isTranscriptionAvailable(): boolean {
   // Transcription is now available via backend
   return true;
 }
-

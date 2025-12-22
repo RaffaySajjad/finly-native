@@ -1,5 +1,65 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
+// Helper function to find Node.js executable
+def findNodeExecutable() {
+  def nodeExec = "node"
+  
+  // First, try to read from local.properties
+  def localProperties = new File(rootDir, "local.properties")
+  if (localProperties.exists()) {
+    def properties = new Properties()
+    localProperties.withInputStream { properties.load(it) }
+    def nodePath = properties.getProperty("node.executable")
+    if (nodePath != null && !nodePath.isEmpty()) {
+      def file = new File(nodePath)
+      if (file.exists() && file.canExecute()) {
+        return nodePath
+      }
+    }
+  }
+  
+  // Try common nvm locations
+  def homeDir = System.getProperty("user.home")
+  def nvmPaths = [
+    "${homeDir}/.nvm/versions/node/v22.8.0/bin/node",
+    "${homeDir}/.nvm/versions/node/v20.0.0/bin/node",
+    "${homeDir}/.nvm/versions/node/v18.0.0/bin/node",
+    "${homeDir}/.nvm/versions/node/v16.0.0/bin/node",
+    "${homeDir}/.nvm/current/bin/node",
+  ]
+  
+  for (def path : nvmPaths) {
+    def file = new File(path)
+    if (file.exists() && file.canExecute()) {
+      return path
+    }
+  }
+  
+  // Try to find latest nvm version
+  def nvmDir = new File("${homeDir}/.nvm/versions/node")
+  if (nvmDir.exists() && nvmDir.isDirectory()) {
+    def versions = nvmDir.listFiles()
+    if (versions != null && versions.length > 0) {
+      versions.sort { a, b -> b.name.compareTo(a.name) }
+      for (def versionDir : versions) {
+        def nodePath = new File(versionDir, "bin/node")
+        if (nodePath.exists() && nodePath.canExecute()) {
+          return nodePath.absolutePath
+        }
+      }
+    }
+  }
+  
+  // Fallback to system node
+  return nodeExec
+}
+
+// Set Node.js executable path for all subprojects
+ext.nodeExecutable = findNodeExecutable()
+
+// Set as system property so plugins can access it
+System.setProperty("NODE_BINARY", ext.nodeExecutable)
+
 buildscript {
   repositories {
     google()

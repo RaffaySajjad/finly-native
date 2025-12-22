@@ -12,11 +12,11 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -35,6 +35,7 @@ const AddIncomeScreen: React.FC = () => {
   const route = useRoute();
   const { theme } = useTheme();
   const { getCurrencySymbol, convertToUSD, currencyCode } = useCurrency();
+  const { showError, showSuccess, AlertComponent } = useAlert();
 
   // Check if we're editing an existing income transaction
   const params = route.params as { income?: any } | undefined;
@@ -71,12 +72,12 @@ const AddIncomeScreen: React.FC = () => {
 
   const handleSave = async (): Promise<void> => {
     if (!amount || parseFloat(amount) <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid amount');
+      showError('Invalid Amount', 'Please enter a valid amount');
       return;
     }
 
     if (!description.trim()) {
-      Alert.alert('Missing Description', 'Please add a description');
+      showError('Missing Description', 'Please add a description');
       return;
     }
 
@@ -107,7 +108,7 @@ const AddIncomeScreen: React.FC = () => {
       if (isEditing) {
         await apiService.updateIncomeTransaction(editingIncome.id, payload);
 
-        Alert.alert(
+        showSuccess(
           'Success',
           'Income updated successfully!',
           [{ text: 'OK', onPress: () => navigation.goBack() }]
@@ -115,14 +116,14 @@ const AddIncomeScreen: React.FC = () => {
       } else {
         await apiService.createIncomeTransaction(payload);
 
-        Alert.alert(
+        showSuccess(
           'Success',
           'Income recorded successfully!',
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to save income. Please try again.');
+      showError('Error', 'Failed to save income. Please try again.');
       console.error('Error saving income:', error);
     } finally {
       setSaving(false);
@@ -294,6 +295,7 @@ const AddIncomeScreen: React.FC = () => {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+      {AlertComponent}
     </SafeAreaView>
   );
 };

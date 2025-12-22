@@ -180,6 +180,16 @@ class AuthService {
       // Always clear local tokens, user data, and API cache
       await tokenManager.clearTokens();
       await apiCacheService.clear();
+      
+      // Clear exchange rate cache to ensure fresh rates on next login
+      // This fixes the bug where currency symbol is correct but value shows in USD
+      const allKeys = await AsyncStorage.getAllKeys();
+      const exchangeRateCacheKeys = allKeys.filter(key => key.startsWith('@finly_exchange_rate_cache'));
+      if (exchangeRateCacheKeys.length > 0) {
+        await AsyncStorage.multiRemove(exchangeRateCacheKeys);
+        logger.info('[AuthService] Cleared exchange rate cache on logout');
+      }
+      
       logger.info('[AuthService] Cleared API cache on logout');
     }
   }

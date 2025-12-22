@@ -16,6 +16,8 @@
  * - Receipt validation failures
  */
 
+import { PRICING_CONFIG } from './pricing.config';
+
 /**
  * Check if we're in development mode
  */
@@ -34,14 +36,14 @@ export const IAP_CONFIG = {
     PREMIUM_MONTHLY: {
       ios: 'finly_premium_monthly',
       android: 'finly.premium.monthly',
-      price: '$4.99',
-      priceValue: 4.99,
+      price: PRICING_CONFIG.MONTHLY.priceFormatted,
+      priceValue: PRICING_CONFIG.MONTHLY.price,
     },
     PREMIUM_YEARLY: {
       ios: 'finly_premium_yearly',
       android: 'finly.premium.yearly',
-      price: '$34.99',
-      priceValue: 34.99,
+      price: PRICING_CONFIG.YEARLY.priceFormatted,
+      priceValue: PRICING_CONFIG.YEARLY.price,
     },
   },
   

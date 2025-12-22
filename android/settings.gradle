@@ -1,8 +1,61 @@
 pluginManagement {
+  // Find Node.js executable - try local.properties first, then nvm locations
+  def nodeExecutable = "node"
+  def localProperties = new File(rootDir, "local.properties")
+  if (localProperties.exists()) {
+    def properties = new Properties()
+    localProperties.withInputStream { properties.load(it) }
+    def nodePath = properties.getProperty("node.executable")
+    if (nodePath != null && !nodePath.isEmpty()) {
+      def file = new File(nodePath)
+      if (file.exists() && file.canExecute()) {
+        nodeExecutable = nodePath
+      }
+    }
+  }
+  
+  // If not found in local.properties, try common nvm locations
+  if (nodeExecutable == "node") {
+    def homeDir = System.getProperty("user.home")
+    def nvmPaths = [
+      "${homeDir}/.nvm/versions/node/v22.8.0/bin/node",
+      "${homeDir}/.nvm/versions/node/v20.0.0/bin/node",
+      "${homeDir}/.nvm/versions/node/v18.0.0/bin/node",
+      "${homeDir}/.nvm/versions/node/v16.0.0/bin/node",
+      "${homeDir}/.nvm/current/bin/node",
+    ]
+    
+    for (def path : nvmPaths) {
+      def file = new File(path)
+      if (file.exists() && file.canExecute()) {
+        nodeExecutable = path
+        break
+      }
+    }
+    
+    // Try to find latest nvm version if still not found
+    if (nodeExecutable == "node") {
+      def nvmDir = new File("${homeDir}/.nvm/versions/node")
+      if (nvmDir.exists() && nvmDir.isDirectory()) {
+        def versions = nvmDir.listFiles()
+        if (versions != null && versions.length > 0) {
+          versions.sort { a, b -> b.name.compareTo(a.name) }
+          for (def versionDir : versions) {
+            def nodePath = new File(versionDir, "bin/node")
+            if (nodePath.exists() && nodePath.canExecute()) {
+              nodeExecutable = nodePath.absolutePath
+              break
+            }
+          }
+        }
+      }
+    }
+  }
+  
   def reactNativeGradlePlugin = new File(
     providers.exec {
       workingDir(rootDir)
-      commandLine("node", "--print", "require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })")
+      commandLine(nodeExecutable, "--print", "require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })")
     }.standardOutput.asText.get().trim()
   ).getParentFile().absolutePath
   includeBuild(reactNativeGradlePlugin)
@@ -10,17 +63,36 @@ pluginManagement {
   def expoPluginsPath = new File(
     providers.exec {
       workingDir(rootDir)
-      commandLine("node", "--print", "require.resolve('expo-modules-autolinking/package.json', { paths: [require.resolve('expo/package.json')] })")
+      commandLine(nodeExecutable, "--print", "require.resolve('expo-modules-autolinking/package.json', { paths: [require.resolve('expo/package.json')] })")
     }.standardOutput.asText.get().trim(),
     "../android/expo-gradle-plugin"
   ).absolutePath
   includeBuild(expoPluginsPath)
+  
+  // Store node executable path for later use
+  ext.nodeExecutable = nodeExecutable
+  
+  // Set Node.js path as system property and environment variable for plugins early
+  if (nodeExecutable != "node") {
+    System.setProperty("NODE_BINARY", nodeExecutable)
+    // Also add Node.js directory to PATH if it's a full path
+    def nodeDir = new File(nodeExecutable).getParentFile()
+    if (nodeDir != null && nodeDir.exists()) {
+      def currentPath = System.getenv("PATH") ?: ""
+      def nodeBinPath = nodeDir.getAbsolutePath()
+      if (!currentPath.contains(nodeBinPath)) {
+        System.setProperty("PATH", "${nodeBinPath}:${currentPath}")
+      }
+    }
+  }
 }
 
 plugins {
   id("com.facebook.react.settings")
   id("expo-autolinking-settings")
 }
+
+// Node.js environment is now set up inside pluginManagement block
 
 extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
   if (System.getenv('EXPO_USE_COMMUNITY_AUTOLINKING') == '1') {

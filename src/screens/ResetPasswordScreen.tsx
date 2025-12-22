@@ -15,9 +15,9 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Animated,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -39,6 +39,7 @@ const ResetPasswordScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<ResetPasswordNavigationProp>();
   const route = useRoute<ResetPasswordRouteProp>();
+  const { showError, showSuccess, showInfo, AlertComponent } = useAlert();
 
   const email = route.params?.email || '';
 
@@ -114,18 +115,18 @@ const ResetPasswordScreen: React.FC = () => {
 
   const validatePassword = (): boolean => {
     if (newPassword.length < 8) {
-      Alert.alert('Weak Password', 'Password must be at least 8 characters long');
+      showError('Weak Password', 'Password must be at least 8 characters long');
       return false;
     }
 
     if (newPassword.length > 128) {
-      Alert.alert('Password Too Long', 'Password must not exceed 128 characters');
+      showError('Password Too Long', 'Password must not exceed 128 characters');
       return false;
     }
 
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
     if (!passwordRegex.test(newPassword)) {
-      Alert.alert(
+      showError(
         'Weak Password',
         'Password must contain at least one uppercase letter, one lowercase letter, and one number'
       );
@@ -133,7 +134,7 @@ const ResetPasswordScreen: React.FC = () => {
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert('Password Mismatch', 'Passwords do not match');
+      showError('Password Mismatch', 'Passwords do not match');
       return false;
     }
 
@@ -144,12 +145,12 @@ const ResetPasswordScreen: React.FC = () => {
     const otpCode = otp.join('');
 
     if (otpCode.length !== 6) {
-      Alert.alert('Invalid OTP', 'Please enter all 6 digits');
+      showInfo('Invalid OTP', 'Please enter all 6 digits');
       return;
     }
 
     if (!newPassword || !confirmPassword) {
-      Alert.alert('Missing Fields', 'Please enter your new password');
+      showInfo('Missing Fields', 'Please enter your new password');
       return;
     }
 
@@ -168,7 +169,7 @@ const ResetPasswordScreen: React.FC = () => {
 
       setLoading(false);
 
-      Alert.alert(
+      showSuccess(
         'Password Reset Successfully! ✅',
         'Your password has been reset. You can now login with your new password.',
         [
@@ -180,7 +181,7 @@ const ResetPasswordScreen: React.FC = () => {
       );
     } catch (error: any) {
       setLoading(false);
-      Alert.alert('Reset Failed', error.message || 'Invalid OTP or request. Please try again.');
+      showError('Reset Failed', error.message || 'Invalid OTP or request. Please try again.');
       // Clear OTP on error
       setOtp(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
@@ -192,11 +193,11 @@ const ResetPasswordScreen: React.FC = () => {
 
     try {
       await authService.forgotPassword(email);
-      Alert.alert('OTP Sent', 'A new verification code has been sent to your email');
+      showSuccess('OTP Sent', 'A new verification code has been sent to your email');
       setResendTimer(60);
       setCanResend(false);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to resend OTP');
+      showError('Error', error.message || 'Failed to resend OTP');
     }
   };
 
@@ -372,6 +373,7 @@ const ResetPasswordScreen: React.FC = () => {
           </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
+      {AlertComponent}
     </SafeAreaView>
   );
 };

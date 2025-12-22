@@ -14,6 +14,7 @@ import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useBottomSheetActions } from '../contexts/BottomSheetContext';
 import { useAppFlow } from '../contexts/AppFlowContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { useAppDispatch, useAppSelector } from '../store';
 import { checkAuthStatus } from '../store/slices/authSlice';
 import { checkSubscriptionStatus } from '../store/slices/subscriptionSlice';
@@ -23,6 +24,7 @@ import SharedBottomSheet from '../components/SharedBottomSheet';
 import { CreateCategoryModalProvider } from '../contexts/CreateCategoryModalContext';
 import { CreateCategoryModal } from '../components/CreateCategoryModal';
 import { useQuickActions } from '../hooks/useQuickActions';
+import { prefetchAllScreenData } from '../services/prefetch';
 
 // Import screens
 import DashboardScreen from '../screens/DashboardScreen';
@@ -237,6 +239,7 @@ const AppNavigator: React.FC = () => {
   const { isAuthenticated, isRestoringAuth } = useAppSelector((state) => state.auth);
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
   const { onboardingComplete, incomeSetupComplete, refreshFlowState } = useAppFlow();
+  const { reloadCurrency } = useCurrency();
 
   // Auth status and subscription are now checked in App.tsx during splash screen
   // This effect only handles re-checking when auth state changes (e.g., after login/logout)
@@ -250,9 +253,33 @@ const AppNavigator: React.FC = () => {
     // User just logged in - refresh subscription and flow state
       dispatch(checkSubscriptionStatus());
       refreshFlowState();
+
+      // Reload currency and exchange rate to ensure correct values after login
+      // This fixes the bug where currency symbol is correct but value shows in USD
+      reloadCurrency();
+
+      // Prefetch data for frequently visited screens in the background
+      // This improves perceived performance when navigating to these screens
+      prefetchAllScreenData();
     }
     previousAuthRef.current = isAuthenticated;
-  }, [isAuthenticated, dispatch, refreshFlowState]);
+  }, [isAuthenticated, dispatch, refreshFlowState, reloadCurrency]);
+
+  // Prefetch data when app loads with existing auth session
+  // This runs once when user opens the app already logged in
+  const hasPrefetchedRef = useRef(false);
+  useEffect(() => {
+    const isUserReady = isAuthenticated && onboardingComplete === true && incomeSetupComplete === true;
+
+    if (isUserReady && !hasPrefetchedRef.current) {
+      hasPrefetchedRef.current = true;
+      // Small delay to let the main navigation render first
+      const timer = setTimeout(() => {
+        prefetchAllScreenData();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated, onboardingComplete, incomeSetupComplete]);
 
   // Handle deep linking from widgets
   const { openBottomSheet } = useBottomSheetActions();

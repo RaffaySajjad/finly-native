@@ -19,6 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { PRICING_CONFIG } from '../config/pricing.config';
 
 interface UpgradePromptProps {
   visible: boolean;
@@ -132,7 +133,7 @@ export const UpgradePrompt: React.FC<UpgradePromptProps> = ({
               onPress={handleUpgrade}
             >
               <Text style={styles.upgradeButtonText}>Join Finly Pro</Text>
-              <Text style={styles.priceText}>$4.99/month</Text>
+              <Text style={styles.priceText}>{PRICING_CONFIG.MONTHLY.priceFormatted}/month</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.cancelButton}

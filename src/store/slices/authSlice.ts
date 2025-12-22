@@ -230,6 +230,13 @@ const authSlice = createSlice({
       state.error = null;
       state.pendingVerificationEmail = null;
     },
+    clearAuth: (state) => {
+      state.user = null;
+      state.token = null;
+      state.isAuthenticated = false;
+      state.isLoading = false;
+      state.error = null;
+    },
   },
   extraReducers: (builder) => {
     // Check Auth Status
@@ -338,5 +345,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError } = authSlice.actions;
+export const { clearError, clearAuth } = authSlice.actions;
 export default authSlice.reducer;

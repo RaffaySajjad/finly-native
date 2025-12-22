@@ -1,22 +1,25 @@
 /**
  * SpendingChart Component
- * Premium spending trend visualization with range selection and dynamic Y-axis
- * Features: Time range toggle, two-point comparison, dynamic scaling
+ * Premium spending trend visualization with smooth gesture-based range selection
+ * Features: Time range toggle, long-press + drag comparison, dynamic scaling
+ * Supports single point selection (shows value) and range selection (shows % change)
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
 import { LineChart } from 'react-native-gifted-charts';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useCurrency } from '../../contexts/CurrencyContext';
 import { typography, spacing, borderRadius, elevation } from '../../theme';
-import { ChartDataPoint, TimeRange } from './types';
+import { ChartDataPoint } from './types';
 import { CHART_CONFIG } from './constants';
 import { formatYAxisLabel, formatChartDate } from './utils';
-import { useRangeSelection } from './hooks/useRangeSelection';
+import { useSmoothRangeSelection } from './hooks/useSmoothRangeSelection';
 import { useDynamicYAxis } from './hooks/useDynamicYAxis';
 import { RangeSelectionBadge } from './RangeSelectionBadge';
+import { SinglePointBadge } from './SinglePointBadge';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -60,16 +63,23 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({
     }));
   }, [data, convertFromUSD, timeRange]);
 
+  // Use the new smooth gesture-based range selection (long-press + drag)
   const {
     selection,
+    singlePoint,
     metrics: rangeMetrics,
     hasSelection,
+    hasSinglePoint,
     isSelecting,
-    selectPoint,
+    gesture,
     clearSelection,
-  } = useRangeSelection({
+  } = useSmoothRangeSelection({
     data: chartData,
     enabled: enableRangeSelection,
+    chartWidth,
+    itemSpacing: chartSpacing,
+    initialSpacing: 20,
+    yAxisOffset: CHART_CONFIG.axis.yLabelWidth - 10, // Account for wrapper marginLeft: -10
   });
 
   const {
@@ -88,19 +98,13 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({
     return formatYAxisLabel(num, currencySymbol);
   }, [currencySymbol]);
 
-  const handleDataPointClick = useCallback((item: any, index: number) => {
-    if (enableRangeSelection) {
-      selectPoint(index);
-    }
-  }, [enableRangeSelection, selectPoint]);
-
   const selectionLabels = useMemo(() => {
-    if (!hasSelection || selection.startIndex === null) {
+    if (!hasSelection || selection.startIndex === null || selection.endIndex === null) {
       return { start: '', end: '', startFormatted: '', endFormatted: '' };
     }
 
-    const startPoint = chartData[selection.startIndex!];
-    const endPoint = chartData[selection.endIndex!];
+    const startPoint = chartData[selection.startIndex];
+    const endPoint = chartData[selection.endIndex];
 
     return {
       start: startPoint?.date ? formatChartDate(startPoint.date, 'medium') : '',
@@ -109,6 +113,18 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({
       endFormatted: formatCurrency(endPoint?.originalValue || 0),
     };
   }, [hasSelection, selection, chartData, formatCurrency]);
+
+  // Single point label
+  const singlePointLabels = useMemo(() => {
+    if (!hasSinglePoint || !singlePoint) {
+      return { date: '', value: '' };
+    }
+
+    return {
+      date: singlePoint.date ? formatChartDate(singlePoint.date, 'medium') : '',
+      value: formatCurrency(singlePoint.originalValue ?? singlePoint.value),
+    };
+  }, [hasSinglePoint, singlePoint, formatCurrency]);
 
   const totalSpending = useMemo(() => {
     return data.reduce((sum, item) => sum + item.amount, 0);
@@ -127,7 +143,7 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({
     radius: CHART_CONFIG.dataPoints.radius,
     pointerLabelWidth: 140,
     pointerLabelHeight: 90,
-    activatePointersOnLongPress: !enableRangeSelection,
+    activatePointersOnLongPress: true,
     autoAdjustPointerLabelPosition: true,
     pointerLabelComponent: (items: any) => {
       const item = items[0];
@@ -149,17 +165,23 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({
           <Text style={[styles.tooltipValue, { color: theme.text }]}>
             {formatCurrency(item.originalValue)}
           </Text>
-          {enableRangeSelection && (
-            <Text style={[styles.tooltipHint, { color: theme.textTertiary }]}>
-              {isSelecting ? 'Tap another point' : 'Tap to select'}
-            </Text>
-          )}
         </View>
       );
     },
   };
 
   if (!data || data.length === 0) return null;
+
+  // Handle time range change - clear selection when changing
+  const handleTimeRangeChange = (range: 'week' | 'month') => {
+    if (range !== timeRange) {
+      clearSelection();
+      onTimeRangeChange(range);
+    }
+  };
+
+  // Determine which point indices to highlight
+  const selectedPointIndex = hasSinglePoint ? singlePoint?.index : null;
 
   return (
     <View style={[
@@ -192,12 +214,7 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({
           {(['week', 'month'] as const).map((range) => (
             <TouchableOpacity
               key={range}
-              onPress={() => {
-                if (range !== timeRange) {
-                  clearSelection();
-                  onTimeRangeChange(range);
-                }
-              }}
+              onPress={() => handleTimeRangeChange(range)}
               style={[
                 styles.toggleButton,
                 {
@@ -227,119 +244,136 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({
         </View>
       </View>
 
-      {hasSelection && rangeMetrics && (
-        <RangeSelectionBadge
-          visible={hasSelection}
-          metrics={rangeMetrics}
-          startLabel={selectionLabels.start}
-          endLabel={selectionLabels.end}
-          startFormatted={selectionLabels.startFormatted}
-          endFormatted={selectionLabels.endFormatted}
-          onClear={clearSelection}
-        />
-      )}
 
-      {!hasSelection && enableRangeSelection && (
-        <View style={[styles.hintRow, { borderColor: theme.border }]}>
-          <Icon name="gesture-tap" size={14} color={theme.textTertiary} />
-          <Text style={[styles.hintText, { color: theme.textTertiary }]}>
-            Tap two points to compare spending
-          </Text>
-        </View>
-      )}
 
-      <View style={styles.chartWrapper}>
-        <LineChart
-          key={timeRange}
-          data={chartData}
-          width={chartWidth}
-          height={chartHeight}
-          spacing={chartSpacing}
-          initialSpacing={20}
-          endSpacing={20}
-          color={theme.expense}
-          thickness={CHART_CONFIG.line.thickness}
-          startFillColor={theme.expense}
-          endFillColor={theme.expense}
-          startOpacity={CHART_CONFIG.area.startOpacity}
-          endOpacity={CHART_CONFIG.area.endOpacity}
-          areaChart
-          curved
-          curvature={CHART_CONFIG.line.curveIntensity}
-          hideRules={false}
-          rulesType="solid"
-          rulesColor={theme.border + '50'}
-          rulesThickness={0.5}
-          yAxisColor="transparent"
-          xAxisColor={theme.border}
-          xAxisThickness={0.5}
-          yAxisTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
-          xAxisLabelTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
-          yAxisLabelWidth={CHART_CONFIG.axis.yLabelWidth}
-          maxValue={yAxisBounds.max}
-          mostNegativeValue={yAxisBounds.min}
-          noOfSections={yAxisBounds.sections}
-          formatYLabel={formatYLabel}
-          scrollToEnd={timeRange === 'month'}
-          onScroll={(e: any) => {
-            if (enableDynamicYAxis && timeRange === 'month' && e?.nativeEvent?.contentOffset) {
-              handleScroll(e.nativeEvent.contentOffset.x);
-            }
-          }}
-          hideDataPoints={false}
-          dataPointsColor={theme.expense}
-          dataPointsRadius={CHART_CONFIG.dataPoints.radius}
-          focusEnabled={true}
-          showDataPointOnFocus={true}
-          focusedDataPointColor={theme.expense}
-          focusedDataPointRadius={CHART_CONFIG.dataPoints.activeRadius}
-          onFocus={handleDataPointClick}
-          delayBeforeUnFocus={3000}
-          pointerConfig={pointerConfig}
-          showVerticalLines={hasSelection}
-          verticalLinesUptoDataPoint
-          verticalLinesColor={
-            hasSelection
-              ? (rangeMetrics?.isPositive ? theme.expense : theme.success) + '30'
-              : theme.border + '30'
-          }
-          verticalLinesThickness={1}
-          verticalLinesStrokeDashArray={[4, 4]}
-          customDataPoint={(item: any, index: number) => {
-            const isSelected = selection.startIndex === index || selection.endIndex === index;
-            const isInRange = hasSelection &&
-              selection.startIndex !== null &&
-              selection.endIndex !== null &&
-              index >= selection.startIndex &&
-              index <= selection.endIndex;
+      {/* Chart area with gesture handler */}
+      <View style={styles.chartArea}>
+        {/* Absolutely positioned badge overlay - Single Point */}
+        {hasSinglePoint && (
+          <View style={styles.badgeOverlay}>
+            <SinglePointBadge
+              visible={hasSinglePoint}
+              date={singlePointLabels.date}
+              value={singlePointLabels.value}
+              onClear={clearSelection}
+              accentColor={theme.expense}
+            />
+          </View>
+        )}
 
-            if (!isSelected && !isInRange) return null;
+        {/* Absolutely positioned badge overlay - Range Selection */}
+        {hasSelection && rangeMetrics && (
+          <View style={styles.badgeOverlay}>
+            <RangeSelectionBadge
+              visible={hasSelection}
+              metrics={rangeMetrics}
+              startLabel={selectionLabels.start}
+              endLabel={selectionLabels.end}
+              startFormatted={selectionLabels.startFormatted}
+              endFormatted={selectionLabels.endFormatted}
+              onClear={clearSelection}
+            />
+          </View>
+        )}
 
-            const pointColor = isSelected
-              ? theme.expense
-              : theme.expense + '60';
-            const pointRadius = isSelected
-              ? CHART_CONFIG.dataPoints.activeRadius + 2
-              : CHART_CONFIG.dataPoints.radius;
+        {/* Gesture-enabled chart wrapper */}
+        <GestureDetector gesture={gesture}>
+          <View style={styles.chartWrapper}>
+            <LineChart
+              key={timeRange}
+              data={chartData}
+              width={chartWidth}
+              height={chartHeight}
+              spacing={chartSpacing}
+              initialSpacing={20}
+              endSpacing={20}
+              color={theme.expense}
+              thickness={CHART_CONFIG.line.thickness}
+              startFillColor={theme.expense}
+              endFillColor={theme.expense}
+              startOpacity={CHART_CONFIG.area.startOpacity}
+              endOpacity={CHART_CONFIG.area.endOpacity}
+              areaChart
+              curved
+              curvature={CHART_CONFIG.line.curveIntensity}
+              hideRules={false}
+              rulesType="solid"
+              rulesColor={theme.border + '50'}
+              rulesThickness={0.5}
+              yAxisColor="transparent"
+              xAxisColor={theme.border}
+              xAxisThickness={0.5}
+              yAxisTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
+              xAxisLabelTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
+              yAxisLabelWidth={CHART_CONFIG.axis.yLabelWidth}
+              maxValue={yAxisBounds.max}
+              mostNegativeValue={yAxisBounds.min}
+              noOfSections={yAxisBounds.sections}
+              formatYLabel={formatYLabel}
+              scrollToEnd={timeRange === 'month'}
+              onScroll={(e: any) => {
+                if (enableDynamicYAxis && timeRange === 'month' && e?.nativeEvent?.contentOffset) {
+                  handleScroll(e.nativeEvent.contentOffset.x);
+                }
+              }}
+              hideDataPoints={false}
+              dataPointsColor={theme.expense}
+              dataPointsRadius={CHART_CONFIG.dataPoints.radius}
+              pointerConfig={enableRangeSelection ? undefined : pointerConfig}
+              showVerticalLines={hasSelection || hasSinglePoint}
+              verticalLinesUptoDataPoint
+              verticalLinesColor={
+                hasSelection
+                  ? (rangeMetrics?.isPositive ? theme.expense : theme.success) + '30'
+                  : theme.expense + '30'
+              }
+              verticalLinesThickness={1}
+              verticalLinesStrokeDashArray={[4, 4]}
+              customDataPoint={(item: any, index: number) => {
+                const isRangeSelected = selection.startIndex === index || selection.endIndex === index;
+                const isSingleSelected = selectedPointIndex === index;
+                const isInRange = hasSelection &&
+                  selection.startIndex !== null &&
+                  selection.endIndex !== null &&
+                  index >= selection.startIndex &&
+                  index <= selection.endIndex;
 
-            return (
-              <View
-                style={[
-                  styles.customDataPoint,
-                  {
-                    width: pointRadius * 2,
-                    height: pointRadius * 2,
-                    borderRadius: pointRadius,
-                    backgroundColor: pointColor,
-                    borderWidth: isSelected ? 2 : 0,
-                    borderColor: theme.card,
-                  },
-                  isSelected && elevation.sm,
-                ]}
-              />
-            );
-          }}
-        />
+                if (!isRangeSelected && !isSingleSelected && !isInRange) return null;
+
+                let pointColor: string;
+                let pointRadius: number;
+
+                if (isSingleSelected) {
+                  pointColor = theme.expense;
+                  pointRadius = CHART_CONFIG.dataPoints.activeRadius + 2;
+                } else if (isRangeSelected) {
+                  pointColor = theme.expense;
+                  pointRadius = CHART_CONFIG.dataPoints.activeRadius + 2;
+                } else {
+                  pointColor = theme.expense + '60';
+                  pointRadius = CHART_CONFIG.dataPoints.radius;
+                }
+
+                return (
+                  <View
+                    style={[
+                      styles.customDataPoint,
+                      {
+                        width: pointRadius * 2,
+                        height: pointRadius * 2,
+                        borderRadius: pointRadius,
+                        backgroundColor: pointColor,
+                        borderWidth: (isRangeSelected || isSingleSelected) ? 2 : 0,
+                        borderColor: theme.card,
+                      },
+                      (isRangeSelected || isSingleSelected) && elevation.sm,
+                    ]}
+                  />
+                );
+              }}
+            />
+          </View>
+        </GestureDetector>
       </View>
     </View>
   );
@@ -423,6 +457,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontStyle: 'italic',
   },
+  chartArea: {
+    position: 'relative',
+  },
+  badgeOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    paddingHorizontal: spacing.xs,
+  },
   chartWrapper: {
     marginLeft: -10,
     marginRight: -5,
@@ -452,12 +497,6 @@ const styles = StyleSheet.create({
   tooltipValue: {
     ...typography.titleMedium,
     fontWeight: '700',
-  },
-  tooltipHint: {
-    ...typography.caption,
-    fontSize: 10,
-    marginTop: 4,
-    fontStyle: 'italic',
   },
   axisLabel: {
     fontSize: 10,

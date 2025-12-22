@@ -15,8 +15,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -55,6 +55,7 @@ const AIAssistantScreen: React.FC = () => {
   const route = useRoute<RouteProp<RootStackParamList, 'AIAssistant'>>();
   const { isPremium } = useSubscription();
   const insets = useSafeAreaInsets();
+  const { showError, AlertComponent } = useAlert();
   
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -263,10 +264,9 @@ const AIAssistantScreen: React.FC = () => {
         setToastVisible(true);
       } else {
       // Handle other errors
-        Alert.alert(
+        showError(
           'Error',
-          error.message || 'Failed to process query. Please try again.',
-          [{ text: 'OK' }]
+          error.message || 'Failed to process query. Please try again.'
         );
       }
     } finally {
@@ -533,6 +533,7 @@ const AIAssistantScreen: React.FC = () => {
         }}
         onDismiss={() => setToastVisible(false)}
       />
+      {AlertComponent}
     </SafeAreaView>
   );
 };

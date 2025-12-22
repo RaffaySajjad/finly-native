@@ -12,11 +12,11 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Platform,
   TextInput,
   Modal,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -86,6 +86,7 @@ const CategoryOnboardingScreen: React.FC = () => {
   const navigation = useNavigation<CategoryOnboardingNavigationProp>();
   const subscription = useSelector((state: RootState) => state.subscription);
   const isPremium = subscription.subscription.tier === 'PREMIUM';
+  const { showError, showSuccess, showWarning, showInfo, AlertComponent } = useAlert();
 
   const [step, setStep] = useState<'income' | 'budgets' | 'loading'>('income');
   const [monthlyIncome, setMonthlyIncome] = useState('');
@@ -114,7 +115,7 @@ const CategoryOnboardingScreen: React.FC = () => {
   const handleIncomeSubmit = () => {
     const income = parseFloat(monthlyIncome);
     if (!income || income <= 0) {
-      Alert.alert('Invalid Income', 'Please enter a valid monthly income amount.');
+      showError('Invalid Income', 'Please enter a valid monthly income amount.');
       return;
     }
 
@@ -152,7 +153,7 @@ const CategoryOnboardingScreen: React.FC = () => {
 
   const handleAddCustomCategory = () => {
     if (!customCategoryName.trim()) {
-      Alert.alert('Missing Name', 'Please enter a category name.');
+      showInfo('Missing Name', 'Please enter a category name.');
       return;
     }
 
@@ -238,14 +239,14 @@ const CategoryOnboardingScreen: React.FC = () => {
       }, 500);
     } catch (error) {
       console.error('[CategoryOnboarding] Setup error:', error);
-      Alert.alert('Error', 'Failed to set up categories. Please try again.');
+      showError('Error', 'Failed to set up categories. Please try again.');
       setIsSettingUp(false);
       setStep('budgets');
     }
   };
 
   const handleSkip = async () => {
-    Alert.alert(
+    showWarning(
       'Set Budgets Later?',
       'Tracking budgets is a superpower for saving, but you can always set them up when you\'re ready.',
       [
@@ -261,7 +262,7 @@ const CategoryOnboardingScreen: React.FC = () => {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               setTimeout(() => navigation.goBack(), 500);
             } catch (error) {
-              Alert.alert('Error', 'Failed to set up categories.');
+              showError('Error', 'Failed to set up categories.');
               setIsSettingUp(false);
               setStep('income');
             }
@@ -456,7 +457,7 @@ const CategoryOnboardingScreen: React.FC = () => {
                 style={[styles.addCategoryButton, { backgroundColor: theme.card, borderColor: theme.primary }]}
                 onPress={() => {
                   if (!isPremium && categories.length >= 10) {
-                    Alert.alert('Category Limit Reached', 'You’ve mastered the essentials! Upgrade to Premium to add unlimited custom categories.');
+                    showInfo('Category Limit Reached', 'You\'ve mastered the essentials! Upgrade to Premium to add unlimited custom categories.');
                     return;
                   }
                   setShowCustomCategoryModal(true);
@@ -665,6 +666,7 @@ const CategoryOnboardingScreen: React.FC = () => {
             This will only take a moment
           </Text>
         </View>
+        {AlertComponent}
       </SafeAreaView>
     );
   }

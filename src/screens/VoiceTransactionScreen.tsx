@@ -14,11 +14,11 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Platform,
   Keyboard,
   Animated,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -59,6 +59,7 @@ const VoiceTransactionScreen: React.FC = () => {
     resetRecording,
     requestPermissions,
   } = useVoiceRecording();
+  const { showError, showSuccess, showInfo, AlertComponent } = useAlert();
 
   const [inputMode, setInputMode] = useState<InputMode>('voice');
   const [input, setInput] = useState('');
@@ -126,7 +127,7 @@ const VoiceTransactionScreen: React.FC = () => {
       await startRecording();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (error) {
-      Alert.alert('Recording Error', 'Failed to start recording. Please check microphone permissions.');
+      showError('Recording Error', 'Failed to start recording. Please check microphone permissions.');
     }
   };
 
@@ -143,7 +144,7 @@ const VoiceTransactionScreen: React.FC = () => {
         logger.debug('[VoiceTransaction] Recording saved:', uri);
       }
     } catch (error) {
-      Alert.alert('Recording Error', 'Failed to stop recording.');
+      showError('Recording Error', 'Failed to stop recording.');
       console.error('[VoiceTransaction] Stop recording error:', error);
     }
   };
@@ -188,7 +189,7 @@ const VoiceTransactionScreen: React.FC = () => {
       });
     } catch (error) {
       console.error('[VoiceTransaction] Playback error:', error);
-      Alert.alert('Playback Error', 'Failed to play recording.');
+      showError('Playback Error', 'Failed to play recording.');
     }
   };
 
@@ -204,7 +205,7 @@ const VoiceTransactionScreen: React.FC = () => {
   // Process input (text or transcribed)
   const handleProcessInput = async () => {
     if (!input.trim() && !recordingUri) {
-      Alert.alert('Empty Input', 'Please record or enter transactions');
+      showInfo('Empty Input', 'Please record or enter transactions');
       return;
     }
 
@@ -227,7 +228,7 @@ const VoiceTransactionScreen: React.FC = () => {
           const transcribedText = await transcribeAudio(recordingUri);
 
           if (!transcribedText || transcribedText.trim().length === 0) {
-            Alert.alert(
+            showError(
               'Transcription Failed',
               'Could not transcribe the audio. Please try recording again or type manually.'
             );
@@ -242,7 +243,7 @@ const VoiceTransactionScreen: React.FC = () => {
           logger.debug('[VoiceTransaction] Transcription successful:', textToProcess);
         } catch (transcriptionError: any) {
           console.error('[VoiceTransaction] Transcription error:', transcriptionError);
-          Alert.alert(
+          showError(
             'Transcription Error',
             transcriptionError.message || 'Failed to transcribe audio. Please try again or type manually.'
           );
@@ -256,7 +257,7 @@ const VoiceTransactionScreen: React.FC = () => {
 
       // If we still don't have text, show error
       if (!textToProcess) {
-        Alert.alert('No Text', 'Please enter or record transactions first.');
+        showInfo('No Text', 'Please enter or record transactions first.');
         setIsProcessing(false);
         return;
       }
@@ -265,7 +266,7 @@ const VoiceTransactionScreen: React.FC = () => {
       const transactions = await parseTransactionInput(textToProcess, [], getCurrencySymbol(), currencyCode);
 
       if (transactions.length === 0) {
-        Alert.alert('No Transactions Found', 'Could not identify any transactions. Please try again with clearer details.');
+        showInfo('No Transactions Found', 'Could not identify any transactions. Please try again with clearer details.');
         setIsProcessing(false);
         return;
       }
@@ -290,7 +291,7 @@ const VoiceTransactionScreen: React.FC = () => {
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      Alert.alert('Error', 'Failed to parse transactions. Please try again.');
+      showError('Error', 'Failed to parse transactions. Please try again.');
       console.error(error);
     } finally {
       setIsProcessing(false);
@@ -301,7 +302,7 @@ const VoiceTransactionScreen: React.FC = () => {
     const selectedTransactions = parsedTransactions.filter(tx => tx.selected);
 
     if (selectedTransactions.length === 0) {
-      Alert.alert('No Selection', 'Please select at least one transaction to confirm.');
+      showInfo('No Selection', 'Please select at least one transaction to confirm.');
       return;
     }
 
@@ -339,7 +340,7 @@ const VoiceTransactionScreen: React.FC = () => {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      Alert.alert(
+      showSuccess(
         'Success!',
         `Added ${selectedTransactions.length} transaction${selectedTransactions.length > 1 ? 's' : ''} successfully! 🎉`,
         [
@@ -350,7 +351,7 @@ const VoiceTransactionScreen: React.FC = () => {
         ]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to save transactions');
+      showError('Error', 'Failed to save transactions');
       console.error(error);
     } finally {
       setIsProcessing(false);
@@ -852,6 +853,7 @@ const VoiceTransactionScreen: React.FC = () => {
         feature="Smart Entry"
         message="You've used all 3 free voice entries this month. Upgrade to Premium to log transactions by voice anytime!"
       />
+      {AlertComponent}
     </SafeAreaView>
   );
 };

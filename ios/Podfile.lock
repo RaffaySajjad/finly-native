@@ -264,9 +264,117 @@ PODS:
   - EXUpdatesInterface (2.0.0):
     - ExpoModulesCore
   - FBLazyVector (0.81.5)
+  - Firebase/Analytics (12.7.0):
+    - Firebase/Core
+  - Firebase/Core (12.7.0):
+    - Firebase/CoreOnly
+    - FirebaseAnalytics (~> 12.7.0)
+  - Firebase/CoreOnly (12.7.0):
+    - FirebaseCore (~> 12.7.0)
+  - FirebaseAnalytics (12.7.0):
+    - FirebaseAnalytics/Default (= 12.7.0)
+    - FirebaseCore (~> 12.7.0)
+    - FirebaseInstallations (~> 12.7.0)
+    - GoogleUtilities/AppDelegateSwizzler (~> 8.1)
+    - GoogleUtilities/MethodSwizzler (~> 8.1)
+    - GoogleUtilities/Network (~> 8.1)
+    - "GoogleUtilities/NSData+zlib (~> 8.1)"
+    - nanopb (~> 3.30910.0)
+  - FirebaseAnalytics/Default (12.7.0):
+    - FirebaseCore (~> 12.7.0)
+    - FirebaseInstallations (~> 12.7.0)
+    - GoogleAppMeasurement/Default (= 12.7.0)
+    - GoogleUtilities/AppDelegateSwizzler (~> 8.1)
+    - GoogleUtilities/MethodSwizzler (~> 8.1)
+    - GoogleUtilities/Network (~> 8.1)
+    - "GoogleUtilities/NSData+zlib (~> 8.1)"
+    - nanopb (~> 3.30910.0)
+  - FirebaseCore (12.7.0):
+    - FirebaseCoreInternal (~> 12.7.0)
+    - GoogleUtilities/Environment (~> 8.1)
+    - GoogleUtilities/Logger (~> 8.1)
+  - FirebaseCoreInternal (12.7.0):
+    - "GoogleUtilities/NSData+zlib (~> 8.1)"
+  - FirebaseInstallations (12.7.0):
+    - FirebaseCore (~> 12.7.0)
+    - GoogleUtilities/Environment (~> 8.1)
+    - GoogleUtilities/UserDefaults (~> 8.1)
+    - PromisesObjC (~> 2.4)
+  - GoogleAdsOnDeviceConversion (3.2.0):
+    - GoogleUtilities/Environment (~> 8.1)
+    - GoogleUtilities/Logger (~> 8.1)
+    - GoogleUtilities/Network (~> 8.1)
+    - nanopb (~> 3.30910.0)
+  - GoogleAppMeasurement/Core (12.7.0):
+    - GoogleUtilities/AppDelegateSwizzler (~> 8.1)
+    - GoogleUtilities/MethodSwizzler (~> 8.1)
+    - GoogleUtilities/Network (~> 8.1)
+    - "GoogleUtilities/NSData+zlib (~> 8.1)"
+    - nanopb (~> 3.30910.0)
+  - GoogleAppMeasurement/Default (12.7.0):
+    - GoogleAdsOnDeviceConversion (~> 3.2.0)
+    - GoogleAppMeasurement/Core (= 12.7.0)
+    - GoogleAppMeasurement/IdentitySupport (= 12.7.0)
+    - GoogleUtilities/AppDelegateSwizzler (~> 8.1)
+    - GoogleUtilities/MethodSwizzler (~> 8.1)
+    - GoogleUtilities/Network (~> 8.1)
+    - "GoogleUtilities/NSData+zlib (~> 8.1)"
+    - nanopb (~> 3.30910.0)
+  - GoogleAppMeasurement/IdentitySupport (12.7.0):
+    - GoogleAppMeasurement/Core (= 12.7.0)
+    - GoogleUtilities/AppDelegateSwizzler (~> 8.1)
+    - GoogleUtilities/MethodSwizzler (~> 8.1)
+    - GoogleUtilities/Network (~> 8.1)
+    - "GoogleUtilities/NSData+zlib (~> 8.1)"
+    - nanopb (~> 3.30910.0)
+  - GoogleUtilities (8.1.0):
+    - GoogleUtilities/AppDelegateSwizzler (= 8.1.0)
+    - GoogleUtilities/Environment (= 8.1.0)
+    - GoogleUtilities/Logger (= 8.1.0)
+    - GoogleUtilities/MethodSwizzler (= 8.1.0)
+    - GoogleUtilities/Network (= 8.1.0)
+    - "GoogleUtilities/NSData+zlib (= 8.1.0)"
+    - GoogleUtilities/Privacy (= 8.1.0)
+    - GoogleUtilities/Reachability (= 8.1.0)
+    - GoogleUtilities/SwizzlerTestHelpers (= 8.1.0)
+    - GoogleUtilities/UserDefaults (= 8.1.0)
+  - GoogleUtilities/AppDelegateSwizzler (8.1.0):
+    - GoogleUtilities/Environment
+    - GoogleUtilities/Logger
+    - GoogleUtilities/Network
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Environment (8.1.0):
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Logger (8.1.0):
+    - GoogleUtilities/Environment
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/MethodSwizzler (8.1.0):
+    - GoogleUtilities/Logger
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Network (8.1.0):
+    - GoogleUtilities/Logger
+    - "GoogleUtilities/NSData+zlib"
+    - GoogleUtilities/Privacy
+    - GoogleUtilities/Reachability
+  - "GoogleUtilities/NSData+zlib (8.1.0)":
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Privacy (8.1.0)
+  - GoogleUtilities/Reachability (8.1.0):
+    - GoogleUtilities/Logger
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/SwizzlerTestHelpers (8.1.0):
+    - GoogleUtilities/MethodSwizzler
+  - GoogleUtilities/UserDefaults (8.1.0):
+    - GoogleUtilities/Logger
+    - GoogleUtilities/Privacy
   - hermes-engine (0.81.5):
     - hermes-engine/Pre-built (= 0.81.5)
   - hermes-engine/Pre-built (0.81.5)
+  - nanopb (3.30910.0):
+    - nanopb/decode (= 3.30910.0)
+    - nanopb/encode (= 3.30910.0)
+  - nanopb/decode (3.30910.0)
+  - nanopb/encode (3.30910.0)
   - NitroIap (14.6.2):
     - hermes-engine
     - NitroModules
@@ -316,6 +424,7 @@ PODS:
     - ReactNativeDependencies
     - Yoga
   - openiap (1.3.5)
+  - PromisesObjC (2.4.0)
   - RCTDeprecation (0.81.5)
   - RCTRequired (0.81.5)
   - RCTTypeSafety (0.81.5):
@@ -2419,6 +2528,8 @@ DEPENDENCIES:
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
   - EXUpdatesInterface (from `../node_modules/expo-updates-interface/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
+  - Firebase/Analytics
+  - GoogleUtilities
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - NitroIap (from `../node_modules/react-native-iap`)
   - NitroModules (from `../node_modules/react-native-nitro-modules`)
@@ -2501,7 +2612,17 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - Firebase
+    - FirebaseAnalytics
+    - FirebaseCore
+    - FirebaseCoreInternal
+    - FirebaseInstallations
+    - GoogleAdsOnDeviceConversion
+    - GoogleAppMeasurement
+    - GoogleUtilities
+    - nanopb
     - openiap
+    - PromisesObjC
     - SwiftUIIntrospect
 
 EXTERNAL SOURCES:
@@ -2751,10 +2872,20 @@ SPEC CHECKSUMS:
   ExpoSplashScreen: 76af87337650d06926aa7d0157fe98b4fddca336
   EXUpdatesInterface: 5adf50cb41e079c861da6d9b4b954c3db9a50734
   FBLazyVector: e95a291ad2dadb88e42b06e0c5fb8262de53ec12
+  Firebase: 2d19a10c9a2e48ac532a4303115d3fc9b2798396
+  FirebaseAnalytics: e423129866107aeacf6010a280b9c9829f9ea50d
+  FirebaseCore: c7b57863ce0859281a66d16ca36d665c45d332b5
+  FirebaseCoreInternal: 571a2dd8c975410966199623351db3a3265c874d
+  FirebaseInstallations: 6d05424a046b68ca146b4de4376f05b4e9262fc3
+  GoogleAdsOnDeviceConversion: d68c69dd9581a0f5da02617b6f377e5be483970f
+  GoogleAppMeasurement: 8f59e08efecfa1bcd57f0a56fab07d079366268c
+  GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   hermes-engine: 9f4dfe93326146a1c99eb535b1cb0b857a3cd172
+  nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   NitroIap: 7b61d270893c7a228ba231bc8dceed5bbb804b7e
   NitroModules: a71a5ab2911caf79e45170e6e12475b5260a12d0
   openiap: 8e6a58d311215bde63d36bdd61c475291f6b889a
+  PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   RCTDeprecation: 943572d4be82d480a48f4884f670135ae30bf990
   RCTRequired: 8f3cfc90cc25cf6e420ddb3e7caaaabc57df6043
   RCTTypeSafety: 16a4144ca3f959583ab019b57d5633df10b5e97c
@@ -2832,6 +2963,6 @@ SPEC CHECKSUMS:
   SwiftUIIntrospect: fee9aa07293ee280373a591e1824e8ddc869ba5d
   Yoga: 5934998fbeaef7845dbf698f698518695ab4cd1a
 
-PODFILE CHECKSUM: 967a9633cc9a0934ec7047437c949d509c297342
+PODFILE CHECKSUM: 8d83db28ab35fff4f7e11626a43a4d30500aa03b
 
 COCOAPODS: 1.16.2

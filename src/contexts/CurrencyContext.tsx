@@ -60,6 +60,11 @@ interface CurrencyContextType {
    * Format a transaction amount, using original currency if available and matching
    */
   formatTransactionAmount: (amount: number, originalAmount?: number, originalCurrency?: string) => string;
+  /**
+   * Reload currency and exchange rate from storage/API
+   * Call this after login to ensure fresh exchange rates
+   */
+  reloadCurrency: () => Promise<void>;
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
@@ -264,6 +269,15 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
   }, []);
 
   /**
+   * Reload currency and exchange rate from storage/API
+   * Call this after login to ensure fresh exchange rates are loaded
+   */
+  const reloadCurrency = useCallback(async () => {
+    logger.debug('[CurrencyContext] Reloading currency and exchange rate...');
+    await loadCurrency();
+  }, []);
+
+  /**
    * Format currency amount
    * IMPORTANT: Amounts are stored in USD in the database
    * This function converts from USD to display currency before formatting
@@ -414,6 +428,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
       convertFromUSD,
       getTransactionDisplayAmount,
       formatTransactionAmount,
+      reloadCurrency,
     }),
     [
       currency,
@@ -428,6 +443,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
       convertFromUSD,
       getTransactionDisplayAmount,
       formatTransactionAmount,
+      reloadCurrency,
     ]
   );
 

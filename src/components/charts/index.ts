@@ -9,8 +9,9 @@ export { CategoryBarChart } from './CategoryBarChart';
 export { ChartContainer } from './ChartContainer';
 export { ChartTooltip } from './ChartTooltip';
 export { RangeSelectionBadge } from './RangeSelectionBadge';
+export { SinglePointBadge } from './SinglePointBadge';
 
-export { useRangeSelection, useDynamicYAxis } from './hooks';
+export { useRangeSelection, useDynamicYAxis, useSmoothRangeSelection } from './hooks';
 
 export * from './types';
 export * from './constants';

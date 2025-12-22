@@ -12,11 +12,11 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   Platform,
   Animated,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -60,6 +60,7 @@ const IncomeSetupScreen: React.FC = () => {
   const { getCurrencySymbol, setCurrency: setCurrencyGlobal, convertToUSD, currencyCode } = useCurrency();
   const navigation = useNavigation<IncomeSetupNavigationProp>();
   const { markIncomeSetupComplete } = useAppFlow();
+  const { showError, showSuccess, showInfo, AlertComponent } = useAlert();
   
   // Step management
   const [currentStep, setCurrentStep] = useState<SetupStep>(0); // Start with currency selection
@@ -303,28 +304,28 @@ const IncomeSetupScreen: React.FC = () => {
       setCurrentStep(1);
     } else if (currentStep === 1) {
       if (!name.trim()) {
-        Alert.alert('What should we call it?', 'Please give your income source a name (e.g., Salary, Freelance)');
+        showInfo('What should we call it?', 'Please give your income source a name (e.g., Salary, Freelance)');
         return;
       }
       setCurrentStep(2);
     } else if (currentStep === 2) {
       if (!amount || parseFloat(amount) <= 0) {
-        Alert.alert('How much?', 'Please enter a valid amount');
+        showInfo('How much?', 'Please enter a valid amount');
         return;
       }
       setCurrentStep(3);
     } else if (currentStep === 3) {
       // Validate frequency-specific fields
       if (frequency === 'WEEKLY' && dayOfWeek === undefined) {
-        Alert.alert('Which day?', 'Please select a day of the week');
+        showInfo('Which day?', 'Please select a day of the week');
         return;
       }
       if (frequency === 'MONTHLY' && dayOfMonth === undefined) {
-        Alert.alert('Which day?', 'Please select a day of the month');
+        showInfo('Which day?', 'Please select a day of the month');
         return;
       }
       if (frequency === 'CUSTOM' && customDates.length === 0) {
-        Alert.alert('Which dates?', 'Please enter at least one date (e.g., 15, 30)');
+        showInfo('Which dates?', 'Please enter at least one date (e.g., 15, 30)');
         return;
       }
       
@@ -367,7 +368,7 @@ const IncomeSetupScreen: React.FC = () => {
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      Alert.alert('Oops!', 'Failed to save income source. Please try again.');
+      showError('Oops!', 'Failed to save income source. Please try again.');
       console.error('Error saving income source:', error);
     } finally {
       setSaving(false);
@@ -378,7 +379,7 @@ const IncomeSetupScreen: React.FC = () => {
     // Handle starting balance
     const balance = startingBalanceInput ? parseFloat(startingBalanceInput) : 0;
     if (isNaN(balance)) {
-      Alert.alert('Invalid Amount', 'Please enter a valid starting balance');
+      showError('Invalid Amount', 'Please enter a valid starting balance');
       return;
     }
 
@@ -410,13 +411,9 @@ const IncomeSetupScreen: React.FC = () => {
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
-      Alert.alert(
-        'Perfect! 🎉',
-        'Your income and starting balance are set up! We\'ll automatically track your earnings.',
-        [{ text: 'Get Started', onPress: () => {} }]
-      );
+      showSuccess('Perfect! 🎉', 'Your income and starting balance are set up! We\'ll automatically track your earnings.');
     } catch (error) {
-      Alert.alert('Oops!', 'Something went wrong. Please try again.');
+      showError('Oops!', 'Something went wrong. Please try again.');
       console.error('Error saving starting balance:', error);
     } finally {
       setSaving(false);
@@ -897,6 +894,7 @@ const IncomeSetupScreen: React.FC = () => {
           )}
         </View>
       </BottomSheet>
+      {AlertComponent}
     </SafeAreaView>
   );
 };

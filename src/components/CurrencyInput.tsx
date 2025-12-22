@@ -9,6 +9,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, TextInputProps, TouchableOpacity, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSubscription } from '../hooks/useSubscription';
+import { UpgradePrompt } from './UpgradePrompt';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { formatCurrencyInput, parseCurrencyInput, currencyInputToNumber } from '../utils/currencyFormatter';
 import { getCurrencyByCode, saveLastUsedCurrency } from '../services/currencyService';
@@ -58,8 +60,10 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
 }) => {
   const { theme } = useTheme();
   const { getCurrencySymbol, currencyCode } = useCurrency();
+  const { isPremium } = useSubscription();
   const [displayValue, setDisplayValue] = useState('');
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
   // Use selectedCurrency if provided, otherwise use current active currency
   // For display purposes, we show the selected currency (if set) or active currency
@@ -92,6 +96,10 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
 
   const handleSymbolPress = () => {
     if (allowCurrencySelection) {
+      if (!isPremium) {
+        setShowUpgradePrompt(true);
+        return;
+      }
       setShowCurrencyModal(true);
     }
   };
@@ -188,6 +196,14 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
           </TouchableOpacity>
         </Modal>
       )}
+
+      {/* Upgrade Prompt for Non-Premium Users */}
+      <UpgradePrompt
+        visible={showUpgradePrompt}
+        onClose={() => setShowUpgradePrompt(false)}
+        feature="Multi-Currency Transactions"
+        message="Upgrade to Finly Pro to record expenses in any of 150+ currencies."
+      />
     </>
   );
 };

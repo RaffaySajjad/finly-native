@@ -55,6 +55,25 @@ const tokenManager = {
 };
 
 /**
+ * Global signal for authentication failure
+ * Allows the app to react to 401 errors that couldn't be resolved with a refresh token
+ */
+type AuthFailureCallback = () => void;
+let authFailureCallback: AuthFailureCallback | null = null;
+
+/**
+ * Register a callback to be executed when authentication fails
+ */
+export const onAuthFailure = (callback: AuthFailureCallback): void => {
+  authFailureCallback = callback;
+};
+
+/**
+ * Promise for ongoing token refresh to deduplicate concurrent requests
+ */
+let refreshTokenPromise: Promise<string | null> | null = null;
+
+/**
  * Create and configure axios instance
  */
 const createApiClient = (): AxiosInstance => {
@@ -67,10 +86,13 @@ const createApiClient = (): AxiosInstance => {
   });
 
   /**
-   * Request interceptor: Add authentication token and logging
+   * Request interceptor: Add authentication token, timing metadata, and logging
    */
   client.interceptors.request.use(
     async (config: InternalAxiosRequestConfig) => {
+      // Add request start time for performance tracking
+      (config as any).metadata = { startTime: Date.now() };
+
       // Add authentication token
       const token = await tokenManager.getAccessToken();
       if (token && config.headers) {
@@ -100,17 +122,32 @@ const createApiClient = (): AxiosInstance => {
   );
 
   /**
-   * Response interceptor: Handle token refresh and errors
+   * Response interceptor: Handle token refresh, timing, and errors
    */
   client.interceptors.response.use(
     (response) => {
-      logger.debug(`[API] Response: ${response.status} ${response.config.url}`, {
-        data: response.data,
-      });
+      // Calculate request duration
+      const startTime = (response.config as any).metadata?.startTime;
+      const duration = startTime ? Date.now() - startTime : 0;
+
+      // Log response with timing (always log timing, even in production for slow requests)
+      const logMessage = `[API] Response: ${response.status} ${response.config.url} (${duration}ms)`;
+      
+      // Warn for slow requests (>2 seconds) even in production
+      if (duration > 2000) {
+        logger.warn(logMessage, { data: response.data });
+      } else {
+        logger.debug(logMessage, { data: response.data });
+      }
+
       return response;
     },
     async (error: AxiosError) => {
-      logger.error('[API] Response error', error, {
+      // Calculate request duration for failed requests too
+      const startTime = (error.config as any)?.metadata?.startTime;
+      const duration = startTime ? Date.now() - startTime : 0;
+
+      logger.error(`[API] Response error (${duration}ms)`, error, {
         status: error.response?.status,
         url: error.config?.url,
         data: error.response?.data,
@@ -130,20 +167,45 @@ const createApiClient = (): AxiosInstance => {
         originalRequest._retry = true;
 
         try {
+          // If a refresh is already in progress, wait for it
+          if (refreshTokenPromise) {
+            const newToken = await refreshTokenPromise;
+            if (newToken && originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              return client(originalRequest);
+            }
+          }
+
           const refreshToken = await tokenManager.getRefreshToken();
           if (refreshToken) {
-            // Attempt to refresh the token
-            const response = await axios.post<
-              ApiResponse<{
-                tokens: { accessToken: string; refreshToken: string };
-              }>
-            >(buildApiUrl('auth/refresh-token'), { refreshToken });
+            // Create a refresh promise that other requests can wait for
+            refreshTokenPromise = (async () => {
+              try {
+                // Attempt to refresh the token
+                const response = await axios.post<
+                  ApiResponse<{
+                    tokens: { accessToken: string; refreshToken: string };
+                  }>
+                >(buildApiUrl('auth/refresh-token'), { refreshToken });
 
-            if (response.data.success && response.data.data?.tokens) {
-              const { accessToken, refreshToken: newRefreshToken } =
-                response.data.data.tokens;
-              await tokenManager.setTokens(accessToken, newRefreshToken);
+                if (response.data.success && response.data.data?.tokens) {
+                  const { accessToken, refreshToken: newRefreshToken } =
+                    response.data.data.tokens;
+                  await tokenManager.setTokens(accessToken, newRefreshToken);
+                  return accessToken;
+                }
+                return null;
+              } catch (e) {
+                logger.error('[API] Token refresh API call failed', e);
+                return null;
+              } finally {
+                refreshTokenPromise = null;
+              }
+            })();
 
+            const accessToken = await refreshTokenPromise;
+
+            if (accessToken) {
               // Retry the original request with new token
               if (originalRequest.headers) {
                 originalRequest.headers.Authorization = `Bearer ${accessToken}`;
@@ -152,11 +214,16 @@ const createApiClient = (): AxiosInstance => {
             }
           }
         } catch (refreshError) {
-          // Token refresh failed - clear tokens and redirect to login
-          await tokenManager.clearTokens();
-          // Note: Navigation to login screen should be handled by the app
-          return Promise.reject(refreshError);
+          logger.error('[API] Unexpected error during token refresh', refreshError);
         }
+
+        // If we reach here, refresh failed or was not possible
+        // Clear tokens and trigger logout via callback
+        await tokenManager.clearTokens();
+        if (authFailureCallback) {
+          authFailureCallback();
+        }
+        return Promise.reject(error);
       }
 
       return Promise.reject(error);

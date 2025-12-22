@@ -57,6 +57,15 @@ const TermsOfServiceScreen: React.FC = () => {
     </View>
   );
 
+  const InfoBox: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <View style={[styles.warningBox, { backgroundColor: theme.primary + '15', borderColor: theme.primary + '40' }]}>
+      <Icon name="shield-check-outline" size={20} color={theme.primary} style={styles.warningIcon} />
+      <Text style={[styles.warningText, { color: theme.textSecondary }]}>
+        {children}
+      </Text>
+    </View>
+  );
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
@@ -94,9 +103,9 @@ const TermsOfServiceScreen: React.FC = () => {
         </Section>
 
         <Section title="2. Important Financial Disclaimer">
-          <WarningBox>
+          <InfoBox>
             FINLY IS NOT A BANK, CREDIT UNION, FINANCIAL INSTITUTION, BROKER-DEALER, INVESTMENT ADVISOR, OR FIDUCIARY. The App does not provide financial, investment, tax, legal, or accounting advice.
-          </WarningBox>
+          </InfoBox>
           <Paragraph>
             The App is a personal expense tracking and budgeting tool designed to help you organize and visualize your financial information. You should:
           </Paragraph>
@@ -179,6 +188,30 @@ const TermsOfServiceScreen: React.FC = () => {
           <BulletPoint>AI features are for convenience only and do not constitute professional advice</BulletPoint>
           <BulletPoint>You are responsible for verifying and correcting AI-generated categorizations</BulletPoint>
           <BulletPoint>AI processing is performed in accordance with our Privacy Policy</BulletPoint>
+        </Section>
+
+        <Section title="9. Fair Usage Policy">
+          <WarningBox>
+            AI-POWERED FEATURES ARE SUBJECT TO FAIR USAGE LIMITS. Premium subscribers receive generous allocations designed to accommodate typical personal finance use cases.
+          </WarningBox>
+          <Paragraph>
+            To ensure optimal service quality for all users and manage infrastructure costs, certain AI-powered features (including but not limited to AI insights, AI chat queries, voice transcription, and receipt OCR) are subject to usage limits:
+          </Paragraph>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Free Tier:</Text> Limited access to AI features as specified on our pricing page. Limits reset on a daily, weekly, or monthly basis depending on the feature.
+          </BulletPoint>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Premium Tier:</Text> Significantly higher usage allocations designed to accommodate typical personal finance management needs. We aim to provide limits that are generous enough that most users will never reach them under normal use.
+          </BulletPoint>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Limit Adjustments:</Text> We reserve the right to adjust usage limits at any time based on system demand, infrastructure capacity, or cost considerations. Existing Premium subscribers will receive reasonable notice before any material reduction in their allocated limits.
+          </BulletPoint>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Abuse Prevention:</Text> Automated, bulk, or commercial use of AI features is prohibited. We may suspend or terminate accounts that circumvent usage limits or engage in abusive patterns.
+          </BulletPoint>
+          <Paragraph>
+            This Fair Usage Policy is designed to balance providing excellent service to our users while maintaining sustainable operations. Current usage limits are viewable within the App's settings.
+          </Paragraph>
         </Section>
 
         <Section title="9. Intellectual Property">

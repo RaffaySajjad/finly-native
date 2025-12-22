@@ -44,3 +44,17 @@ src/config/api.config.local.ts
 
 #Firebase
 finly-finance-firebase-adminsdk.json
+
+# Android
+android/build/
+android/.gradle/
+android/gradle/init.gradle
+android/gradle/wrapper/caches/
+android/gradle/wrapper/daemon/
+android/gradle/wrapper/native/
+android/gradle/wrapper/kotlin-profile/
+android/gradle/wrapper/.tmp/
+android/gradle/wrapper/wrapper/
+android/gradle/wrapper/android/
+android/app/build/
+android/local.properties

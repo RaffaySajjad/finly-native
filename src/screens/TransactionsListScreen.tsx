@@ -13,12 +13,12 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Alert,
   Platform,
   Modal,
   RefreshControl,
   SectionList,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -118,6 +118,7 @@ const TransactionsListScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<TransactionsListNavigationProp>();
   const { openBottomSheet } = useBottomSheetActions();
+  const { showError, showSuccess, AlertComponent } = useAlert();
 
   const [transactions, setTransactions] = useState<UnifiedTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -518,9 +519,9 @@ const TransactionsListScreen: React.FC = () => {
         await apiService.deleteIncomeTransaction(transaction.id);
       }
       await loadData();
-      Alert.alert('Deleted', 'Transaction deleted successfully');
+      showSuccess('Deleted', 'Transaction deleted successfully');
     } catch (error) {
-      Alert.alert('Error', 'Failed to delete transaction');
+      showError('Error', 'Failed to delete transaction');
       console.error(error);
     }
   };
@@ -1143,6 +1144,7 @@ const TransactionsListScreen: React.FC = () => {
               </View>
             </View>
           </Modal>
+      {AlertComponent}
         </SafeAreaView>
   );
 };

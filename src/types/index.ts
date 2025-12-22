@@ -109,7 +109,7 @@ export type BudgetType = 'MONTHLY' | 'ROLLOVER';
 
 // Rollover budget data for sinking fund categories
 export interface CategoryRollover {
-  accumulatedBudget: number; // Total available (carriedOver + allocatedAmount)
+  accumulatedBudget: number; // Total available to spend (carriedOver + allocatedAmount - spentAmount)
   carriedOver: number; // Amount carried from previous months
   monthlyAllocation: number; // This month's allocation
   monthsAccumulating: number; // How many months have been accumulating
@@ -216,6 +216,11 @@ export interface Subscription {
   endDate?: string;
   trialEndDate?: string;
   isTrial: boolean;
+  // Coupon/discount fields (for web signups with FINLY20 code)
+  couponCode?: string | null;
+  hasPendingDiscount?: boolean;
+  discountPercent?: number;
+  source?: string;
 }
 
 export interface UsageLimits {

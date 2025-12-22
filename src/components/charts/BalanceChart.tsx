@@ -1,22 +1,24 @@
 /**
  * BalanceChart Component
- * Premium balance trend visualization with range selection and dynamic Y-axis
- * Features: Two-point selection with % change (Yahoo Finance style), dynamic Y-axis on scroll
+ * Premium balance trend visualization with smooth gesture-based range selection
+ * Features: Long-press + drag range selection (stock app style), dynamic Y-axis on scroll
+ * Supports single point selection (shows value) and range selection (shows % change)
  */
 
-import React, { useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Dimensions, Platform } from 'react-native';
+import React, { useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
 import { LineChart } from 'react-native-gifted-charts';
-import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useCurrency } from '../../contexts/CurrencyContext';
 import { typography, spacing, borderRadius, elevation } from '../../theme';
 import { ChartDataPoint } from './types';
 import { CHART_CONFIG } from './constants';
-import { formatYAxisLabel, formatChartDate, calculateRangeMetrics } from './utils';
-import { useRangeSelection } from './hooks/useRangeSelection';
+import { formatYAxisLabel, formatChartDate } from './utils';
+import { useSmoothRangeSelection } from './hooks/useSmoothRangeSelection';
 import { useDynamicYAxis } from './hooks/useDynamicYAxis';
 import { RangeSelectionBadge } from './RangeSelectionBadge';
+import { SinglePointBadge } from './SinglePointBadge';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -44,7 +46,7 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({
   
   const chartWidth = SCREEN_WIDTH - 50;
   const chartHeight = CHART_CONFIG.defaultHeight;
-  const spacing = data.length <= 7 ? 50 : data.length <= 14 ? 40 : 35;
+  const itemSpacing = data.length <= 7 ? 50 : data.length <= 14 ? 40 : 35;
 
   const chartData: ChartDataPoint[] = useMemo(() => {
     return data.map((d, index) => ({
@@ -57,16 +59,23 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({
     }));
   }, [data, convertFromUSD]);
 
+  // Use the new smooth gesture-based range selection (long-press + drag)
   const {
     selection,
+    singlePoint,
     metrics: rangeMetrics,
     hasSelection,
+    hasSinglePoint,
     isSelecting,
-    selectPoint,
+    gesture,
     clearSelection,
-  } = useRangeSelection({
+  } = useSmoothRangeSelection({
     data: chartData,
     enabled: enableRangeSelection,
+    chartWidth,
+    itemSpacing,
+    initialSpacing: 20,
+    yAxisOffset: CHART_CONFIG.axis.yLabelWidth - 10, // Account for wrapper marginLeft: -10
   });
 
   const {
@@ -74,7 +83,7 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({
     handleScroll,
   } = useDynamicYAxis({
     data: chartData,
-    itemSpacing: spacing,
+    itemSpacing,
     chartWidth,
     enabled: enableDynamicYAxis,
   });
@@ -85,44 +94,13 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({
     return formatYAxisLabel(num, currencySymbol);
   }, [currencySymbol]);
 
-  const handleDataPointClick = useCallback((item: any, index: number) => {
-    if (enableRangeSelection) {
-      selectPoint(index);
-    }
-  }, [enableRangeSelection, selectPoint]);
-
-  const getDataPointColor = useCallback((index: number) => {
-    if (!enableRangeSelection) return theme.primary;
-    
-    if (selection.startIndex === index || selection.endIndex === index) {
-      return isDark ? '#60A5FA' : theme.primary;
-    }
-    
-    if (hasSelection && 
-        selection.startIndex !== null && 
-        selection.endIndex !== null &&
-        index > selection.startIndex && 
-        index < selection.endIndex) {
-      return theme.primary + '80';
-    }
-    
-    return theme.primary;
-  }, [enableRangeSelection, selection, hasSelection, theme, isDark]);
-
-  const getDataPointRadius = useCallback((index: number) => {
-    if (selection.startIndex === index || selection.endIndex === index) {
-      return CHART_CONFIG.dataPoints.activeRadius;
-    }
-    return CHART_CONFIG.dataPoints.radius;
-  }, [selection]);
-
   const selectionLabels = useMemo(() => {
-    if (!hasSelection || !selection.startIndex === null) {
+    if (!hasSelection || selection.startIndex === null || selection.endIndex === null) {
       return { start: '', end: '', startFormatted: '', endFormatted: '' };
     }
     
-    const startPoint = chartData[selection.startIndex!];
-    const endPoint = chartData[selection.endIndex!];
+    const startPoint = chartData[selection.startIndex];
+    const endPoint = chartData[selection.endIndex];
     
     return {
       start: startPoint?.date ? formatChartDate(startPoint.date, 'medium') : '',
@@ -131,6 +109,18 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({
       endFormatted: formatCurrency(endPoint?.originalValue || 0),
     };
   }, [hasSelection, selection, chartData, formatCurrency]);
+
+  // Single point label
+  const singlePointLabels = useMemo(() => {
+    if (!hasSinglePoint || !singlePoint) {
+      return { date: '', value: '' };
+    }
+    
+    return {
+      date: singlePoint.date ? formatChartDate(singlePoint.date, 'medium') : '',
+      value: formatCurrency(singlePoint.originalValue ?? singlePoint.value),
+    };
+  }, [hasSinglePoint, singlePoint, formatCurrency]);
 
   if (!data || data.length === 0) return null;
 
@@ -143,7 +133,7 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({
     radius: CHART_CONFIG.dataPoints.radius,
     pointerLabelWidth: 140,
     pointerLabelHeight: 90,
-    activatePointersOnLongPress: !enableRangeSelection,
+    activatePointersOnLongPress: true,
     autoAdjustPointerLabelPosition: true,
     pointerLabelComponent: (items: any) => {
       const item = items[0];
@@ -165,15 +155,13 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({
           <Text style={[styles.tooltipValue, { color: theme.text }]}>
             {formatCurrency(item.originalValue)}
           </Text>
-          {enableRangeSelection && (
-            <Text style={[styles.tooltipHint, { color: theme.textTertiary }]}>
-              {isSelecting ? 'Tap another point' : 'Tap to select'}
-            </Text>
-          )}
         </View>
       );
     },
   };
+
+  // Determine which point indices to highlight
+  const selectedPointIndex = hasSinglePoint ? singlePoint?.index : null;
 
   return (
     <View style={[
@@ -191,126 +179,140 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({
             </Text>
           )}
         </View>
-        
-        {enableRangeSelection && !hasSelection && (
-          <View style={[styles.hintBadge, { backgroundColor: theme.primary + '15' }]}>
-            <Text style={[styles.hintText, { color: theme.primary }]}>
-              Tap two points to compare
-            </Text>
+
+
+      </View>
+
+      {/* Chart area with gesture handler */}
+      <View style={styles.chartArea}>
+        {/* Absolutely positioned badge overlay - Single Point */}
+        {hasSinglePoint && (
+          <View style={styles.badgeOverlay}>
+            <SinglePointBadge
+              visible={hasSinglePoint}
+              date={singlePointLabels.date}
+              value={singlePointLabels.value}
+              onClear={clearSelection}
+              accentColor={theme.primary}
+            />
           </View>
         )}
+
+        {/* Absolutely positioned badge overlay - Range Selection */}
+        {hasSelection && rangeMetrics && (
+          <View style={styles.badgeOverlay}>
+            <RangeSelectionBadge
+              visible={hasSelection}
+              metrics={rangeMetrics}
+              startLabel={selectionLabels.start}
+              endLabel={selectionLabels.end}
+              startFormatted={selectionLabels.startFormatted}
+              endFormatted={selectionLabels.endFormatted}
+              onClear={clearSelection}
+            />
+          </View>
+        )}
+
+        {/* Gesture-enabled chart wrapper */}
+        <GestureDetector gesture={gesture}>
+          <View style={styles.chartWrapper}>
+            <LineChart
+              data={chartData}
+              width={chartWidth}
+              height={chartHeight}
+              spacing={itemSpacing}
+              initialSpacing={20}
+              endSpacing={20}
+              color={theme.primary}
+              thickness={CHART_CONFIG.line.thickness}
+              startFillColor={theme.primary}
+              endFillColor={theme.primary}
+              startOpacity={CHART_CONFIG.area.startOpacity}
+              endOpacity={CHART_CONFIG.area.endOpacity}
+              areaChart
+              curved
+              curvature={CHART_CONFIG.line.curveIntensity}
+              hideRules={false}
+              rulesType="solid"
+              rulesColor={theme.border + '50'}
+              rulesThickness={0.5}
+              yAxisColor="transparent"
+              xAxisColor={theme.border}
+              xAxisThickness={0.5}
+              yAxisTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
+              xAxisLabelTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
+              yAxisLabelWidth={CHART_CONFIG.axis.yLabelWidth}
+              maxValue={yAxisBounds.max}
+              mostNegativeValue={yAxisBounds.min}
+              noOfSections={yAxisBounds.sections}
+              formatYLabel={formatYLabel}
+              scrollToEnd
+              onScroll={(e: any) => {
+                if (enableDynamicYAxis && e?.nativeEvent?.contentOffset) {
+                  handleScroll(e.nativeEvent.contentOffset.x);
+                }
+              }}
+              hideDataPoints={false}
+              dataPointsColor={theme.primary}
+              dataPointsRadius={CHART_CONFIG.dataPoints.radius}
+              pointerConfig={enableRangeSelection ? undefined : pointerConfig}
+              showVerticalLines={hasSelection || hasSinglePoint}
+              verticalLinesUptoDataPoint
+              verticalLinesColor={
+                hasSelection 
+                  ? (rangeMetrics?.isPositive ? theme.success : theme.expense) + '30'
+                  : theme.primary + '30'
+              }
+              verticalLinesThickness={1}
+              verticalLinesStrokeDashArray={[4, 4]}
+              customDataPoint={(item: any, index: number) => {
+                const isRangeSelected = selection.startIndex === index || selection.endIndex === index;
+                const isSingleSelected = selectedPointIndex === index;
+                const isInRange = hasSelection && 
+                  selection.startIndex !== null && 
+                  selection.endIndex !== null &&
+                  index >= selection.startIndex && 
+                  index <= selection.endIndex;
+                
+                if (!isRangeSelected && !isSingleSelected && !isInRange) return null;
+                
+                let pointColor: string;
+                let pointRadius: number;
+                
+                if (isSingleSelected) {
+                  pointColor = theme.primary;
+                  pointRadius = CHART_CONFIG.dataPoints.activeRadius + 2;
+                } else if (isRangeSelected) {
+                  pointColor = rangeMetrics?.isPositive ? theme.success : theme.expense;
+                  pointRadius = CHART_CONFIG.dataPoints.activeRadius + 2;
+                } else {
+                  pointColor = theme.primary + '60';
+                  pointRadius = CHART_CONFIG.dataPoints.radius;
+                }
+                
+                return (
+                  <View
+                    style={[
+                      styles.customDataPoint,
+                      {
+                        width: pointRadius * 2,
+                        height: pointRadius * 2,
+                        borderRadius: pointRadius,
+                        backgroundColor: pointColor,
+                        borderWidth: (isRangeSelected || isSingleSelected) ? 2 : 0,
+                        borderColor: theme.card,
+                      },
+                      (isRangeSelected || isSingleSelected) && elevation.sm,
+                    ]}
+                  />
+                );
+              }}
+            />
+          </View>
+        </GestureDetector>
       </View>
 
-      {hasSelection && rangeMetrics && (
-        <RangeSelectionBadge
-          visible={hasSelection}
-          metrics={rangeMetrics}
-          startLabel={selectionLabels.start}
-          endLabel={selectionLabels.end}
-          startFormatted={selectionLabels.startFormatted}
-          endFormatted={selectionLabels.endFormatted}
-          onClear={clearSelection}
-        />
-      )}
 
-      <View style={styles.chartWrapper}>
-        <LineChart
-          data={chartData}
-          width={chartWidth}
-          height={chartHeight}
-          spacing={spacing}
-          initialSpacing={20}
-          endSpacing={20}
-          color={theme.primary}
-          thickness={CHART_CONFIG.line.thickness}
-          startFillColor={theme.primary}
-          endFillColor={theme.primary}
-          startOpacity={CHART_CONFIG.area.startOpacity}
-          endOpacity={CHART_CONFIG.area.endOpacity}
-          areaChart
-          curved
-          curvature={CHART_CONFIG.line.curveIntensity}
-          hideRules={false}
-          rulesType="solid"
-          rulesColor={theme.border + '50'}
-          rulesThickness={0.5}
-          yAxisColor="transparent"
-          xAxisColor={theme.border}
-          xAxisThickness={0.5}
-          yAxisTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
-          xAxisLabelTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
-          yAxisLabelWidth={CHART_CONFIG.axis.yLabelWidth}
-          maxValue={yAxisBounds.max}
-          mostNegativeValue={yAxisBounds.min}
-          noOfSections={yAxisBounds.sections}
-          formatYLabel={formatYLabel}
-          scrollToEnd
-          onScroll={(e: any) => {
-            if (enableDynamicYAxis && e?.nativeEvent?.contentOffset) {
-              handleScroll(e.nativeEvent.contentOffset.x);
-            }
-          }}
-          hideDataPoints={false}
-          dataPointsColor={theme.primary}
-          dataPointsRadius={CHART_CONFIG.dataPoints.radius}
-          focusEnabled={true}
-          showDataPointOnFocus={true}
-          focusedDataPointColor={isDark ? '#60A5FA' : theme.primary}
-          focusedDataPointRadius={CHART_CONFIG.dataPoints.activeRadius}
-          onFocus={handleDataPointClick}
-          delayBeforeUnFocus={3000}
-          pointerConfig={pointerConfig}
-          showVerticalLines={hasSelection}
-          verticalLinesUptoDataPoint
-          verticalLinesColor={
-            hasSelection 
-              ? (rangeMetrics?.isPositive ? theme.success : theme.expense) + '30'
-              : theme.border + '30'
-          }
-          verticalLinesThickness={1}
-          verticalLinesStrokeDashArray={[4, 4]}
-          customDataPoint={(item: any, index: number) => {
-            const isSelected = selection.startIndex === index || selection.endIndex === index;
-            const isInRange = hasSelection && 
-              selection.startIndex !== null && 
-              selection.endIndex !== null &&
-              index >= selection.startIndex && 
-              index <= selection.endIndex;
-            
-            if (!isSelected && !isInRange) return null;
-            
-            const pointColor = isSelected 
-              ? (rangeMetrics?.isPositive ? theme.success : theme.expense)
-              : theme.primary + '60';
-            const pointRadius = isSelected 
-              ? CHART_CONFIG.dataPoints.activeRadius + 2
-              : CHART_CONFIG.dataPoints.radius;
-            
-            return (
-              <View
-                style={[
-                  styles.customDataPoint,
-                  {
-                    width: pointRadius * 2,
-                    height: pointRadius * 2,
-                    borderRadius: pointRadius,
-                    backgroundColor: pointColor,
-                    borderWidth: isSelected ? 2 : 0,
-                    borderColor: theme.card,
-                  },
-                  isSelected && elevation.sm,
-                ]}
-              />
-            );
-          }}
-        />
-      </View>
-
-      {enableDynamicYAxis && (
-        <Text style={[styles.dynamicAxisHint, { color: theme.textTertiary }]}>
-          Scroll to see dynamic Y-axis adjustment
-        </Text>
-      )}
     </View>
   );
 };
@@ -348,6 +350,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
   },
+  chartArea: {
+    position: 'relative',
+  },
+  badgeOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    paddingHorizontal: spacing.xs,
+  },
   chartWrapper: {
     marginLeft: -10,
     marginRight: -5,
@@ -377,12 +390,6 @@ const styles = StyleSheet.create({
   tooltipValue: {
     ...typography.titleMedium,
     fontWeight: '700',
-  },
-  tooltipHint: {
-    ...typography.caption,
-    fontSize: 10,
-    marginTop: 4,
-    fontStyle: 'italic',
   },
   axisLabel: {
     fontSize: 10,

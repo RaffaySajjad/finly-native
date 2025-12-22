@@ -11,12 +11,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  Alert,
   Animated,
   ActivityIndicator,
   Platform,
   RefreshControl,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -161,6 +161,7 @@ const CategoryDetailsScreen: React.FC = () => {
   const route = useRoute<CategoryDetailsRouteProp>();
 
   const { categoryId } = route.params;
+  const { showError, showSuccess, showWarning, showInfo, AlertComponent } = useAlert();
 
   const [category, setCategory] = useState<Category | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -363,7 +364,7 @@ const CategoryDetailsScreen: React.FC = () => {
     if (newType !== currentOriginalType) {
       if (newType === 'ROLLOVER') {
         // Converting from MONTHLY to ROLLOVER
-        Alert.alert(
+        showInfo(
           'Enable Savings Goal',
           'This will convert your category to a savings goal. Unspent budget will accumulate over time, helping you save for larger purchases.\n\nWould you like to proceed?',
           [
@@ -379,7 +380,7 @@ const CategoryDetailsScreen: React.FC = () => {
         );
       } else {
         // Converting from ROLLOVER to MONTHLY
-        Alert.alert(
+        showWarning(
           'Switch to Monthly Budget',
           'This will convert your savings goal back to a regular monthly budget that resets each month.\n\nNote: Your accumulated savings history will be preserved for reference, but the category will no longer track rollover amounts.\n\nWould you like to proceed?',
           [
@@ -403,7 +404,7 @@ const CategoryDetailsScreen: React.FC = () => {
 
     const budgetValue = parseFloat(newBudget);
     if (isNaN(budgetValue) || budgetValue < 0) {
-      Alert.alert('Invalid Budget', 'Please enter a valid budget amount');
+      showError('Invalid Budget', 'Please enter a valid budget amount');
       return;
     }
 
@@ -460,9 +461,9 @@ const CategoryDetailsScreen: React.FC = () => {
       setApplyToCurrentMonth(false); // Reset after save
 
       bottomSheetRef.current?.close();
-      Alert.alert('Success', 'Budget updated successfully!');
+      showSuccess('Success', 'Budget updated successfully!');
     } catch (error) {
-      Alert.alert('Error', 'Failed to update budget');
+      showError('Error', 'Failed to update budget');
     } finally {
       setSavingBudget(false);
     }
@@ -632,18 +633,32 @@ const CategoryDetailsScreen: React.FC = () => {
                         </Text>
                       </View>
 
-                      <View style={[styles.rolloverAccumulatedCard, { backgroundColor: theme.income + '15', borderColor: theme.income + '30' }]}>
-                        <Text style={[styles.rolloverAccumulatedLabel, { color: theme.textSecondary }]}>
-                          Available to Spend
-                        </Text>
-                        <Text style={[styles.rolloverAccumulatedAmount, { color: theme.income }]}>
-                          {formatCurrency(category.rollover.accumulatedBudget)}
-                        </Text>
-                        <Text style={[styles.rolloverAccumulatedHint, { color: theme.textTertiary }]}>
-                          {category.rollover.monthsAccumulating} month{category.rollover.monthsAccumulating !== 1 ? 's' : ''} saved
-                          {category.rollover.carriedOver > 0 && ` • ${formatCurrency(category.rollover.carriedOver)} carried over`}
-                        </Text>
-                      </View>
+                      {category.rollover.accumulatedBudget >= 0 ? (
+                        <View style={[styles.rolloverAccumulatedCard, { backgroundColor: theme.income + '15', borderColor: theme.income + '30' }]}>
+                          <Text style={[styles.rolloverAccumulatedLabel, { color: theme.textSecondary }]}>
+                            Available to Spend
+                          </Text>
+                          <Text style={[styles.rolloverAccumulatedAmount, { color: theme.income }]}>
+                            {formatCurrency(category.rollover.accumulatedBudget)}
+                          </Text>
+                          <Text style={[styles.rolloverAccumulatedHint, { color: theme.textTertiary }]}>
+                            {category.rollover.monthsAccumulating} month{category.rollover.monthsAccumulating !== 1 ? 's' : ''} saved
+                            {category.rollover.carriedOver > 0 && ` • ${formatCurrency(category.rollover.carriedOver)} carried over`}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.rolloverAccumulatedCard, { backgroundColor: theme.expense + '15', borderColor: theme.expense + '30' }]}>
+                          <Text style={[styles.rolloverAccumulatedLabel, { color: theme.textSecondary }]}>
+                            Overspent
+                          </Text>
+                          <Text style={[styles.rolloverAccumulatedAmount, { color: theme.expense }]}>
+                            {formatCurrency(Math.abs(category.rollover.accumulatedBudget))}
+                          </Text>
+                          <Text style={[styles.rolloverAccumulatedHint, { color: theme.textTertiary }]}>
+                            You've exceeded your budget this month
+                          </Text>
+                        </View>
+                      )}
 
                       {/* Progress Bar for Rollover - shows spending against accumulated */}
                       <View style={[styles.progressBarContainer, { backgroundColor: theme.border }]}>
@@ -965,6 +980,7 @@ const CategoryDetailsScreen: React.FC = () => {
           )}
         </BottomSheetScrollView>
       </BottomSheet>
+      {AlertComponent}
     </SafeAreaView>
   );
 };

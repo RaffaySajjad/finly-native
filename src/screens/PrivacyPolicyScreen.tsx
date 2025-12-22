@@ -157,14 +157,22 @@ const PrivacyPolicyScreen: React.FC = () => {
           </BulletPoint>
         </Section>
 
-        <Section title="6. AI Features & Processing">
+        <Section title="6. AI Features & Third-Party Processing">
           <Paragraph>
-            When you use our AI-powered features (Voice Entry, Finly AI Assistant):
+            Our AI-powered features are provided through third-party services:
           </Paragraph>
-          <BulletPoint>Voice and text inputs are processed ephemerally to interpret your requests.</BulletPoint>
-          <BulletPoint>AI processing occurs on secure servers with no persistent storage of raw inputs.</BulletPoint>
-          <BulletPoint>Categorization suggestions are based on your personal spending patterns only.</BulletPoint>
+          <InfoBox>
+            Finly uses OpenAI's services to power AI features including voice transcription (Whisper), receipt scanning (Vision), and the AI chat assistant (GPT). When you use these features, relevant data is processed by OpenAI according to their privacy policy and data usage policies.
+          </InfoBox>
+          <Paragraph>
+            When you use our AI-powered features (Voice Entry, Receipt Scan, Finly AI Assistant):
+          </Paragraph>
+          <BulletPoint>Voice and text inputs are sent to OpenAI for processing and are handled according to OpenAI's data retention policies.</BulletPoint>
+          <BulletPoint>Receipt images are processed by OpenAI Vision to extract transaction details.</BulletPoint>
+          <BulletPoint>AI chat conversations are processed by OpenAI to generate responses.</BulletPoint>
+          <BulletPoint>Categorization suggestions are based on your personal spending patterns.</BulletPoint>
           <BulletPoint>You maintain full control to accept, modify, or reject AI suggestions.</BulletPoint>
+          <BulletPoint>We do not use your data to train AI models.</BulletPoint>
         </Section>
 
         <Section title="7. Data Sharing & Disclosure">

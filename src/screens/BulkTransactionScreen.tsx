@@ -12,11 +12,11 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   Platform,
   Modal,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -45,6 +45,7 @@ const BulkTransactionScreen: React.FC = () => {
   const { getCurrencySymbol, convertToUSD } = useCurrency();
   const navigation = useNavigation<NavigationProp>();
   const { isPremium, requiresUpgrade } = useSubscription();
+  const { showError, showSuccess, showInfo, AlertComponent } = useAlert();
 
   const [transactions, setTransactions] = useState<BulkTransaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -158,12 +159,12 @@ const BulkTransactionScreen: React.FC = () => {
     });
 
     if (errors.length > 0) {
-      Alert.alert('Validation Error', errors.join('\n'));
+      showError('Validation Error', errors.join('\n'));
       return;
     }
 
     if (validTransactions.length === 0) {
-      Alert.alert('No Transactions', 'Please add at least one transaction');
+      showInfo('No Transactions', 'Please add at least one transaction');
       return;
     }
 
@@ -180,7 +181,7 @@ const BulkTransactionScreen: React.FC = () => {
 
       await apiService.addExpensesBatch({ expenses: expenseData });
 
-      Alert.alert(
+      showSuccess(
         'Success!',
         `Added ${validTransactions.length} transaction${validTransactions.length > 1 ? 's' : ''} successfully! 🎉`,
         [
@@ -191,7 +192,7 @@ const BulkTransactionScreen: React.FC = () => {
         ]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to save transactions');
+      showError('Error', 'Failed to save transactions');
       console.error(error);
     } finally {
       setIsProcessing(false);
@@ -548,6 +549,7 @@ const BulkTransactionScreen: React.FC = () => {
         feature="Bulk Transaction Entry"
         message="Bulk entry is a Premium feature. Upgrade to add multiple transactions at once using a convenient form interface!"
       />
+      {AlertComponent}
     </SafeAreaView>
   );
 };

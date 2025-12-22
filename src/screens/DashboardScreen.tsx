@@ -15,13 +15,13 @@ import {
   Dimensions,
   TextInput,
   ActivityIndicator,
-  Alert,
   Animated,
   Platform,
   Modal,
   Keyboard,
   FlatList,
 } from 'react-native';
+import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -128,6 +128,7 @@ const DashboardScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { isPremium, getRemainingUsage } = useSubscription();
   const { openBottomSheet, setOnTransactionAdded } = useBottomSheetActions();
+  const { showError, showSuccess, showInfo, AlertComponent } = useAlert();
   const optionsSheetRef = useRef<BottomSheet>(null);
   const balanceAdjustSheetRef = useRef<BottomSheet>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -513,17 +514,17 @@ const DashboardScreen: React.FC = () => {
       if (transaction.type === 'expense') {
         await apiService.deleteExpense(transaction.id);
         await loadData(); // Refresh all data
-        Alert.alert('Done', 'Transaction removed.');
+        showSuccess('Done', 'Transaction removed.');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to delete transaction');
+      showError('Error', 'Failed to delete transaction');
       console.error(error);
     }
   };
 
   const handleAdjustBalance = async () => {
     if (!newBalance || isNaN(parseFloat(newBalance))) {
-      Alert.alert('Check Amount', 'Please double-check the balance amount entered.');
+      showInfo('Check Amount', 'Please double-check the balance amount entered.');
       return;
     }
 
@@ -576,9 +577,9 @@ const DashboardScreen: React.FC = () => {
       await loadData(); // Refresh all data
       balanceAdjustSheetRef.current?.close();
       setNewBalance('');
-      Alert.alert('Success', 'Balance updated successfully! 🎉');
+      showSuccess('Success', 'Balance updated successfully! 🎉');
     } catch (error) {
-      Alert.alert('Error', 'Failed to adjust balance');
+      showError('Error', 'Failed to adjust balance');
       console.error(error);
     } finally {
       setIsAdjustingBalance(false);
@@ -1095,6 +1096,7 @@ const DashboardScreen: React.FC = () => {
           onPermissionGranted={handleNotificationPermissionGranted}
           onPermissionDenied={handleNotificationPermissionDenied}
         />
+        {AlertComponent}
       </SafeAreaView>
     </GestureHandlerRootView>
   );

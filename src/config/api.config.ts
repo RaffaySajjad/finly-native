@@ -101,6 +101,9 @@ export const API_ENDPOINTS = {
   ANALYTICS: {
     STATS: '/analytics/stats',
     INSIGHTS: '/analytics/insights',
+    INSIGHTS_UNREAD_COUNT: '/analytics/insights/unread-count',
+    INSIGHTS_MARK_ALL_READ: '/analytics/insights/mark-all-read',
+    INSIGHTS_MARK_READ: '/analytics/insights', // + /:id/read
     DAILY_SPENDING: '/analytics/daily-spending',
     TREND: '/analytics/trend',
     BUDGET_STATUS: '/analytics/budget-status',

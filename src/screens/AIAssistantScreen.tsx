@@ -48,6 +48,15 @@ interface Message {
   timestamp: string;
 }
 
+// Loading status messages for better UX
+const LOADING_MESSAGES = [
+  'Thinking...',
+  'Analyzing your data...',
+  'Crunching the numbers...',
+  'Fetching your transactions...',
+  'Almost there...'
+];
+
 const AIAssistantScreen: React.FC = () => {
   const { theme } = useTheme();
   const { formatCurrency, currencyCode } = useCurrency();
@@ -60,12 +69,14 @@ const AIAssistantScreen: React.FC = () => {
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Thinking...');
   const [queryLimits, setQueryLimits] = useState({ used: 0, limit: 5, resetDate: '' });
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const loadingMessageIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const scrollViewRef = useRef<ScrollView>(null);
   const routeParams = route.params;
@@ -108,14 +119,36 @@ const AIAssistantScreen: React.FC = () => {
     isAtBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
   };
 
-  // Cleanup streaming timeout on unmount
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
       if (streamingTimeoutRef.current) {
         clearTimeout(streamingTimeoutRef.current);
       }
+      if (loadingMessageIntervalRef.current) {
+        clearInterval(loadingMessageIntervalRef.current);
+      }
     };
   }, []);
+
+  // Cycle loading messages while processing
+  const startLoadingMessageCycle = () => {
+    let messageIndex = 0;
+    setLoadingMessage(LOADING_MESSAGES[0]);
+    
+    loadingMessageIntervalRef.current = setInterval(() => {
+      messageIndex = (messageIndex + 1) % LOADING_MESSAGES.length;
+      setLoadingMessage(LOADING_MESSAGES[messageIndex]);
+    }, 2000); // Change message every 2 seconds
+  };
+
+  const stopLoadingMessageCycle = () => {
+    if (loadingMessageIntervalRef.current) {
+      clearInterval(loadingMessageIntervalRef.current);
+      loadingMessageIntervalRef.current = null;
+    }
+    setLoadingMessage('Thinking...');
+  };
 
   const loadInitialData = async () => {
     try {
@@ -182,6 +215,7 @@ const AIAssistantScreen: React.FC = () => {
 
     setLoading(true);
     setQuery('');
+    startLoadingMessageCycle();
 
     // Force scroll to bottom when sending new message
     isAtBottom.current = true;
@@ -204,18 +238,7 @@ const AIAssistantScreen: React.FC = () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-      // Create placeholder assistant message for streaming
-      const assistantMessage: Message = {
-        id: assistantMessageId,
-        type: 'assistant',
-        content: '',
-        timestamp: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, assistantMessage]);
-      setStreamingMessageId(assistantMessageId);
-      setStreamingText('');
-
-      // Process query
+      // Process query FIRST - don't create placeholder until we have a response
       // Ensure currencyCode is always sent (fallback to USD if not available)
       const currencyToSend = currencyCode || 'USD';
       const result = await processAIQuery(
@@ -225,6 +248,20 @@ const AIAssistantScreen: React.FC = () => {
         routeParams?.context,
         currencyToSend // Pass user's active currency (or USD as fallback)
       );
+
+      // Stop loading messages - we got a response
+      stopLoadingMessageCycle();
+
+      // NOW create the placeholder assistant message for streaming
+      const assistantMessage: Message = {
+        id: assistantMessageId,
+        type: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+      setStreamingMessageId(assistantMessageId);
+      setStreamingText('');
 
       // Stream the response character by character
       await streamText(result.response, assistantMessageId);
@@ -240,8 +277,8 @@ const AIAssistantScreen: React.FC = () => {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
-      // Remove the placeholder assistant message on error
-      setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
+      // Note: Placeholder message is only created after successful API response,
+      // so no need to remove it on error
 
       // Check for rate limit errors (429 status code or isRateLimit flag)
       const isRateLimitError =
@@ -271,6 +308,7 @@ const AIAssistantScreen: React.FC = () => {
       }
     } finally {
       setLoading(false);
+      stopLoadingMessageCycle();
       setStreamingMessageId(null);
       setStreamingText('');
     }
@@ -427,9 +465,16 @@ const AIAssistantScreen: React.FC = () => {
           ))}
 
           {loading && !streamingMessageId && (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={theme.primary} />
-              <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Thinking...</Text>
+            <View style={[styles.loadingContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={styles.loadingContent}>
+                <ActivityIndicator size="small" color={theme.primary} />
+                <Text style={[styles.loadingText, { color: theme.text }]}>{loadingMessage}</Text>
+              </View>
+              <View style={styles.loadingDots}>
+                <View style={[styles.loadingDot, { backgroundColor: theme.primary }]} />
+                <View style={[styles.loadingDot, { backgroundColor: theme.primary, opacity: 0.6 }]} />
+                <View style={[styles.loadingDot, { backgroundColor: theme.primary, opacity: 0.3 }]} />
+              </View>
             </View>
           )}
 
@@ -599,14 +644,34 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   loadingContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    maxWidth: '85%',
+  },
+  loadingContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginTop: spacing.md,
-    paddingLeft: spacing.md,
   },
   loadingText: {
-    ...typography.bodySmall,
+    ...typography.bodyMedium,
+    fontWeight: '500',
+  },
+  loadingDots: {
+    flexDirection: 'row',
+    gap: 4,
+    marginTop: spacing.xs,
+    marginLeft: 28, // Align with text after spinner
+  },
+  loadingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   quickQueriesContainer: {
     marginTop: spacing.lg,

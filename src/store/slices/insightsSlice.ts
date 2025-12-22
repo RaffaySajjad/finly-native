@@ -2,15 +2,17 @@
  * Insights Slice - Redux Toolkit
  * Purpose: Manages AI-generated financial insights
  * Handles fetching and managing personalized financial recommendations
+ * Tracks unread count for notification badge
  */
 
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { apiService } from '../../services/api';
 import { Insight, MonthlyStats } from '../../types';
 
 interface InsightsState {
   insights: Insight[];
   monthlyStats: MonthlyStats | null;
+  unreadCount: number;
   isLoading: boolean;
   error: string | null;
 }
@@ -18,6 +20,7 @@ interface InsightsState {
 const initialState: InsightsState = {
   insights: [],
   monthlyStats: null,
+  unreadCount: 0,
   isLoading: false,
   error: null,
 };
@@ -57,6 +60,39 @@ export const fetchSpendingTrends = createAsyncThunk(
 );
 
 /**
+ * Async thunk to fetch unread insights count
+ */
+export const fetchUnreadCount = createAsyncThunk(
+  'insights/fetchUnreadCount',
+  async () => {
+    const count = await apiService.getUnreadInsightsCount();
+    return count;
+  }
+);
+
+/**
+ * Async thunk to mark all insights as read
+ */
+export const markAllInsightsRead = createAsyncThunk(
+  'insights/markAllRead',
+  async () => {
+    await apiService.markAllInsightsRead();
+    return true;
+  }
+);
+
+/**
+ * Async thunk to mark a single insight as read
+ */
+export const markInsightRead = createAsyncThunk(
+  'insights/markRead',
+  async (insightId: string) => {
+    await apiService.markInsightRead(insightId);
+    return insightId;
+  }
+);
+
+/**
  * Insights slice with reducers and actions
  */
 const insightsSlice = createSlice({
@@ -65,6 +101,17 @@ const insightsSlice = createSlice({
   reducers: {
     clearError: (state) => {
       state.error = null;
+    },
+    setUnreadCount: (state, action: PayloadAction<number>) => {
+      state.unreadCount = action.payload;
+    },
+    decrementUnreadCount: (state) => {
+      if (state.unreadCount > 0) {
+        state.unreadCount -= 1;
+      }
+    },
+    clearUnreadCount: (state) => {
+      state.unreadCount = 0;
     },
   },
   extraReducers: (builder) => {
@@ -111,9 +158,38 @@ const insightsSlice = createSlice({
         state.isLoading = false;
         state.error = action.error.message || 'Failed to fetch trends';
       });
+
+    // Fetch unread count
+    builder
+      .addCase(fetchUnreadCount.fulfilled, (state, action) => {
+        state.unreadCount = action.payload;
+      });
+
+    // Mark all as read
+    builder
+      .addCase(markAllInsightsRead.fulfilled, (state) => {
+        state.unreadCount = 0;
+        // Mark all local insights as read
+        state.insights = state.insights.map(insight => ({
+          ...insight,
+          isRead: true
+        }));
+      });
+
+    // Mark single insight as read
+    builder
+      .addCase(markInsightRead.fulfilled, (state, action) => {
+        const insightId = action.payload;
+        const insight = state.insights.find(i => i.id === insightId);
+        if (insight && !insight.isRead) {
+          insight.isRead = true;
+          if (state.unreadCount > 0) {
+            state.unreadCount -= 1;
+          }
+        }
+      });
   },
 });
 
-export const { clearError } = insightsSlice.actions;
+export const { clearError, setUnreadCount, decrementUnreadCount, clearUnreadCount } = insightsSlice.actions;
 export default insightsSlice.reducer;
-

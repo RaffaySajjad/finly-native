@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
 import { logger } from '../utils/logger';
 import { getDateKey, formatDateLabel } from '../utils/dateFormatter';
@@ -27,10 +28,12 @@ import { InsightCard, PremiumBadge, UpgradePrompt, AIAssistantFAB } from '../com
 import { apiService } from '../services/api';
 import { Insight } from '../types';
 import { typography, spacing } from '../theme';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
+import { useAppDispatch } from '../store';
+import { markAllInsightsRead, clearUnreadCount } from '../store/slices/insightsSlice';
 
 const INSIGHTS_FIRST_LOAD_KEY = '@finly_insights_first_load_done';
 
@@ -100,7 +103,10 @@ const groupInsightsByDate = (insights: Insight[]): GroupedInsights[] => {
  */
 const InsightsScreen: React.FC = () => {
   const { theme } = useTheme();
+  const { getCurrencySymbol, convertFromUSD } = useCurrency();
+  const currencySymbol = getCurrencySymbol();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+  const dispatch = useAppDispatch();
   const { isPremium, getRemainingUsage, requiresUpgrade, trackUsage } = useSubscription();
   const [insights, setInsights] = useState<Insight[]>([]);
   const [groupedInsights, setGroupedInsights] = useState<GroupedInsights[]>([]);
@@ -117,6 +123,18 @@ const InsightsScreen: React.FC = () => {
   useEffect(() => {
     checkFirstLoad();
   }, []);
+
+  // Mark all insights as read when screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      // Small delay to ensure user actually sees the insights
+      const timer = setTimeout(() => {
+        dispatch(markAllInsightsRead());
+      }, 1500);
+      
+      return () => clearTimeout(timer);
+    }, [dispatch])
+  );
 
   // Scroll to top when tab is pressed while already on this screen
   useScrollToTopOnTabPress(undefined, flatListRef);
@@ -265,11 +283,51 @@ const InsightsScreen: React.FC = () => {
   );
 
   /**
+   * Handle action button press on insight
+   * Navigates to relevant screen based on action type
+   */
+  const handleActionPress = useCallback((insight: Insight) => {
+    logger.debug('[InsightsScreen] Action pressed:', { 
+      id: insight.id, 
+      actionType: insight.actionType,
+      targetEntity: insight.targetEntity 
+    });
+
+    // Navigate based on action type
+    switch (insight.actionType) {
+      case 'reduce_spending':
+      case 'review_merchant':
+      case 'set_budget':
+        // Navigate to Trends for spending analysis (Categories is not in RootStack)
+        navigation.navigate('Trends');
+        break;
+      case 'cancel_subscription':
+        // Open AI assistant to discuss subscriptions
+        navigation.navigate('AIAssistant', { 
+          initialQuery: `Tell me about my subscriptions and which ones I might consider canceling` 
+        });
+        break;
+      case 'automate_savings':
+      case 'celebrate_win':
+        // Open AI assistant for personalized advice
+        navigation.navigate('AIAssistant', { 
+          initialQuery: `Help me automate my savings based on my current spending patterns` 
+        });
+        break;
+      default:
+        // Default: open AI assistant with context about this insight
+        navigation.navigate('AIAssistant', { 
+          initialQuery: `Tell me more about: ${insight.title}` 
+        });
+    }
+  }, [navigation]);
+
+  /**
    * Render insight item
    */
   const renderInsight = ({ item }: { item: Insight }) => (
     <View style={styles.insightWrapper}>
-      <InsightCard insight={item} />
+      <InsightCard insight={item} onActionPress={handleActionPress} />
     </View>
   );
 
@@ -281,7 +339,7 @@ const InsightsScreen: React.FC = () => {
       {renderDateHeader({ item })}
       {item.insights.map((insight) => (
         <View key={insight.id} style={styles.insightWrapper}>
-          <InsightCard insight={insight} />
+          <InsightCard insight={insight} onActionPress={handleActionPress} />
         </View>
       ))}
     </View>
@@ -334,14 +392,28 @@ const InsightsScreen: React.FC = () => {
           )}
           <View style={styles.headerLeft}>
             <Text style={[styles.title, { color: theme.text }]}>Insights</Text>
+            {/* Show total savings potential */}
+            {insights.length > 0 && (() => {
+              // Sum savings in USD, then convert to user's currency
+              const totalSavingsUSD = insights.reduce((sum, i) => sum + (i.savingsAmount || 0), 0);
+              const totalSavings = convertFromUSD(totalSavingsUSD);
+              if (totalSavings > 0) {
+                return (
+                  <View style={styles.savingsSummary}>
+                    <Icon name="piggy-bank" size={14} color="#10B981" />
+                    <Text style={styles.savingsSummaryText}>
+                      {currencySymbol}{totalSavings >= 1000 
+                        ? `${(totalSavings / 1000).toFixed(1)}K` 
+                        : Math.round(totalSavings)}/mo potential savings
+                    </Text>
+                  </View>
+                );
+              }
+              return null;
+            })()}
             {!isPremium && total > 0 && (
               <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
                 {getRemainingUsage('advancedInsights')} insights remaining this week
-              </Text>
-            )}
-            {total > 0 && (
-              <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-                {total} total insights
               </Text>
             )}
           </View>
@@ -379,6 +451,11 @@ const InsightsScreen: React.FC = () => {
           maxToRenderPerBatch={8}
           windowSize={7}
           initialNumToRender={10}
+          getItemLayout={(data, index) => ({
+            length: 200,
+            offset: 200 * index,
+            index,
+          })}
         />
       )}
 
@@ -427,6 +504,18 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     ...typography.bodyMedium,
+  },
+  savingsSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  savingsSummaryText: {
+    ...typography.labelMedium,
+    color: '#10B981',
+    fontWeight: '600',
   },
   upgradeButton: {
     padding: spacing.xs,

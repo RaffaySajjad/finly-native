@@ -66,12 +66,15 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
         ? ((item.amount / totalAmount) * 100).toFixed(1) 
         : '0',
       topLabelComponent: () => (
-        <Text style={[styles.barTopLabel, { color: theme.textTertiary }]}>
-          {formatCurrency(item.amount)}
+        <Text 
+          style={[styles.barTopLabel, { color: theme.textTertiary }]}
+          numberOfLines={1}
+        >
+          {formatCompactCurrency(item.amount)}
         </Text>
       ),
     }));
-  }, [sortedData, convertFromUSD, theme, formatCurrency, totalAmount]);
+  }, [sortedData, convertFromUSD, theme, formatCompactCurrency, totalAmount]);
 
   const maxValue = useMemo(() => {
     if (chartData.length === 0) return 100;
@@ -83,6 +86,19 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
     if (isNaN(num)) return val;
     return formatYAxisLabel(num, currencySymbol);
   }, [currencySymbol]);
+
+  // Compact currency formatter for bar top labels (prevents line wrapping)
+  const formatCompactCurrency = useCallback((amount: number) => {
+    const converted = convertFromUSD(amount);
+    if (converted >= 1000000) {
+      return `${currencySymbol}${(converted / 1000000).toFixed(1)}M`;
+    } else if (converted >= 10000) {
+      return `${currencySymbol}${(converted / 1000).toFixed(0)}K`;
+    } else if (converted >= 1000) {
+      return `${currencySymbol}${(converted / 1000).toFixed(1)}K`;
+    }
+    return `${currencySymbol}${converted.toFixed(0)}`;
+  }, [convertFromUSD, currencySymbol]);
 
   const handleBarPress = useCallback((item: any, index: number) => {
     setSelectedBar(selectedBar === index ? null : index);
@@ -143,7 +159,24 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
       </View>
 
       {viewMode === 'chart' ? (
-        <View style={styles.chartSection}>
+        <TouchableOpacity 
+          style={styles.chartSection} 
+          activeOpacity={1}
+          onPress={() => selectedBar !== null && setSelectedBar(null)}
+        >
+          {/* Floating tooltip badge */}
+          {selectedBar !== null && chartData[selectedBar] && (
+            <View style={[
+              styles.floatingTooltip,
+              { backgroundColor: chartData[selectedBar].frontColor },
+              elevation.md,
+            ]}>
+              <Text style={styles.tooltipText}>
+                {chartData[selectedBar].fullLabel}: {formatCurrency(chartData[selectedBar].originalAmount)} ({chartData[selectedBar].percentage}%)
+              </Text>
+            </View>
+          )}
+          
           <View style={styles.chartWrapper}>
             <BarChart
               data={chartData}
@@ -170,31 +203,10 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
               isAnimated
               animationDuration={600}
               onPress={handleBarPress}
-              renderTooltip={(item: any, index: number) => {
-                if (selectedBar !== index) return null;
-                
-                return (
-                  <View style={[
-                    styles.barTooltip,
-                    { backgroundColor: theme.card, borderColor: theme.border },
-                    elevation.md,
-                  ]}>
-                    <View style={[styles.tooltipAccent, { backgroundColor: item.frontColor }]} />
-                    <Text style={[styles.tooltipCategory, { color: theme.text }]}>
-                      {item.fullLabel}
-                    </Text>
-                    <Text style={[styles.tooltipAmount, { color: theme.text }]}>
-                      {formatCurrency(item.originalAmount)}
-                    </Text>
-                    <Text style={[styles.tooltipPercent, { color: theme.textSecondary }]}>
-                      {item.percentage}% of total
-                    </Text>
-                  </View>
-                );
-              }}
+              renderTooltip={() => null}
             />
           </View>
-        </View>
+        </TouchableOpacity>
       ) : (
         <View style={styles.listSection}>
           {sortedData.map((item, index) => {
@@ -316,10 +328,10 @@ const styles = StyleSheet.create({
   },
   chartSection: {
     marginTop: spacing.sm,
+    position: 'relative',
   },
   chartWrapper: {
     marginLeft: -10,
-    overflow: 'hidden',
   },
   axisLabel: {
     fontSize: 10,
@@ -336,39 +348,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 4,
+    minWidth: 40,
   },
-  barTooltip: {
-    position: 'absolute',
-    bottom: '100%',
-    left: -40,
-    width: 120,
-    padding: spacing.sm,
-    paddingLeft: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    marginBottom: 8,
-    overflow: 'hidden',
+  floatingTooltip: {
+    alignSelf: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    marginBottom: spacing.xs,
   },
-  tooltipAccent: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 3,
-  },
-  tooltipCategory: {
+  tooltipText: {
     ...typography.labelSmall,
     fontWeight: '600',
-    marginBottom: 2,
-  },
-  tooltipAmount: {
-    ...typography.titleSmall,
-    fontWeight: '700',
-  },
-  tooltipPercent: {
-    ...typography.caption,
-    fontSize: 10,
-    marginTop: 2,
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
   listSection: {
     marginTop: spacing.xs,

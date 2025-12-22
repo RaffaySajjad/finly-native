@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useCallback, useMemo, useRef } from 'react';
-import { Platform, Linking } from 'react-native';
+import { Platform, Linking, View, StyleSheet } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createNativeBottomTabNavigator } from '@bottom-tabs/react-navigation';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -18,6 +18,7 @@ import { useCurrency } from '../contexts/CurrencyContext';
 import { useAppDispatch, useAppSelector } from '../store';
 import { checkAuthStatus } from '../store/slices/authSlice';
 import { checkSubscriptionStatus } from '../store/slices/subscriptionSlice';
+import { fetchUnreadCount } from '../store/slices/insightsSlice';
 import { RootStackParamList, MainTabsParamList, AuthStackParamList } from './types';
 import CustomTabBar from '../components/CustomTabBar';
 import SharedBottomSheet from '../components/SharedBottomSheet';
@@ -119,10 +120,29 @@ const AuthNavigator: React.FC = () => {
 const MainTabs: React.FC = () => {
   const { theme } = useTheme();
   const { openBottomSheet } = useBottomSheetActions();
+  const dispatch = useAppDispatch();
+  const unreadCount = useAppSelector((state) => state.insights.unreadCount);
+
+  // Fetch unread count on mount
+  useEffect(() => {
+    dispatch(fetchUnreadCount());
+  }, [dispatch]);
 
   const handleFabPress = React.useCallback(() => {
     openBottomSheet();
   }, [openBottomSheet]);
+
+  /**
+   * Notification badge component for tab icons
+   */
+  const NotificationBadge: React.FC<{ count: number }> = ({ count }) => {
+    if (count === 0) return null;
+    return (
+      <View style={tabStyles.badge}>
+        <View style={[tabStyles.badgeDot, { backgroundColor: theme.primary }]} />
+      </View>
+    );
+  };
 
   // iOS version - use native tabs (FAB will be floating for iOS)
   if (Platform.OS === 'ios') {
@@ -161,6 +181,7 @@ const MainTabs: React.FC = () => {
           options={{
             title: 'Insights',
             tabBarIcon: () => ({ sfSymbol: 'lightbulb.fill' }),
+            tabBarBadge: unreadCount > 0 ? '' : undefined, // Empty string shows dot badge on iOS
           }}
         />
         <NativeTab.Screen
@@ -668,6 +689,24 @@ const AppNavigator: React.FC = () => {
     </NavigationContainer>
   );
 };
+
+/**
+ * Styles for tab bar badges
+ */
+const tabStyles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -6,
+    minWidth: 8,
+    height: 8,
+  },
+  badgeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+});
 
 export default AppNavigator;
 

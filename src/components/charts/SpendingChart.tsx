@@ -170,8 +170,6 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({
     },
   };
 
-  if (!data || data.length === 0) return null;
-
   // Handle time range change - clear selection when changing
   const handleTimeRangeChange = (range: 'week' | 'month') => {
     if (range !== timeRange) {
@@ -183,6 +181,9 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({
   // Determine which point indices to highlight
   const selectedPointIndex = hasSinglePoint ? singlePoint?.index : null;
 
+  // Check if we have data to display
+  const hasData = data && data.length > 0;
+
   return (
     <View style={[
       styles.container,
@@ -193,21 +194,23 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({
           <Text style={[styles.title, { color: theme.text }]}>
             Spending History
           </Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: theme.textTertiary }]}>Total</Text>
-              <Text style={[styles.statValue, { color: theme.expense }]}>
-                {formatCurrency(totalSpending)}
-              </Text>
+          {hasData && (
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Text style={[styles.statLabel, { color: theme.textTertiary }]}>Total</Text>
+                <Text style={[styles.statValue, { color: theme.expense }]}>
+                  {formatCurrency(totalSpending)}
+                </Text>
+              </View>
+              <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+              <View style={styles.statItem}>
+                <Text style={[styles.statLabel, { color: theme.textTertiary }]}>Avg/Day</Text>
+                <Text style={[styles.statValue, { color: theme.textSecondary }]}>
+                  {formatCurrency(avgSpending)}
+                </Text>
+              </View>
             </View>
-            <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: theme.textTertiary }]}>Avg/Day</Text>
-              <Text style={[styles.statValue, { color: theme.textSecondary }]}>
-                {formatCurrency(avgSpending)}
-              </Text>
-            </View>
-          </View>
+          )}
         </View>
 
         <View style={styles.toggleContainer}>
@@ -244,9 +247,21 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({
         </View>
       </View>
 
-
+      {/* Empty state when no data */}
+      {!hasData && (
+        <View style={styles.emptyState}>
+          <Icon name="chart-line-variant" size={40} color={theme.textTertiary} />
+          <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
+            No spending data for this period
+          </Text>
+          <Text style={[styles.emptyStateHint, { color: theme.textTertiary }]}>
+            Add expenses to see your spending history
+          </Text>
+        </View>
+      )}
 
       {/* Chart area with gesture handler */}
+      {hasData && (
       <View style={styles.chartArea}>
         {/* Absolutely positioned badge overlay - Single Point */}
         {hasSinglePoint && (
@@ -375,6 +390,7 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({
           </View>
         </GestureDetector>
       </View>
+      )}
     </View>
   );
 };
@@ -506,6 +522,22 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -4,
     left: -4,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.md,
+  },
+  emptyStateText: {
+    ...typography.bodyMedium,
+    fontWeight: '500',
+    marginTop: spacing.sm,
+  },
+  emptyStateHint: {
+    ...typography.caption,
+    marginTop: spacing.xs,
+    textAlign: 'center',
   },
 });
 

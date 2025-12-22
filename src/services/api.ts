@@ -498,6 +498,49 @@ export const apiService = {
   },
 
   /**
+   * Get count of unread insights
+   */
+  async getUnreadInsightsCount(): Promise<number> {
+    try {
+      const response = await api.get<{ unreadCount: number }>(
+        API_ENDPOINTS.ANALYTICS.INSIGHTS_UNREAD_COUNT,
+        { skipCache: true }
+      );
+      if (!response.success) {
+        return 0;
+      }
+      return response.data?.unreadCount || 0;
+    } catch (error) {
+      console.error('[API] Get unread insights count error:', error);
+      return 0;
+    }
+  },
+
+  /**
+   * Mark all insights as read
+   */
+  async markAllInsightsRead(): Promise<void> {
+    try {
+      await api.post(API_ENDPOINTS.ANALYTICS.INSIGHTS_MARK_ALL_READ);
+    } catch (error) {
+      console.error('[API] Mark all insights read error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Mark a single insight as read
+   */
+  async markInsightRead(insightId: string): Promise<void> {
+    try {
+      await api.post(`${API_ENDPOINTS.ANALYTICS.INSIGHTS_MARK_READ}/${insightId}/read`);
+    } catch (error) {
+      console.error('[API] Mark insight read error:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Get AI-powered balance insights
    */
   async getBalanceInsights(balanceData: {

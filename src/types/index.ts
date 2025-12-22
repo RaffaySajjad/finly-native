@@ -170,15 +170,47 @@ export interface RolloverSummary {
   monthlyBreakdown: RolloverState[];
 }
 
+export type InsightType = 'warning' | 'success' | 'info' | 'achievement' | 'action';
+
+export type InsightCategory = 
+  | 'spending_pattern'
+  | 'subscription'
+  | 'budget'
+  | 'saving_opportunity'
+  | 'merchant'
+  | 'timing'
+  | 'comparison'
+  | 'goal';
+
+export type InsightActionType =
+  | 'reduce_spending'
+  | 'cancel_subscription'
+  | 'set_budget'
+  | 'review_merchant'
+  | 'change_timing'
+  | 'negotiate_rate'
+  | 'switch_provider'
+  | 'batch_purchases'
+  | 'automate_savings'
+  | 'celebrate_win';
+
 export interface Insight {
   id: string;
-  type: 'warning' | 'success' | 'info' | 'achievement';
+  type: InsightType;
   title: string;
   description: string;
   icon: string;
   color: string;
   isRead?: boolean;
   createdAt: string;
+  // Enhanced actionable fields
+  priority?: number;
+  insightCategory?: InsightCategory;
+  actionType?: InsightActionType;
+  savingsAmount?: number;
+  targetEntity?: string;
+  actionMetadata?: Record<string, unknown>;
+  actionTaken?: boolean;
 }
 
 export interface PaginatedInsightsResponse {

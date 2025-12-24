@@ -50,6 +50,7 @@ export { Toast } from './Toast';
 export type { ToastType, ToastProps } from './Toast';
 export { NotificationPermissionBanner } from './NotificationPermissionBanner';
 export { AnimatedSplashScreen } from './AnimatedSplashScreen';
+export { PaymentIssueModal } from './PaymentIssueModal';
 
 // Filter components
 export * from './filters';

@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -118,6 +119,7 @@ const SharedBottomSheet: React.FC = () => {
   }, [showCategoryPicker]);
   const [showCreateTagModal, setShowCreateTagModal] = useState(false);
   const [newTagName, setNewTagName] = useState('');
+  const [selectedTagColor, setSelectedTagColor] = useState('#4A90E2'); // Track selected color
   const [isAddingExpense, setIsAddingExpense] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [showCreateIncomeSourceModal, setShowCreateIncomeSourceModal] = useState(false);
@@ -536,9 +538,8 @@ const SharedBottomSheet: React.FC = () => {
     }
 
     try {
-      const defaultColors = ['#4A90E2', '#F59E0B', '#10B981', '#EC4899', '#8B5CF6', '#6366F6'];
-      const randomColor = defaultColors[Math.floor(Math.random() * defaultColors.length)];
-      const newTag = await tagsService.createTag(newTagName.trim(), randomColor);
+      // Use selected color instead of random
+      const newTag = await tagsService.createTag(newTagName.trim(), selectedTagColor);
       setAvailableTags([...availableTags, newTag]);
       setNewExpenseTags([...newExpenseTags, newTag.id]);
       setNewTagName('');
@@ -1393,53 +1394,61 @@ const SharedBottomSheet: React.FC = () => {
         visible={showCreateTagModal}
         onRequestClose={() => setShowCreateTagModal(false)}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPressOut={() => setShowCreateTagModal(false)}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingContainer}
         >
-          <View style={[styles.modalContent, styles.createTagModalContent, { backgroundColor: theme.background }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Create New Tag</Text>
-              <TouchableOpacity onPress={() => setShowCreateTagModal(false)}>
-                <Icon name="close" size={24} color={theme.textSecondary} />
-              </TouchableOpacity>
-            </View>
-            <View style={{ padding: spacing.lg }}>
-              <InputGroup
-                label=""
-                placeholder="Tag Name"
-                value={newTagName}
-                onChangeText={(text) => {
-                  setNewTagName(text);
-                  if (tagNameError) setTagNameError('');
-                }}
-                error={tagNameError}
-                containerStyle={styles.tagInputContainer}
-              />
-              <View style={styles.colorPickerContainer}>
-                {['#4A90E2', '#F59E0B', '#10B981', '#EC4899', '#8B5CF6', '#6366F6'].map((colorValue) => (
-                  <TouchableOpacity
-                    key={colorValue}
-                    style={[
-                      styles.colorOption,
-                      { backgroundColor: colorValue },
-                    ]}
-                    onPress={() => {
-                      // Color selection can be added later
-                    }}
-                  />
-                ))}
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPressOut={() => setShowCreateTagModal(false)}
+          >
+            <View style={[styles.modalContent, styles.createTagModalContent, { backgroundColor: theme.background }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>Create New Tag</Text>
+                <TouchableOpacity onPress={() => setShowCreateTagModal(false)}>
+                  <Icon name="close" size={24} color={theme.textSecondary} />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={[styles.addButton, { backgroundColor: theme.primary }]}
-                onPress={handleCreateTag}
-              >
-                <Text style={styles.addButtonText}>Create Tag</Text>
-              </TouchableOpacity>
+              <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.lg }}>
+                <InputGroup
+                  label="Tag Name"
+                  placeholder="Enter tag name"
+                  value={newTagName}
+                  onChangeText={(text) => {
+                    setNewTagName(text);
+                    if (tagNameError) setTagNameError('');
+                  }}
+                  error={tagNameError}
+                />
+                <Text style={[styles.inputLabel, { color: theme.textSecondary, marginTop: spacing.md, marginBottom: spacing.sm }]}>Color</Text>
+                <View style={styles.colorPickerContainer}>
+                  {['#4A90E2', '#F59E0B', '#10B981', '#EC4899', '#8B5CF6', '#6366F6'].map((colorValue) => (
+                    <TouchableOpacity
+                      key={colorValue}
+                      style={[
+                        styles.colorOption,
+                        { backgroundColor: colorValue },
+                        selectedTagColor === colorValue && styles.colorOptionSelected,
+                      ]}
+                      onPress={() => setSelectedTagColor(colorValue)}
+                    >
+                      {selectedTagColor === colorValue && (
+                        <Icon name="check" size={16} color="#FFFFFF" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: theme.primary, marginTop: spacing.lg }]}
+                  onPress={handleCreateTag}
+                >
+                  <Text style={styles.addButtonText}>Create Tag</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Create Income Source Modal */}
@@ -1455,70 +1464,73 @@ const SharedBottomSheet: React.FC = () => {
           setIncomeSourceAmountError('');
         }}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPressOut={() => {
-            setShowCreateIncomeSourceModal(false);
-            setNewIncomeSourceName('');
-            setNewIncomeSourceAmount('');
-            setIncomeSourceNameError('');
-            setIncomeSourceAmountError('');
-          }}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingContainer}
         >
-          <View style={[styles.modalContent, styles.createTagModalContent, { backgroundColor: theme.background }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Create New Income Source</Text>
-              <TouchableOpacity onPress={() => {
-                setShowCreateIncomeSourceModal(false);
-                setNewIncomeSourceName('');
-                setNewIncomeSourceAmount('');
-                setIncomeSourceNameError('');
-                setIncomeSourceAmountError('');
-              }}>
-                <Icon name="close" size={24} color={theme.textSecondary} />
-              </TouchableOpacity>
-            </View>
-            <View style={{ padding: spacing.lg }}>
-              <InputGroup
-                label=""
-                placeholder="Income Source Name"
-                value={newIncomeSourceName}
-                onChangeText={(text) => {
-                  setNewIncomeSourceName(text);
-                  if (incomeSourceNameError) setIncomeSourceNameError('');
-                }}
-                error={incomeSourceNameError}
-                containerStyle={styles.tagInputContainer}
-              />
-              <View style={{ marginTop: spacing.md }}>
-                <InputGroup
-                  label=""
-                  placeholder="Amount (optional)"
-                  value={newIncomeSourceAmount}
-                  onChangeText={(text) => {
-                    setNewIncomeSourceAmount(text);
-                    if (incomeSourceAmountError) setIncomeSourceAmountError('');
-                  }}
-                  error={incomeSourceAmountError}
-                  keyboardType="numeric"
-                  containerStyle={styles.tagInputContainer}
-                />
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPressOut={() => {
+              setShowCreateIncomeSourceModal(false);
+              setNewIncomeSourceName('');
+              setNewIncomeSourceAmount('');
+              setIncomeSourceNameError('');
+              setIncomeSourceAmountError('');
+            }}
+          >
+            <View style={[styles.modalContent, styles.createTagModalContent, { backgroundColor: theme.background }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>Create New Income Source</Text>
+                <TouchableOpacity onPress={() => {
+                  setShowCreateIncomeSourceModal(false);
+                  setNewIncomeSourceName('');
+                  setNewIncomeSourceAmount('');
+                  setIncomeSourceNameError('');
+                  setIncomeSourceAmountError('');
+                }}>
+                  <Icon name="close" size={24} color={theme.textSecondary} />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={[styles.addButton, { backgroundColor: theme.primary }]}
-                onPress={handleCreateIncomeSource}
-                disabled={isCreatingIncomeSource}
-              >
-                {isCreatingIncomeSource ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.addButtonText}>Create Income Source</Text>
-                )}
-              </TouchableOpacity>
+              <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.lg }}>
+                <InputGroup
+                  label="Source Name"
+                  placeholder="e.g., Freelance, Dividends"
+                  value={newIncomeSourceName}
+                  onChangeText={(text) => {
+                    setNewIncomeSourceName(text);
+                    if (incomeSourceNameError) setIncomeSourceNameError('');
+                  }}
+                  error={incomeSourceNameError}
+                />
+                <View style={{ marginTop: spacing.sm }}>
+                  <InputGroup
+                    label="Expected Amount"
+                    placeholder="Optional - monthly estimate"
+                    value={newIncomeSourceAmount}
+                    onChangeText={(text) => {
+                      setNewIncomeSourceAmount(text);
+                      if (incomeSourceAmountError) setIncomeSourceAmountError('');
+                    }}
+                    error={incomeSourceAmountError}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: theme.primary, marginTop: spacing.lg }]}
+                  onPress={handleCreateIncomeSource}
+                  disabled={isCreatingIncomeSource}
+                >
+                  {isCreatingIncomeSource ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.addButtonText}>Create Income Source</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Alert Dialog */}
@@ -1528,6 +1540,9 @@ const SharedBottomSheet: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  keyboardAvoidingContainer: {
+    flex: 1,
+  },
   bottomSheetContent: {
     flex: 1,
   },
@@ -1958,6 +1973,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: 'transparent',
+  },
+  colorOptionSelected: {
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });
 

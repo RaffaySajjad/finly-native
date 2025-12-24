@@ -24,8 +24,9 @@ import { RootStackParamList } from '../navigation/types';
 import { PremiumBadge } from '../components';
 import FeatureComparison from '../components/FeatureComparison';
 import TrialBadge from '../components/TrialBadge';
+import { PaymentIssueModal } from '../components/PaymentIssueModal';
 import { typography, spacing, borderRadius, elevation } from '../theme';
-import { PRICING_CONFIG } from '../config/pricing.config';
+import { usePricing } from '../contexts/PricingContext';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -43,16 +44,58 @@ const SubscriptionScreen: React.FC = () => {
     startTrial,
     cancel,
     checkStatus,
+    changePlan,
+    paymentState,
+    gracePeriodEndDate,
+    pendingPlanId,
+    pendingChangeDate,
+    planId,
   } = useSubscription();
 
   const [processing, setProcessing] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
+  const [showPaymentIssue, setShowPaymentIssue] = useState(false);
+
+  // Dynamic pricing from App Store/Google Play
+  const pricing = usePricing();
 
   useEffect(() => {
     // Only check status once on mount, not on every checkStatus change
     checkStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run on mount
+
+  useEffect(() => {
+    if (paymentState === 'GRACE_PERIOD' || paymentState === 'ON_HOLD') {
+      setShowPaymentIssue(true);
+    }
+  }, [paymentState]);
+
+  // Determine current active plan based on planId
+  const currentActivePlan = React.useMemo(() => {
+    if (!planId) return 'monthly';
+    const lowerId = planId.toLowerCase();
+    return (lowerId.includes('year') || lowerId.includes('annual')) ? 'yearly' : 'monthly';
+  }, [planId]);
+
+  const handlePlanChange = async (newPlan: 'monthly' | 'yearly') => {
+    setProcessing(true);
+    try {
+      await changePlan(newPlan);
+      await checkStatus();
+
+      const message = newPlan === 'yearly'
+        ? 'Successfully switched to Yearly plan! Your new billing cycle starts now.'
+        : 'Plan change scheduled. You will switch to Monthly plan at the end of your current subscription period.';
+
+      Alert.alert('Plan Updated', message);
+    } catch (error) {
+      console.error('Plan change error:', error);
+      Alert.alert('Update Failed', 'Failed to change plan. Please try again later.');
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   const handleUpgrade = async () => {
     setProcessing(true);
@@ -74,7 +117,7 @@ const SubscriptionScreen: React.FC = () => {
     const title = isTrialUser ? 'End Trial' : 'Cancel Subscription';
     const message = isTrialUser
       ? 'Are you sure you want to end your trial? You will lose access to Premium features immediately.'
-      : 'Are you sure you want to cancel your subscription? You will lose access to Premium features at the end of your billing period.';
+      : 'Are you sure you want to cancel your subscription? You will keep Premium access until the end of your current billing period.';
     const confirmText = isTrialUser ? 'Yes, End Trial' : 'Yes, Cancel';
 
     Alert.alert(title, message, [
@@ -85,13 +128,14 @@ const SubscriptionScreen: React.FC = () => {
         onPress: async () => {
           try {
             await cancel();
+            // Refresh status to show updated state
+            await checkStatus();
             Alert.alert(
-              isTrialUser ? 'Trial Ended' : 'Cancelled',
+              isTrialUser ? 'Trial Ended' : 'Subscription Cancelled',
               isTrialUser
                 ? 'Your trial has been ended. You can start a new subscription anytime.'
-                : 'Your subscription has been cancelled.'
+                : 'Your subscription has been cancelled. You will continue to have Premium access until the end of your current billing period.'
             );
-            navigation.goBack();
           } catch (error) {
             Alert.alert('Error', `Failed to ${isTrialUser ? 'end trial' : 'cancel subscription'}.`);
           }
@@ -134,6 +178,26 @@ const SubscriptionScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
+        {/* Payment Issue Banner */}
+        {(paymentState === 'GRACE_PERIOD' || paymentState === 'ON_HOLD') && (
+          <View style={[styles.issueBanner, { backgroundColor: theme.warning + '20', borderColor: theme.warning }]}>
+            <Icon name="alert-circle-outline" size={24} color={theme.warning} style={{ marginTop: 2 }} />
+            <View style={styles.issueContent}>
+              <Text style={[styles.issueTitle, { color: theme.text }]}>
+                {paymentState === 'GRACE_PERIOD' ? 'Payment Issue' : 'Subscription On Hold'}
+              </Text>
+              <Text style={[styles.issueText, { color: theme.textSecondary }]}>
+                {paymentState === 'GRACE_PERIOD'
+                  ? 'Premium remains active while we verify payment.'
+                  : 'Update payment method to restore access.'}
+              </Text>
+              <TouchableOpacity onPress={() => setShowPaymentIssue(true)} style={{ marginTop: 8 }}>
+                <Text style={[styles.issueAction, { color: theme.primary }]}>Manage Payment</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Current Status */}
         {isPremium && (
           <View
@@ -177,7 +241,7 @@ const SubscriptionScreen: React.FC = () => {
             <Text style={styles.discountIcon}>🎁</Text>
             <View style={styles.discountContent}>
               <Text style={[styles.discountTitle, { color: theme.primary }]}>
-                {PRICING_CONFIG.DISCOUNT.percentFormatted} OFF First Month!
+                {pricing.discount.percentFormatted} OFF First Month!
               </Text>
               <Text style={[styles.discountSubtitle, { color: theme.textSecondary }]}>
                 Your web signup discount will be applied automatically
@@ -242,7 +306,7 @@ const SubscriptionScreen: React.FC = () => {
 
             <View style={styles.priceContainer}>
               <Text style={[styles.price, { color: theme.text }]}>
-                {selectedPlan === 'monthly' ? PRICING_CONFIG.MONTHLY.priceFormatted : PRICING_CONFIG.YEARLY.monthlyEquivalentFormatted}
+                {selectedPlan === 'monthly' ? pricing.monthly.price : pricing.yearly.monthlyEquivalent}
               </Text>
               <Text style={[styles.pricePeriod, { color: theme.textSecondary }]}>
                 /{selectedPlan === 'monthly' ? 'month' : 'month'}
@@ -251,7 +315,7 @@ const SubscriptionScreen: React.FC = () => {
 
             {selectedPlan === 'yearly' && (
               <Text style={[styles.savingsText, { color: theme.success }]}>
-                Build a long-term habit. (And save {PRICING_CONFIG.SAVINGS.percentFormatted})
+                Build a long-term habit. (And save {pricing.savings.percentFormatted})
               </Text>
             )}
           </View>
@@ -289,9 +353,9 @@ const SubscriptionScreen: React.FC = () => {
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <>
-                      <Text style={styles.trialButtonText}>Start 7-Day Free Trial</Text>
+                      <Text style={styles.trialButtonText}>Subscribe Now</Text>
                       <Text style={styles.trialButtonSubtext}>
-                        {selectedPlan === 'monthly' ? `${PRICING_CONFIG.MONTHLY.priceFormatted}/month` : `${PRICING_CONFIG.YEARLY.priceFormatted}/year`} after trial • Cancel anytime
+                        {selectedPlan === 'monthly' ? `${pricing.monthly.price}/month` : `${pricing.yearly.price}/year`} • Cancel anytime
                     </Text>
                   </>
                 )}
@@ -313,7 +377,7 @@ const SubscriptionScreen: React.FC = () => {
                   <>
                     <Text style={styles.trialButtonText}>Upgrade to Premium</Text>
                     <Text style={styles.trialButtonSubtext}>
-                        Continue enjoying Premium features • {selectedPlan === 'monthly' ? `${PRICING_CONFIG.MONTHLY.priceFormatted}/month` : `${PRICING_CONFIG.YEARLY.priceFormatted}/year`}
+                        Continue enjoying Premium features • {selectedPlan === 'monthly' ? `${pricing.monthly.price}/month` : `${pricing.yearly.price}/year`}
                     </Text>
                   </>
                 )}
@@ -334,19 +398,54 @@ const SubscriptionScreen: React.FC = () => {
             </>
           )}
 
-          {/* Paying Premium User: Show Cancel Subscription button */}
+          {/* Paying Premium User: Show Plan Switch & Cancel Options */}
           {isPremium && !isTrial && !isFree && !isCanceled && (
-            <TouchableOpacity
-              style={[
-                styles.cancelButton,
-                { backgroundColor: theme.expense + '20', borderColor: theme.expense },
-              ]}
-              onPress={handleCancel}
-            >
-              <Text style={[styles.cancelButtonText, { color: theme.expense }]}>
-                Cancel Subscription
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.premiumActions}>
+              {/* Plan Switcher */}
+              {!pendingPlanId && (
+                <View style={[styles.switchPlanContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <Text style={[styles.switchPlanTitle, { color: theme.text }]}>
+                    Your Plan: {currentActivePlan === 'monthly' ? 'Monthly' : 'Yearly'}
+                  </Text>
+
+                  <TouchableOpacity
+                    style={[styles.switchButton, { borderColor: theme.primary }]}
+                    onPress={() => handlePlanChange(currentActivePlan === 'monthly' ? 'yearly' : 'monthly')}
+                    disabled={processing}
+                  >
+                    {processing ? (
+                      <ActivityIndicator color={theme.primary} size="small" />
+                    ) : (
+                      <Text style={[styles.switchButtonText, { color: theme.primary }]}>
+                        Switch to {currentActivePlan === 'monthly' ? 'Yearly' : 'Monthly'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Pending Change Info */}
+              {pendingPlanId && (
+                <View style={[styles.pendingChangeContainer, { backgroundColor: theme.primary + '10' }]}>
+                  <Icon name="calendar-clock" size={24} color={theme.primary} />
+                  <Text style={[styles.pendingChangeText, { color: theme.text }]}>
+                    Switching to {pendingPlanId.toLowerCase().includes('year') ? 'Yearly' : 'Monthly'} on {pendingChangeDate ? new Date(pendingChangeDate).toLocaleDateString() : 'next renewal'}
+                  </Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[
+                  styles.cancelButton,
+                  { backgroundColor: theme.expense + '20', borderColor: theme.expense },
+                ]}
+                onPress={handleCancel}
+              >
+                <Text style={[styles.cancelButtonText, { color: theme.expense }]}>
+                  Cancel Subscription
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
 
           {/* Debug: Downgrade Option (Only in Dev) */}
@@ -368,7 +467,15 @@ const SubscriptionScreen: React.FC = () => {
 
 
         <View style={{ height: spacing.xl }} />
+        <View style={{ height: spacing.xl }} />
       </ScrollView>
+
+      <PaymentIssueModal
+        visible={showPaymentIssue}
+        onClose={() => setShowPaymentIssue(false)}
+        paymentState={paymentState as 'GRACE_PERIOD' | 'ON_HOLD'}
+        gracePeriodEndDate={gracePeriodEndDate}
+      />
     </SafeAreaView>
   );
 };
@@ -579,6 +686,67 @@ const styles = StyleSheet.create({
   discountSubtitle: {
     ...typography.bodySmall,
     lineHeight: 18,
+  },
+  issueBanner: {
+    flexDirection: 'row',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+  },
+  issueContent: {
+    marginLeft: spacing.md,
+    flex: 1,
+  },
+  issueTitle: {
+    ...typography.titleSmall,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  issueText: {
+    ...typography.bodySmall,
+    lineHeight: 18,
+  },
+  issueAction: {
+    ...typography.labelMedium,
+    fontWeight: '600',
+  },
+  premiumActions: {
+    gap: spacing.md,
+  },
+  switchPlanContainer: {
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  switchPlanTitle: {
+    ...typography.titleMedium,
+    fontWeight: '600',
+    marginBottom: spacing.md,
+  },
+  switchButton: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    width: '100%',
+    alignItems: 'center',
+  },
+  switchButtonText: {
+    ...typography.labelLarge,
+    fontWeight: '600',
+  },
+  pendingChangeContainer: {
+    flexDirection: 'row',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  pendingChangeText: {
+    ...typography.bodySmall,
+    flex: 1,
   },
 });
 

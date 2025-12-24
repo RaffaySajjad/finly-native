@@ -23,7 +23,7 @@ import { Platform } from 'react-native';
 import { logger } from '../utils/logger';
 import { iapService, PurchaseResult } from './iap.service';
 import { api } from './apiClient';
-import { IAP_CONFIG, getProductId } from '../config/iap.config';
+import { IAP_CONFIG, getProductId, getAndroidBasePlanId } from '../config/iap.config';
 import { Subscription } from '../types';
 import { store } from '../store';
 import { checkSubscriptionStatus } from '../store/slices/subscriptionSlice';
@@ -113,10 +113,15 @@ export const subscriptionService = {
       const productKey = productType === 'yearly' ? 'PREMIUM_YEARLY' : 'PREMIUM_MONTHLY';
       const productId = getProductId(productKey, Platform.OS as 'ios' | 'android');
       
-      console.log(`[Subscription] Starting purchase for: ${productId}`);
+      // For Android, get the base plan ID (Google Play's new subscription model)
+      const basePlanId = Platform.OS === 'android' 
+        ? getAndroidBasePlanId(productKey) 
+        : undefined;
       
-      // Step 2: Purchase via native IAP
-      const purchaseResult: PurchaseResult = await iapService.purchaseSubscription(productId);
+      console.log(`[Subscription] Starting purchase for: ${productId}${basePlanId ? ` (base plan: ${basePlanId})` : ''}`);
+      
+      // Step 2: Purchase via native IAP (pass base plan ID as offer token for Android)
+      const purchaseResult: PurchaseResult = await iapService.purchaseSubscription(productId, basePlanId);
 
       if (!purchaseResult.success) {
         // Handle specific error cases
@@ -242,6 +247,78 @@ export const subscriptionService = {
     } catch (error: any) {
       console.error('[Subscription] Cancellation failed:', error);
       throw error;
+    }
+  },
+
+  /**
+   * Change subscription plan (Upgrade/Downgrade)
+   * 
+   * For Google Play:
+   * - Downgrades (Yearly -> Monthly) happen at next renewal
+   * - Upgrades (Monthly -> Yearly) happen immediately with proration
+   */
+  async changePlan(newPlan: 'monthly' | 'yearly'): Promise<{ success: boolean; subscription: Subscription }> {
+    try {
+      // Step 1: Get new product ID
+      const productKey = newPlan === 'yearly' ? 'PREMIUM_YEARLY' : 'PREMIUM_MONTHLY';
+      const productId = getProductId(productKey, Platform.OS as 'ios' | 'android');
+      
+      const basePlanId = Platform.OS === 'android' 
+        ? getAndroidBasePlanId(productKey) 
+        : undefined;
+      
+      console.log(`[Subscription] Changing plan to: ${productId}${basePlanId ? ` (base plan: ${basePlanId})` : ''}`);
+      
+      // Step 2: Initiate purchase with upgrade/downgrade context
+      // Note: react-native-iap handles upgrade flows if we pass the correct params
+      // But for now, simple purchase flow usually works for switching plans on Android
+      const purchaseResult: PurchaseResult = await iapService.purchaseSubscription(productId, basePlanId);
+
+      if (!purchaseResult.success) {
+        throw new Error(purchaseResult.error || 'Plan change failed');
+      }
+
+      // Step 3: Validate with backend
+      const response = await api.post<{ subscription: Subscription }>('/subscriptions/verify-purchase', {
+        transactionId: purchaseResult.transactionId,
+        receipt: purchaseResult.receipt,
+        productId: purchaseResult.productId,
+        platform: purchaseResult.platform,
+        isPlanChange: true,
+      });
+
+      if (response.success && response.data) {
+        await iapService.finishTransaction(purchaseResult);
+        return {
+          success: true,
+          subscription: response.data.subscription,
+        };
+      }
+
+      throw new Error('Backend validation failed for plan change');
+    } catch (error) {
+      console.error('[Subscription] Plan change failed:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Open native subscription management
+   */
+  async openSubscriptionManagement() {
+    const Linking = require('react-native').Linking;
+    const packageName = 'com.raffay.finly';
+    const subscriptionId = 'finly_premium';
+    
+    if (Platform.OS === 'android') {
+      const url = `https://play.google.com/store/account/subscriptions?package=${packageName}&sku=${subscriptionId}`;
+      try {
+        await Linking.openURL(url);
+      } catch (error) {
+        await Linking.openURL('https://play.google.com/store/account/subscriptions');
+      }
+    } else {
+      await Linking.openURL('https://apps.apple.com/account/subscriptions');
     }
   },
 

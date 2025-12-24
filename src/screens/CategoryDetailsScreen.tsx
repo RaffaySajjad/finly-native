@@ -775,6 +775,9 @@ const CategoryDetailsScreen: React.FC = () => {
         enablePanDownToClose
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
       >
         <BottomSheetScrollView
           style={styles.bottomSheetContent}
@@ -902,54 +905,122 @@ const CategoryDetailsScreen: React.FC = () => {
         >
           <Text style={[styles.sheetTitle, { color: theme.text }]}>Budget History</Text>
           
-          {rolloverSummary?.history && rolloverSummary.history.length > 0 ? (
-            rolloverSummary.history.map((entry, index) => (
-              <View 
-                key={entry.id} 
-                style={[
-                  styles.historyEntry, 
-                  { borderBottomColor: index < rolloverSummary.history.length - 1 ? theme.border : 'transparent' }
-                ]}
-              >
-                <View style={styles.historyEntryHeader}>
-                  <Text style={[styles.historyEntryDate, { color: theme.textSecondary }]}>
-                    {new Date(entry.effectiveFrom).toLocaleDateString('en-US', { 
-                      month: 'short', 
-                      day: 'numeric', 
-                      year: 'numeric' 
-                    })}
+          {/* Summary Header */}
+          {rolloverSummary && (
+            <View style={[styles.historyHeader, { backgroundColor: theme.primary + '10', borderColor: theme.primary + '30' }]}>
+              <View style={styles.historyHeaderRow}>
+                <View style={styles.historyHeaderStat}>
+                  <Text style={[styles.historyHeaderValue, { color: theme.primary }]}>
+                    {formatCurrency(rolloverSummary.totalAccumulated || 0)}
                   </Text>
-                  {entry.appliedToCurrentMonth && (
-                    <View style={[styles.historyEntryBadge, { backgroundColor: theme.primary + '20' }]}>
-                      <Text style={[styles.historyEntryBadgeText, { color: theme.primary }]}>
-                        Applied to current month
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.historyEntryAmounts}>
-                  {entry.previousAmount !== null && (
-                    <Text style={[styles.historyEntryPrevious, { color: theme.textTertiary }]}>
-                      {formatCurrency(entry.previousAmount)}
-                    </Text>
-                  )}
-                  <Icon name="arrow-right" size={14} color={theme.textTertiary} />
-                  <Text style={[styles.historyEntryNew, { color: theme.income }]}>
-                    {formatCurrency(entry.newAmount)}
+                  <Text style={[styles.historyHeaderLabel, { color: theme.textSecondary }]}>
+                    Total Saved
                   </Text>
                 </View>
-                {entry.note && (
-                  <Text style={[styles.historyEntryNote, { color: theme.textTertiary }]}>
-                    {entry.note}
+                <View style={[styles.historyHeaderDivider, { backgroundColor: theme.primary + '30' }]} />
+                <View style={styles.historyHeaderStat}>
+                  <Text style={[styles.historyHeaderValue, { color: theme.text }]}>
+                    {rolloverSummary.history?.length || 0}
                   </Text>
-                )}
+                  <Text style={[styles.historyHeaderLabel, { color: theme.textSecondary }]}>
+                    Changes
+                  </Text>
+                </View>
               </View>
-            ))
+            </View>
+          )}
+
+          {rolloverSummary?.history && rolloverSummary.history.length > 0 ? (
+            <View style={styles.historyTimeline}>
+              {rolloverSummary.history.map((entry, index) => {
+                const isIncrease = entry.previousAmount !== null && entry.newAmount > entry.previousAmount;
+                const isDecrease = entry.previousAmount !== null && entry.newAmount < entry.previousAmount;
+                const changePercent = entry.previousAmount ? Math.round(((entry.newAmount - entry.previousAmount) / entry.previousAmount) * 100) : null;
+
+                return (
+                  <View key={entry.id} style={styles.historyTimelineItem}>
+                    {/* Timeline connector */}
+                    {index < rolloverSummary.history.length - 1 && (
+                      <View style={[styles.timelineConnector, { backgroundColor: theme.border }]} />
+                    )}
+
+                    {/* Timeline dot */}
+                    <View style={[
+                      styles.timelineDot,
+                      {
+                        backgroundColor: isIncrease ? theme.income : isDecrease ? theme.expense : theme.primary,
+                        borderColor: theme.background,
+                      }
+                    ]}>
+                      <Icon
+                        name={isIncrease ? 'arrow-up' : isDecrease ? 'arrow-down' : 'circle-small'}
+                        size={12}
+                        color="#FFFFFF"
+                      />
+                    </View>
+
+                    {/* Entry Card */}
+                    <View style={[styles.historyEntryCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                      <View style={styles.historyEntryHeader}>
+                        <Text style={[styles.historyEntryDate, { color: theme.text }]}>
+                          {new Date(entry.effectiveFrom).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </Text>
+                        {entry.appliedToCurrentMonth && (
+                          <View style={[styles.historyEntryBadge, { backgroundColor: theme.primary + '20' }]}>
+                            <Icon name="check-circle" size={10} color={theme.primary} />
+                            <Text style={[styles.historyEntryBadgeText, { color: theme.primary }]}>
+                              Applied
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={styles.historyEntryAmounts}>
+                        {entry.previousAmount !== null && (
+                          <>
+                            <Text style={[styles.historyEntryPrevious, { color: theme.textTertiary }]}>
+                              {formatCurrency(entry.previousAmount)}
+                            </Text>
+                            <Icon name="arrow-right" size={16} color={theme.textTertiary} />
+                          </>
+                        )}
+                        <Text style={[styles.historyEntryNew, { color: isIncrease ? theme.income : isDecrease ? theme.expense : theme.text }]}>
+                          {formatCurrency(entry.newAmount)}
+                        </Text>
+                        {changePercent !== null && (
+                          <Text style={[
+                            styles.historyEntryChange,
+                            { color: isIncrease ? theme.income : theme.expense }
+                          ]}>
+                            {isIncrease ? '+' : ''}{changePercent}%
+                          </Text>
+                        )}
+                      </View>
+
+                      {entry.note && (
+                        <Text style={[styles.historyEntryNote, { color: theme.textTertiary }]}>
+                          {entry.note}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           ) : (
             <View style={styles.emptyHistory}>
-              <Icon name="history" size={48} color={theme.textTertiary} />
+                <View style={[styles.emptyHistoryIcon, { backgroundColor: theme.textTertiary + '20' }]}>
+                  <Icon name="history" size={32} color={theme.textTertiary} />
+                </View>
+                <Text style={[styles.emptyHistoryTitle, { color: theme.text }]}>
+                  No changes yet
+                </Text>
               <Text style={[styles.emptyHistoryText, { color: theme.textSecondary }]}>
-                No budget changes yet
+                  Your budget change history will appear here
               </Text>
             </View>
           )}
@@ -958,24 +1029,59 @@ const CategoryDetailsScreen: React.FC = () => {
           {rolloverSummary?.monthlyBreakdown && rolloverSummary.monthlyBreakdown.length > 0 && (
             <>
               <Text style={[styles.sheetSubtitle, { color: theme.text }]}>Monthly Breakdown</Text>
-              {rolloverSummary.monthlyBreakdown.slice(0, 6).map((month) => (
-                <View key={month.id} style={[styles.monthlyBreakdownItem, { borderColor: theme.border }]}>
-                  <Text style={[styles.monthlyBreakdownMonth, { color: theme.text }]}>
-                    {new Date(month.month).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                  </Text>
-                  <View style={styles.monthlyBreakdownDetails}>
-                    <Text style={[styles.monthlyBreakdownText, { color: theme.textSecondary }]}>
-                      +{formatCurrency(month.allocatedAmount)} allocated
-                    </Text>
-                    <Text style={[styles.monthlyBreakdownText, { color: theme.expense }]}>
-                      -{formatCurrency(month.spentAmount)} spent
-                    </Text>
-                    <Text style={[styles.monthlyBreakdownText, { color: theme.income }]}>
-                      = {formatCurrency(month.totalAvailable)} available
-                    </Text>
+              {rolloverSummary.monthlyBreakdown.slice(0, 6).map((month, index) => {
+                const savingsRate = month.allocatedAmount > 0
+                  ? Math.round(((month.allocatedAmount - month.spentAmount) / month.allocatedAmount) * 100)
+                  : 0;
+
+                return (
+                  <View
+                    key={month.id}
+                    style={[
+                      styles.monthlyBreakdownCard,
+                      { backgroundColor: theme.card, borderColor: theme.border }
+                    ]}
+                  >
+                    <View style={styles.monthlyBreakdownHeader}>
+                      <Text style={[styles.monthlyBreakdownMonth, { color: theme.text }]}>
+                        {new Date(month.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                      </Text>
+                      <View style={[
+                        styles.savingsRateBadge,
+                        { backgroundColor: savingsRate >= 50 ? theme.income + '20' : theme.warning + '20' }
+                      ]}>
+                        <Text style={[
+                          styles.savingsRateText,
+                          { color: savingsRate >= 50 ? theme.income : theme.warning }
+                        ]}>
+                          {savingsRate}% saved
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.monthlyBreakdownStats}>
+                      <View style={styles.monthlyStatItem}>
+                        <Icon name="plus-circle-outline" size={14} color={theme.income} />
+                        <Text style={[styles.monthlyStatValue, { color: theme.income }]}>
+                          {formatCurrency(month.allocatedAmount)}
+                        </Text>
+                      </View>
+                      <View style={styles.monthlyStatItem}>
+                        <Icon name="minus-circle-outline" size={14} color={theme.expense} />
+                        <Text style={[styles.monthlyStatValue, { color: theme.expense }]}>
+                          {formatCurrency(month.spentAmount)}
+                        </Text>
+                      </View>
+                      <View style={styles.monthlyStatItem}>
+                        <Icon name="wallet-outline" size={14} color={theme.primary} />
+                        <Text style={[styles.monthlyStatValue, { color: theme.primary, fontWeight: '600' }]}>
+                          {formatCurrency(month.totalAvailable)}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </>
           )}
         </BottomSheetScrollView>
@@ -1290,6 +1396,64 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     marginBottom: spacing.md,
   },
+  // Budget History Header
+  historyHeader: {
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+  },
+  historyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  historyHeaderStat: {
+    alignItems: 'center',
+  },
+  historyHeaderValue: {
+    ...typography.headlineSmall,
+    fontWeight: '700',
+  },
+  historyHeaderLabel: {
+    ...typography.labelSmall,
+    marginTop: 2,
+  },
+  historyHeaderDivider: {
+    width: 1,
+    height: 32,
+  },
+  // Timeline styles
+  historyTimeline: {
+    position: 'relative',
+  },
+  historyTimelineItem: {
+    flexDirection: 'row',
+    marginBottom: spacing.md,
+    position: 'relative',
+  },
+  timelineConnector: {
+    position: 'absolute',
+    left: 11,
+    top: 24,
+    bottom: -12,
+    width: 2,
+  },
+  timelineDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    marginRight: spacing.md,
+  },
+  historyEntryCard: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+  },
   historyEntry: {
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
@@ -1305,6 +1469,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   historyEntryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: borderRadius.sm,
@@ -1317,6 +1484,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    marginTop: spacing.xs,
   },
   historyEntryPrevious: {
     ...typography.bodyMedium,
@@ -1325,6 +1493,12 @@ const styles = StyleSheet.create({
   historyEntryNew: {
     ...typography.bodyMedium,
     fontWeight: '600',
+  },
+  historyEntryChange: {
+    ...typography.labelSmall,
+    fontWeight: '600',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 1,
   },
   historyEntryNote: {
     ...typography.bodySmall,
@@ -1336,18 +1510,64 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: spacing.xxl,
   },
+  emptyHistoryIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  emptyHistoryTitle: {
+    ...typography.titleMedium,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
   emptyHistoryText: {
     ...typography.bodyMedium,
-    marginTop: spacing.md,
+    textAlign: 'center',
   },
-  monthlyBreakdownItem: {
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
+  // Monthly Breakdown
+  monthlyBreakdownCard: {
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    marginBottom: spacing.sm,
+  },
+  monthlyBreakdownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
   },
   monthlyBreakdownMonth: {
     ...typography.labelMedium,
     fontWeight: '600',
-    marginBottom: spacing.xs,
+  },
+  savingsRateBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  savingsRateText: {
+    ...typography.labelSmall,
+    fontWeight: '600',
+  },
+  monthlyBreakdownStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  monthlyStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  monthlyStatValue: {
+    ...typography.bodySmall,
+  },
+  monthlyBreakdownItem: {
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
   },
   monthlyBreakdownDetails: {
     gap: spacing.xs,

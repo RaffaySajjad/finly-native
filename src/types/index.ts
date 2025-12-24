@@ -240,14 +240,24 @@ export interface User {
 
 export type SubscriptionTier = 'FREE' | 'PREMIUM' | 'ENTERPRISE';
 
+export type PaymentState = 'VALID' | 'GRACE_PERIOD' | 'ON_HOLD' | 'PAUSED';
+
 export interface Subscription {
   tier: SubscriptionTier;
-  status?: string; // Added status field
+  status?: string; // ACTIVE, CANCELED, EXPIRED, TRIAL, PAUSED, GRACE_PERIOD, ON_HOLD
   isActive: boolean;
   startDate?: string;
   endDate?: string;
   trialEndDate?: string;
   isTrial: boolean;
+  // Payment state (for Google Play lifecycle)
+  paymentState?: PaymentState;
+  gracePeriodEndDate?: string | null;
+  // Pending plan change
+  pendingPlanId?: string | null;
+  pendingChangeDate?: string | null;
+  // Current plan
+  planId?: string | null;
   // Coupon/discount fields (for web signups with FINLY20 code)
   couponCode?: string | null;
   hasPendingDiscount?: boolean;

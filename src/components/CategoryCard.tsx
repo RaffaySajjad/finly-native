@@ -115,7 +115,7 @@ const CategoryCardComponent: React.FC<CategoryCardProps> = ({ category, onPress 
         <View style={[styles.savingsBadge, { backgroundColor: theme.primary + '20' }]}>
           <Icon name="piggy-bank" size={12} color={theme.primary} />
           <Text style={[styles.savingsBadgeText, { color: theme.primary }]}>
-            {category.rollover?.monthsAccumulating || 1} month {category.rollover?.monthsAccumulating !== 1 ? 's' : ''} saved
+            {category.rollover?.monthsAccumulating || 1} month{category.rollover?.monthsAccumulating !== 1 ? 's' : ''} saved
           </Text>
         </View>
       )}

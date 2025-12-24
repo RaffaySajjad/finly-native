@@ -161,6 +161,18 @@ export const useSubscription = () => {
     subscribe,
     startTrial,
     cancel,
+    changePlan: useCallback(async (newPlan: 'monthly' | 'yearly') => {
+      // @ts-ignore - TS doesn't know about the new thunk yet
+      const { changeSubscriptionPlan } = require('../store/slices/subscriptionSlice');
+      await dispatch(changeSubscriptionPlan(newPlan)).unwrap();
+    }, [dispatch]),
+
+    // Payment state helpers
+    paymentState: subscription.paymentState,
+    gracePeriodEndDate: subscription.gracePeriodEndDate,
+    pendingPlanId: subscription.pendingPlanId,
+    pendingChangeDate: subscription.pendingChangeDate,
+    planId: subscription.planId,
   };
 };
 

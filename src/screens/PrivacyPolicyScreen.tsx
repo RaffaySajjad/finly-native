@@ -157,7 +157,10 @@ const PrivacyPolicyScreen: React.FC = () => {
           </BulletPoint>
         </Section>
 
-        <Section title="6. AI Features & Third-Party Processing">
+        <Section title="6. AI Features &amp; Third-Party Processing">
+          <InfoBox>
+            Finly is designed with privacy at its core. When we process your data through AI, we do NOT send any personal identifiers (your name, email, user ID, or account information) to our AI providers. Your financial data cannot be linked back to you by any third party.
+          </InfoBox>
           <Paragraph>
             Our AI-powered features are provided through third-party services:
           </Paragraph>
@@ -167,12 +170,19 @@ const PrivacyPolicyScreen: React.FC = () => {
           <Paragraph>
             When you use our AI-powered features (Voice Entry, Receipt Scan, Finly AI Assistant):
           </Paragraph>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>No personal identifiers sent:</Text> We never send your name, email address, user ID, or any account information to AI providers.
+          </BulletPoint>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Data is not linkable:</Text> Financial data processed by AI cannot be traced back to you as an individual by any third party.
+          </BulletPoint>
           <BulletPoint>Voice and text inputs are sent to OpenAI for processing and are handled according to OpenAI's data retention policies.</BulletPoint>
-          <BulletPoint>Receipt images are processed by OpenAI Vision to extract transaction details.</BulletPoint>
+          <BulletPoint>Receipt images are processed by OpenAI Vision to extract transaction details. You can crop or edit receipt images to remove any personal information before uploading.</BulletPoint>
           <BulletPoint>AI chat conversations are processed by OpenAI to generate responses.</BulletPoint>
           <BulletPoint>Categorization suggestions are based on your personal spending patterns.</BulletPoint>
           <BulletPoint>You maintain full control to accept, modify, or reject AI suggestions.</BulletPoint>
           <BulletPoint>We do not use your data to train AI models.</BulletPoint>
+          <BulletPoint>OpenAI's API data usage policy states they do not use API data for training their models.</BulletPoint>
         </Section>
 
         <Section title="7. Data Sharing & Disclosure">
@@ -207,14 +217,23 @@ const PrivacyPolicyScreen: React.FC = () => {
             <Text style={{ fontWeight: '600' }}>Rectification:</Text> Edit or correct any information in your account.
           </BulletPoint>
           <BulletPoint>
-            <Text style={{ fontWeight: '600' }}>Deletion:</Text> Request complete account deletion through Settings. Your data is permanently removed within 30 days, except where retention is legally required.
-          </BulletPoint>
-          <BulletPoint>
             <Text style={{ fontWeight: '600' }}>Portability:</Text> Transfer your data to another service using our export feature.
           </BulletPoint>
           <BulletPoint>
             <Text style={{ fontWeight: '600' }}>Opt-Out:</Text> Disable non-essential data collection and notifications in Settings.
           </BulletPoint>
+          <Paragraph>
+            Data Deletion Options:
+          </Paragraph>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Delete Account:</Text> Permanently delete your entire account and all associated data (profile, transactions, budgets, receipts). Go to Profile → Delete Account in the app.
+          </BulletPoint>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Delete Data Only:</Text> Delete all financial data while keeping your account active, allowing you to start fresh. Go to Profile → Delete All Data in the app, or visit heyfinly.ai/delete-data.
+          </BulletPoint>
+          <Paragraph>
+            Both deletion requests are processed immediately upon authentication.
+          </Paragraph>
         </Section>
 
         <Section title="9. California Privacy Rights (CCPA)">
@@ -237,10 +256,27 @@ const PrivacyPolicyScreen: React.FC = () => {
           <Paragraph>
             We retain your personal data only as long as necessary:
           </Paragraph>
-          <BulletPoint>Account data is retained while your account is active.</BulletPoint>
-          <BulletPoint>Upon account deletion, personal data is purged within 30 days.</BulletPoint>
-          <BulletPoint>Anonymous, aggregated analytics may be retained indefinitely for service improvement.</BulletPoint>
-          <BulletPoint>Some data may be retained longer if required by law (e.g., tax records, legal disputes).</BulletPoint>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Active Account:</Text> Your data is retained while your account is active.
+          </BulletPoint>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Account Deletion:</Text> Upon account deletion, all personal data is permanently deleted immediately.
+          </BulletPoint>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Data-Only Deletion:</Text> All financial records are removed but your account credentials remain active.
+          </BulletPoint>
+          <Paragraph>
+            Data Retained for Legal Compliance:
+          </Paragraph>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Anonymized Analytics:</Text> Non-identifiable usage data may be retained indefinitely. This data cannot be linked back to you.
+          </BulletPoint>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Financial Records:</Text> Records required for tax or legal compliance may be retained for up to 7 years as required by law.
+          </BulletPoint>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Legal Disputes:</Text> Data relevant to ongoing legal proceedings may be retained until resolution.
+          </BulletPoint>
         </Section>
 
         <Section title="12. Children's Privacy">
@@ -275,12 +311,12 @@ const PrivacyPolicyScreen: React.FC = () => {
             If you have questions, concerns, or requests regarding this Privacy Policy or your personal data, please contact our Privacy Team:
           </Paragraph>
           <TouchableOpacity 
-            onPress={() => Linking.openURL('mailto:support@heyfinly.ai')}
+            onPress={() => Linking.openURL('mailto:hello@heyfinly.ai')}
             style={[styles.contactButton, { backgroundColor: theme.primary + '10' }]}
           >
             <Icon name="email-outline" size={20} color={theme.primary} />
             <Text style={[styles.contactButtonText, { color: theme.primary }]}>
-              support@heyfinly.ai
+              hello@heyfinly.ai
             </Text>
           </TouchableOpacity>
         </Section>

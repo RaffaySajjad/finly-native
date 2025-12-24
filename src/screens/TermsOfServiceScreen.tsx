@@ -151,7 +151,7 @@ const TermsOfServiceScreen: React.FC = () => {
           <BulletPoint>Subscriptions automatically renew unless canceled 24 hours before the renewal date</BulletPoint>
           <BulletPoint>Refunds are handled according to the respective app store's policies</BulletPoint>
           <BulletPoint>Prices may change with reasonable notice; existing subscriptions honor their original pricing until renewal</BulletPoint>
-          <BulletPoint>Free trials, if offered, convert to paid subscriptions unless canceled before trial end</BulletPoint>
+          <BulletPoint>Subscriptions renew automatically unless canceled before the renewal date</BulletPoint>
           <Paragraph>
             You can manage or cancel your subscription through your device's app store settings.
           </Paragraph>
@@ -180,14 +180,38 @@ const TermsOfServiceScreen: React.FC = () => {
           <BulletPoint>May provide estimates, projections, or suggestions that should not be treated as financial advice</BulletPoint>
         </Section>
 
-        <Section title="8. AI Features">
+        <Section title="8. AI Features & Limitation of AI Liability">
+          <WarningBox>
+            CRITICAL AI DISCLAIMER: AI-GENERATED INSIGHTS, RECOMMENDATIONS, AND SUGGESTIONS ARE NOT FINANCIAL, INVESTMENT, TAX, OR LEGAL ADVICE. FINLY AI, RAFFAY LLC, AND ITS MAINTAINERS SHALL NOT BE HELD LIABLE FOR ANY ACTIONS YOU TAKE BASED ON AI-GENERATED CONTENT.
+          </WarningBox>
           <Paragraph>
-            The App may use artificial intelligence for features like voice entry and transaction categorization. You acknowledge that:
+            The App uses artificial intelligence for features including voice entry, transaction categorization, spending insights, and the AI chat assistant. You acknowledge and agree that:
           </Paragraph>
-          <BulletPoint>AI suggestions may not always be accurate and require your review</BulletPoint>
-          <BulletPoint>AI features are for convenience only and do not constitute professional advice</BulletPoint>
-          <BulletPoint>You are responsible for verifying and correcting AI-generated categorizations</BulletPoint>
-          <BulletPoint>AI processing is performed in accordance with our Privacy Policy</BulletPoint>
+          <Paragraph>
+            AI Accuracy & Limitations:
+          </Paragraph>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>AI can be wrong:</Text> AI-generated suggestions, insights, and categorizations may be inaccurate, incomplete, outdated, or entirely fabricated ("hallucinated"). You MUST independently verify all AI output.
+          </BulletPoint>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Not professional advice:</Text> AI recommendations are for informational and convenience purposes ONLY. They do not constitute financial, investment, legal, tax, or professional advice of any kind.
+          </BulletPoint>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>Your responsibility:</Text> You are solely responsible for verifying, accepting, modifying, or rejecting any AI-generated content. All financial decisions remain your responsibility.
+          </BulletPoint>
+          <BulletPoint>
+            <Text style={{ fontWeight: '600' }}>No guarantees:</Text> We make no representations or warranties regarding the accuracy, reliability, or completeness of AI-generated content.
+          </BulletPoint>
+          <Paragraph>
+            Limitation of AI Liability:
+          </Paragraph>
+          <BulletPoint>We are NOT liable for any financial losses, damages, or adverse outcomes resulting from actions you take based on AI-generated insights, recommendations, or suggestions.</BulletPoint>
+          <BulletPoint>We are NOT liable for any errors, inaccuracies, or omissions in AI-generated content, including incorrect spending analysis, budget recommendations, or savings suggestions.</BulletPoint>
+          <BulletPoint>We are NOT liable if AI fails to identify spending patterns, potential savings, or financial risks that may exist in your data.</BulletPoint>
+          <BulletPoint>AI features are provided "AS IS" without any warranty of accuracy or fitness for any particular financial purpose.</BulletPoint>
+          <Paragraph>
+            By using AI features, you acknowledge these limitations and agree to hold Finly AI, Raffay LLC, and its affiliates harmless from any claims arising from your reliance on AI-generated content.
+          </Paragraph>
         </Section>
 
         <Section title="9. Fair Usage Policy">
@@ -317,12 +341,12 @@ const TermsOfServiceScreen: React.FC = () => {
             If you have questions about these Terms of Service, please contact us:
           </Paragraph>
           <TouchableOpacity 
-            onPress={() => Linking.openURL('mailto:support@heyfinly.ai')}
+            onPress={() => Linking.openURL('mailto:hello@heyfinly.ai')}
             style={[styles.contactButton, { backgroundColor: theme.primary + '10' }]}
           >
             <Icon name="email-outline" size={20} color={theme.primary} />
             <Text style={[styles.contactButtonText, { color: theme.primary }]}>
-              support@heyfinly.ai
+              hello@heyfinly.ai
             </Text>
           </TouchableOpacity>
         </Section>

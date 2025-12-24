@@ -288,51 +288,115 @@ export const startFreeTrial = createAsyncThunk(
  * Async thunk to cancel subscription
  * Note: Actual cancellation happens via App Store/Play Store
  * This marks the cancellation in our backend
+ * User keeps premium access until subscription expiry
  */
 export const cancelSubscription = createAsyncThunk(
   'subscription/cancel',
   async (_, { rejectWithValue }) => {
     try {
-      // Cancel via service
+      // Cancel via service (marks as canceled in backend)
       await subscriptionService.cancelSubscription();
 
-      // Revert to free tier
-      const subscription: Subscription = {
-        tier: 'FREE',
-        isActive: true,
-        isTrial: false,
+      // Clear local cache to force fresh fetch
+      await AsyncStorage.removeItem(SUBSCRIPTION_KEY);
+      await AsyncStorage.removeItem(USAGE_LIMITS_KEY);
+
+      // Fetch fresh subscription status from backend
+      // This will get the updated status with canceledAt and expiresAt
+      const subscription = await subscriptionService.getSubscriptionStatus();
+      
+      // Normalize tier
+      const normalizedSubscription: Subscription = {
+        ...subscription,
+        tier: (subscription.tier as string).toUpperCase() as SubscriptionTier,
+        status: 'CANCELED',
       };
 
-      const usageLimits: UsageLimits = {
-        receiptScans: {
-          used: 0,
-          limit: 3,
-          resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        insights: {
-          used: 0,
-          limit: 3,
-          resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        voiceEntries: {
-          used: 0,
-          limit: 3,
-          resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        categories: {
-          used: 0,
-          limit: 5,
-        },
-      };
+      // If still premium (until expiry), keep premium limits
+      // If already expired, use free tier limits
+      const isPremiumActive = normalizedSubscription.tier === 'PREMIUM' && normalizedSubscription.isActive;
+      
+      const usageLimits: UsageLimits = isPremiumActive
+        ? {
+            receiptScans: {
+              used: 0,
+              limit: Infinity,
+              resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            insights: {
+              used: 0,
+              limit: Infinity,
+              resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            voiceEntries: {
+              used: 0,
+              limit: Infinity,
+              resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            categories: {
+              used: 0,
+              limit: Infinity,
+            },
+          }
+        : {
+            receiptScans: {
+              used: 0,
+              limit: 3,
+              resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            insights: {
+              used: 0,
+              limit: 3,
+              resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            voiceEntries: {
+              used: 0,
+              limit: 3,
+              resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            categories: {
+              used: 0,
+              limit: 5,
+            },
+          };
 
-      // Cache locally
-      await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(subscription));
+      // Cache updated state
+      await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(normalizedSubscription));
       await AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(usageLimits));
 
-      return { subscription, usageLimits };
+      return { subscription: normalizedSubscription, usageLimits };
     } catch (error: any) {
       console.error('[SubscriptionSlice] Cancel failed:', error);
       return rejectWithValue(error.message || 'Cancellation failed');
+    }
+  }
+);
+
+/**
+ * Async thunk to change subscription plan (Upgrade/Downgrade)
+ */
+export const changeSubscriptionPlan = createAsyncThunk(
+  'subscription/changePlan',
+  async (newPlan: 'monthly' | 'yearly', { rejectWithValue }) => {
+    try {
+      const result = await subscriptionService.changePlan(newPlan);
+      
+      if (!result.success) {
+        return rejectWithValue('Plan change failed');
+      }
+
+      const subscription = {
+        ...result.subscription,
+        tier: (result.subscription.tier as string).toUpperCase() as SubscriptionTier,
+      };
+
+      // Update local storage
+      await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(subscription));
+
+      return { subscription };
+    } catch (error: any) {
+      console.error('[SubscriptionSlice] Change plan failed:', error);
+      return rejectWithValue(error.message || 'Plan change failed');
     }
   }
 );
@@ -435,6 +499,21 @@ const subscriptionSlice = createSlice({
       state.subscription = action.payload.subscription;
       state.usageLimits = action.payload.usageLimits;
     });
+
+    // Change plan
+    builder
+      .addCase(changeSubscriptionPlan.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(changeSubscriptionPlan.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.subscription = action.payload.subscription;
+      })
+      .addCase(changeSubscriptionPlan.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      });
   },
 });
 

@@ -61,7 +61,7 @@ const ProfileScreen: React.FC = () => {
   const { enableMockIAP } = useAppSelector((state) => state.devSettings || { enableMockIAP: false });
   const { isPremium, subscription } = useSubscription();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
-  const { animateBalancePill, setAnimateBalancePill } = usePreferences();
+  const { animateBalancePill, setAnimateBalancePill, diagnosticsEnabled, setDiagnosticsEnabled } = usePreferences();
   const { showError, showSuccess, showWarning, showInfo, AlertComponent } = useAlert();
 
   const [editName, setEditName] = useState(user?.name || '');
@@ -444,6 +444,19 @@ const ProfileScreen: React.FC = () => {
               </View>
             }
           />
+          <SettingItem
+            icon="bug-outline"
+            title="Share Crash Reports"
+            subtitle={diagnosticsEnabled ? 'Help improve Finly AI by sharing anonymous crash data' : 'Disabled - crash data stays on device'}
+            rightComponent={
+              <Switch
+                value={diagnosticsEnabled}
+                onValueChange={setDiagnosticsEnabled}
+                trackColor={{ false: theme.border, true: theme.primary + '60' }}
+                thumbColor={diagnosticsEnabled ? theme.primary : theme.surface}
+              />
+            }
+          />
         </View>
 
         {/* Data & Management Section */}
@@ -576,6 +589,9 @@ const ProfileScreen: React.FC = () => {
         enablePanDownToClose
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
       >
         <BottomSheetScrollView
           style={styles.bottomSheetContent}
@@ -669,7 +685,7 @@ const ProfileScreen: React.FC = () => {
             <TouchableOpacity
               style={[styles.helpContactButton, { backgroundColor: theme.primary + '20', borderColor: theme.primary }]}
               onPress={() => {
-                showInfo('Contact Support', 'Email: support@heyfinly.ai\n\nWe typically respond within 24 hours.');
+                showInfo('Contact Support', 'Email: hello@heyfinly.ai\n\nWe typically respond within 24 hours.');
               }}
             >
               <Icon name="email-outline" size={20} color={theme.primary} />
@@ -744,6 +760,9 @@ const ProfileScreen: React.FC = () => {
         enablePanDownToClose={false}
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
       >
         <BottomSheetScrollView
           style={styles.bottomSheetContent}

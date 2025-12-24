@@ -11,6 +11,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { Provider } from 'react-redux';
 import { store } from './store';
 import { CurrencyProvider } from './contexts/CurrencyContext';
+import { PricingProvider } from './contexts/PricingContext';
 import { BottomSheetProvider } from './contexts/BottomSheetContext';
 import AppNavigator from './navigation/AppNavigator';
 import { ErrorBoundary } from './components';
@@ -23,10 +24,12 @@ const App: React.FC = () => {
       <Provider store={store}>
         <ThemeProvider>
               <CurrencyProvider>
-                <BottomSheetProvider>
+                <PricingProvider>
+                  <BottomSheetProvider>
             <AppNavigator />
             <StatusBar style="auto" />
-                </BottomSheetProvider>
+                  </BottomSheetProvider>
+                </PricingProvider>
               </CurrencyProvider>
         </ThemeProvider>
       </Provider>

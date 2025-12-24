@@ -1,19 +1,24 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { crashReportingService } from '../services/crashReportingService';
 
 interface PreferencesContextType {
   animateBalancePill: boolean;
   setAnimateBalancePill: (value: boolean) => Promise<void>;
+  diagnosticsEnabled: boolean;
+  setDiagnosticsEnabled: (value: boolean) => Promise<void>;
 }
 
 const PreferencesContext = createContext<PreferencesContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
   ANIMATE_BALANCE_PILL: '@finly_pref_animate_balance_pill',
+  DIAGNOSTICS_ENABLED: '@finly_diagnostics_consent',
 };
 
 export const PreferencesProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [animateBalancePill, setAnimateBalancePillState] = useState(true);
+  const [diagnosticsEnabled, setDiagnosticsEnabledState] = useState(true); // Enabled by default
 
   useEffect(() => {
     loadPreferences();
@@ -21,9 +26,25 @@ export const PreferencesProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const loadPreferences = async () => {
     try {
-      const saved = await AsyncStorage.getItem(STORAGE_KEYS.ANIMATE_BALANCE_PILL);
-      if (saved !== null) {
-        setAnimateBalancePillState(JSON.parse(saved));
+      const [animateSaved, diagnosticsSaved] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEYS.ANIMATE_BALANCE_PILL),
+        AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTICS_ENABLED),
+      ]);
+
+      if (animateSaved !== null) {
+        setAnimateBalancePillState(JSON.parse(animateSaved));
+      }
+
+      if (diagnosticsSaved !== null) {
+        const enabled = diagnosticsSaved === 'true';
+        setDiagnosticsEnabledState(enabled);
+        // Initialize crash reporting if enabled
+        if (enabled) {
+          crashReportingService.initialize();
+        }
+      } else {
+        // No saved preference - use default (enabled) and initialize
+        crashReportingService.initialize();
       }
     } catch (error) {
       console.error('Failed to load preferences:', error);
@@ -39,9 +60,29 @@ export const PreferencesProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   }, []);
 
+  const setDiagnosticsEnabled = useCallback(async (value: boolean) => {
+    setDiagnosticsEnabledState(value);
+    try {
+      // Update crash reporting service consent
+      await crashReportingService.setConsent(value);
+
+      // Initialize if enabling for first time
+      if (value) {
+        await crashReportingService.initialize();
+      }
+    } catch (error) {
+      console.error('Failed to save diagnostics preference:', error);
+    }
+  }, []);
+
   const value = useMemo<PreferencesContextType>(
-    () => ({ animateBalancePill, setAnimateBalancePill }),
-    [animateBalancePill, setAnimateBalancePill]
+    () => ({
+      animateBalancePill,
+      setAnimateBalancePill,
+      diagnosticsEnabled,
+      setDiagnosticsEnabled,
+    }),
+    [animateBalancePill, setAnimateBalancePill, diagnosticsEnabled, setDiagnosticsEnabled]
   );
 
   return (

@@ -294,11 +294,12 @@ const InsightsScreen: React.FC = () => {
     });
 
     // Navigate based on action type
+    // Note: targetEntity contains category/entity NAME, not ID, so we use Trends for budget analysis
     switch (insight.actionType) {
+      case 'set_budget':
       case 'reduce_spending':
       case 'review_merchant':
-      case 'set_budget':
-        // Navigate to Trends for spending analysis (Categories is not in RootStack)
+        // Navigate to Trends for spending analysis (targetEntity is a name, not an ID)
         navigation.navigate('Trends');
         break;
       case 'cancel_subscription':

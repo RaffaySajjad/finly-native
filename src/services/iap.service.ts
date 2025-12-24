@@ -202,14 +202,17 @@ class IAPService {
         getProductId('PREMIUM_MONTHLY', 'ios'),
         getProductId('PREMIUM_YEARLY', 'ios'),
       ],
+      // Android uses single subscription product with multiple base plans
       android: [
-        getProductId('PREMIUM_MONTHLY', 'android'),
-        getProductId('PREMIUM_YEARLY', 'android'),
+        getProductId('PREMIUM_MONTHLY', 'android'), // Both return 'finly_premium'
       ],
     }) || [];
+    
+    // Dedupe for Android (since monthly and yearly have same product ID)
+    const uniqueProductIds = [...new Set(productIds)];
 
     try {
-      const products = await fetchProducts({ skus: productIds, type: 'subs' });
+      const products = await fetchProducts({ skus: uniqueProductIds, type: 'subs' });
       
       if (!products || products.length === 0) {
         logger.warn('[IAP] No products returned from store');

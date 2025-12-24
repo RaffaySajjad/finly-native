@@ -456,6 +456,9 @@ const IncomeManagementScreen: React.FC = () => {
         enablePanDownToClose
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
         onChange={(index) => {
           if (index === -1) {
             resetForm();

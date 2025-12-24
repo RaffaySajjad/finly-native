@@ -32,16 +32,20 @@ export const IAP_CONFIG = {
   ENABLE_MOCKS: false,
   
   // Product IDs (from App Store Connect & Google Play Console)
+  // Android uses single subscription with base plans (Google's new model)
+  // iOS uses separate product IDs (Apple's model)
   PRODUCTS: {
     PREMIUM_MONTHLY: {
       ios: 'finly_premium_monthly',
-      android: 'finly.premium.monthly',
+      android: 'finly_premium',           // Subscription product ID
+      androidBasePlanId: 'monthly-auto',  // Base plan ID for monthly
       price: PRICING_CONFIG.MONTHLY.priceFormatted,
       priceValue: PRICING_CONFIG.MONTHLY.price,
     },
     PREMIUM_YEARLY: {
       ios: 'finly_premium_yearly',
-      android: 'finly.premium.yearly',
+      android: 'finly_premium',           // Same subscription product ID
+      androidBasePlanId: 'yearly-auto',   // Base plan ID for yearly
       price: PRICING_CONFIG.YEARLY.priceFormatted,
       priceValue: PRICING_CONFIG.YEARLY.price,
     },
@@ -98,6 +102,16 @@ export const getProductId = (
   platform: 'ios' | 'android'
 ): string => {
   return IAP_CONFIG.PRODUCTS[product][platform];
+};
+
+/**
+ * Get Android base plan ID
+ * Used for Google Play's subscription model with base plans
+ */
+export const getAndroidBasePlanId = (
+  product: keyof typeof IAP_CONFIG.PRODUCTS
+): string | undefined => {
+  return IAP_CONFIG.PRODUCTS[product].androidBasePlanId;
 };
 
 export default IAP_CONFIG;

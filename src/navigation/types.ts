@@ -20,7 +20,7 @@ export type RootStackParamList = {
   Auth: undefined;
   Onboarding: undefined;
   IncomeSetup: undefined;
-  MainTabs: undefined;
+  MainTabs: { screen?: keyof MainTabsParamList } | undefined;
   AddIncome: undefined;
   ReceiptUpload: undefined;
   TransactionDetails: { transaction: UnifiedTransaction };

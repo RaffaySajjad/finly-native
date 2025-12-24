@@ -1,0 +1,116 @@
+<!-- Finly AI App Icon - White Background Design -->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="50%" stop-color="#4A90E2"/>
+      <stop offset="100%" stop-color="#0EA5E9"/>
+    </linearGradient>
+
+    <linearGradient id="accentGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#A5F3FC"/>
+    </linearGradient>
+
+    <linearGradient id="glassGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.02"/>
+    </linearGradient>
+
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Soft AI glow -->
+    <filter id="aiGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="25" result="blur"/>
+    </filter>
+
+    <radialGradient id="aiIllumination" cx="50%" cy="50%" r="50%" fx="40%" fy="40%">
+      <stop offset="0%" stop-color="#4F46E5" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#4F46E5" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="20" flood-color="#1E3A5F" flood-opacity="0.1"/>
+    </filter>
+
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="2"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="#FFFFFF"/>
+  
+  <g filter="url(#shadow)">
+    <g transform="translate(512, 512)">
+
+      <!-- F Letter - Now filled with gradient -->
+      <path d="
+        M -180 -220
+        L 180 -220
+        L 180 -140
+        L -75 -140
+        L -75 -35
+        L 120 -35
+        L 120 45
+        L -75 45
+        L -75 220
+        L -180 220
+        Z
+      " fill="url(#bgGradient)" filter="url(#softGlow)"/>
+
+      <!-- AI Illumination - subtler on white -->
+      <g transform="translate(150, -170)">
+        <ellipse cx="0" cy="0" rx="100" ry="90" fill="url(#aiIllumination)" filter="url(#aiGlow)"/>
+      </g>
+
+      <!-- Rounded, extended upward arrow -->
+      <g transform="translate(10, 220)">
+        <!-- Glow -->
+        <path
+          d="
+            M 0 100
+            C 80 40, 180 -40, 270 -140
+          "
+          stroke="#22D3EE"
+          stroke-width="30"
+          stroke-linecap="round"
+          fill="none"
+          opacity="0.15"
+          filter="url(#glow)"
+        />
+
+        <!-- Main curve -->
+        <path
+          d="
+            M 0 100
+            C 80 40, 180 -40, 270 -140
+          "
+          stroke="url(#accentGradient)"
+          stroke-width="18"
+          stroke-linecap="round"
+          fill="none"
+        />
+
+        <!-- Rounded arrow head -->
+        <path
+          d="
+            M 220 -130
+            Q 300 -180 270 -95
+          "
+          stroke="url(#accentGradient)"
+          stroke-width="18"
+          stroke-linecap="round"
+          fill="none"
+        />
+      </g>
+
+    </g>
+  </g>
+
+</svg>

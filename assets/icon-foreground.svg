@@ -1,0 +1,102 @@
+<!-- Finly AI App Icon Foreground - Content Only (for Android Adaptive Icons) -->
+<!-- This SVG contains only the icon content (F + arrow) on transparent background -->
+<!-- Canvas is 108x108 with content centered in 66x66 safe zone -->
+<svg width="432" height="432" viewBox="0 0 432 432" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="accentGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#A5F3FC"/>
+    </linearGradient>
+
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <radialGradient id="aiIllumination" cx="50%" cy="50%" r="50%" fx="40%" fy="40%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="25%" stop-color="#A5F3FC" stop-opacity="0.7"/>
+      <stop offset="60%" stop-color="#22D3EE" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#22D3EE" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="aiGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+    </filter>
+
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="0.7"/>
+    </filter>
+  </defs>
+
+  <!-- Content group - centered and scaled for 108dp adaptive icon -->
+  <!-- Safe zone is 66dp centered = 61% of canvas, content fills ~85% of safe zone -->
+  <g transform="translate(216, 216) scale(0.35)">
+
+    <!-- F Letter -->
+    <path d="
+      M -180 -220
+      L 180 -220
+      L 180 -140
+      L -75 -140
+      L -75 -35
+      L 120 -35
+      L 120 45
+      L -75 45
+      L -75 220
+      L -180 220
+      Z
+    " fill="#FFFFFF" filter="url(#softGlow)"/>
+
+    <!-- AI Illumination - subtle glow -->
+    <g transform="translate(150, -170)">
+      <ellipse cx="0" cy="0" rx="100" ry="90" fill="url(#aiIllumination)" filter="url(#aiGlow)"/>
+    </g>
+
+    <!-- Rounded, extended upward arrow -->
+    <g transform="translate(100, 220)">
+      <!-- Glow -->
+      <path
+        d="
+          M 0 100
+          C 80 40, 180 -40, 270 -140
+        "
+        stroke="#22D3EE"
+        stroke-width="30"
+        stroke-linecap="round"
+        fill="none"
+        opacity="0.25"
+        filter="url(#glow)"
+      />
+
+      <!-- Main curve -->
+      <path
+        d="
+          M 0 100
+          C 80 40, 180 -40, 270 -140
+        "
+        stroke="url(#accentGradient)"
+        stroke-width="18"
+        stroke-linecap="round"
+        fill="none"
+      />
+
+      <!-- Rounded arrow head -->
+      <path
+        d="
+          M 220 -130
+          Q 300 -180 270 -95
+        "
+        stroke="url(#accentGradient)"
+        stroke-width="18"
+        stroke-linecap="round"
+        fill="none"
+      />
+    </g>
+
+  </g>
+</svg>
+

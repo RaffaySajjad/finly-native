@@ -1,0 +1,231 @@
+/**
+ * Icon Generation Script for Finly App
+ * 
+ * This script generates app icons for both iOS and Android platforms
+ * from the master SVG icon and automatically copies them to the correct locations.
+ * 
+ * Requirements:
+ * - Install sharp: npm install --save-dev sharp
+ * - Run: npm run generate-icons
+ */
+
+const sharp = require('sharp');
+const fs = require('fs');
+const path = require('path');
+const { promisify } = require('util');
+
+const copyFile = promisify(fs.copyFile);
+const mkdir = promisify(fs.mkdir);
+const readdir = promisify(fs.readdir);
+const stat = promisify(fs.stat);
+
+const iconSizes = {
+  ios: [
+    { size: 20, scale: 1, name: 'icon-20.png' },
+    { size: 20, scale: 2, name: 'icon-20@2x.png' },
+    { size: 20, scale: 3, name: 'icon-20@3x.png' },
+    { size: 29, scale: 1, name: 'icon-29.png' },
+    { size: 29, scale: 2, name: 'icon-29@2x.png' },
+    { size: 29, scale: 3, name: 'icon-29@3x.png' },
+    { size: 40, scale: 1, name: 'icon-40.png' },
+    { size: 40, scale: 2, name: 'icon-40@2x.png' },
+    { size: 40, scale: 3, name: 'icon-40@3x.png' },
+    { size: 60, scale: 2, name: 'icon-60@2x.png' },
+    { size: 60, scale: 3, name: 'icon-60@3x.png' },
+    { size: 76, scale: 1, name: 'icon-76.png' },
+    { size: 76, scale: 2, name: 'icon-76@2x.png' },
+    { size: 83.5, scale: 2, name: 'icon-83.5@2x.png' },
+    { size: 1024, scale: 1, name: 'App-Icon-1024x1024@1x.png' },
+  ],
+  // Legacy launcher icons (for older Android versions)
+  android: [
+    { size: 48, density: 'mdpi', name: 'ic_launcher.png' },
+    { size: 72, density: 'hdpi', name: 'ic_launcher.png' },
+    { size: 96, density: 'xhdpi', name: 'ic_launcher.png' },
+    { size: 144, density: 'xxhdpi', name: 'ic_launcher.png' },
+    { size: 192, density: 'xxxhdpi', name: 'ic_launcher.png' },
+    { size: 48, density: 'mdpi', name: 'ic_launcher_round.png' },
+    { size: 72, density: 'hdpi', name: 'ic_launcher_round.png' },
+    { size: 96, density: 'xhdpi', name: 'ic_launcher_round.png' },
+    { size: 144, density: 'xxhdpi', name: 'ic_launcher_round.png' },
+    { size: 192, density: 'xxxhdpi', name: 'ic_launcher_round.png' },
+  ],
+  // Adaptive icon foregrounds (Android 8.0+, API 26+)
+  // Foreground size is 108dp with content in 66dp safe zone (scaled by density)
+  androidAdaptive: [
+    { size: 108, density: 'mdpi', name: 'ic_launcher_foreground.png' },
+    { size: 162, density: 'hdpi', name: 'ic_launcher_foreground.png' },
+    { size: 216, density: 'xhdpi', name: 'ic_launcher_foreground.png' },
+    { size: 324, density: 'xxhdpi', name: 'ic_launcher_foreground.png' },
+    { size: 432, density: 'xxxhdpi', name: 'ic_launcher_foreground.png' },
+  ],
+};
+
+async function generateIcons() {
+  // Platform-specific icon SVGs
+  const iosSvgPath = path.join(__dirname, '../assets/icon-ios.svg');
+  const androidSvgPath = path.join(__dirname, '../assets/icon-android.svg');
+  const foregroundSvgPath = path.join(__dirname, '../assets/icon-foreground.svg');
+  const outputDir = path.join(__dirname, '../assets/generated-icons');
+
+  // Check if platform-specific SVGs exist
+  if (!fs.existsSync(iosSvgPath)) {
+    console.error('❌ iOS Icon SVG not found at:', iosSvgPath);
+    process.exit(1);
+  }
+  if (!fs.existsSync(androidSvgPath)) {
+    console.error('❌ Android Icon SVG not found at:', androidSvgPath);
+    process.exit(1);
+  }
+
+  // Create output directory
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  console.log('🍎 Generating iOS icons from icon-ios.svg...');
+  // Generate iOS icons from iOS-specific SVG
+  for (const { size, scale, name } of iconSizes.ios) {
+    const actualSize = size * scale;
+    const outputPath = path.join(outputDir, 'ios', name);
+
+    if (!fs.existsSync(path.dirname(outputPath))) {
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    }
+
+    await sharp(iosSvgPath)
+      .resize(actualSize, actualSize)
+      .png()
+      .toFile(outputPath);
+  }
+  console.log('✅ iOS icons generated');
+
+  console.log('🤖 Generating Android legacy icons from icon-android.svg...');
+  // Generate Android legacy icons from Android-specific SVG (for older devices)
+  for (const { size, density, name } of iconSizes.android) {
+    const outputPath = path.join(
+      outputDir,
+      'android',
+      `mipmap-${density}`,
+      name
+    );
+
+    if (!fs.existsSync(path.dirname(outputPath))) {
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    }
+
+    await sharp(androidSvgPath).resize(size, size).png().toFile(outputPath);
+  }
+  console.log('✅ Android legacy icons generated');
+
+  // Generate Android Adaptive Icon foregrounds (Android 8.0+)
+  if (fs.existsSync(foregroundSvgPath)) {
+    console.log('🎯 Generating Android adaptive icon foregrounds...');
+    for (const { size, density, name } of iconSizes.androidAdaptive) {
+      const outputPath = path.join(
+        outputDir,
+        'android',
+        `mipmap-${density}`,
+        name
+      );
+
+      if (!fs.existsSync(path.dirname(outputPath))) {
+        fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      }
+
+      await sharp(foregroundSvgPath).resize(size, size).png().toFile(outputPath);
+    }
+    console.log('✅ Android adaptive icon foregrounds generated');
+  } else {
+    console.warn('⚠️  Foreground SVG not found at:', foregroundSvgPath);
+    console.warn('   Skipping adaptive icon foreground generation.');
+    console.warn('   Create assets/icon-foreground.svg for proper Android adaptive icons.');
+  }
+
+  // Copy main icon.png for Expo (1024x1024) - uses iOS icon as the primary
+  const mainIconPath = path.join(outputDir, 'ios', 'App-Icon-1024x1024@1x.png');
+  const expoIconPath = path.join(__dirname, '../assets/icon.png');
+  await copyFile(mainIconPath, expoIconPath);
+  console.log('📱 Created assets/icon.png for Expo (from iOS icon)');
+
+  // Automatically copy icons to correct locations
+  await copyIconsToDestinations(outputDir);
+  
+  console.log('✅ All icons generated successfully!');
+}
+
+/**
+ * Copy generated icons to their final destinations
+ */
+async function copyIconsToDestinations(outputDir) {
+  const projectRoot = path.join(__dirname, '..');
+  
+  // iOS destination (note: folder is 'Finly' with capital F)
+  const iosDest = path.join(projectRoot, 'ios', 'Finly', 'Images.xcassets', 'AppIcon.appiconset');
+  
+  // Android destination base
+  const androidDestBase = path.join(projectRoot, 'android', 'app', 'src', 'main', 'res');
+  
+  // Ensure destination directories exist
+  if (!fs.existsSync(iosDest)) {
+    await mkdir(iosDest, { recursive: true });
+  }
+  
+  if (!fs.existsSync(androidDestBase)) {
+    await mkdir(androidDestBase, { recursive: true });
+  }
+  
+  // Copy iOS icons
+  const iosSourceDir = path.join(outputDir, 'ios');
+  if (fs.existsSync(iosSourceDir)) {
+    const iosFiles = await readdir(iosSourceDir);
+    for (const file of iosFiles) {
+      const sourcePath = path.join(iosSourceDir, file);
+      const destPath = path.join(iosDest, file);
+      
+      // Check if it's a file (not a directory)
+      const stats = await stat(sourcePath);
+      if (stats.isFile()) {
+        await copyFile(sourcePath, destPath);
+      }
+    }
+  }
+  
+  // Copy Android icons
+  const androidSourceDir = path.join(outputDir, 'android');
+  if (fs.existsSync(androidSourceDir)) {
+    const mipmapDirs = await readdir(androidSourceDir);
+    
+    for (const mipmapDir of mipmapDirs) {
+      const mipmapPath = path.join(androidSourceDir, mipmapDir);
+      const mipmapStats = await stat(mipmapPath);
+      
+      if (mipmapStats.isDirectory() && mipmapDir.startsWith('mipmap-')) {
+        const destMipmapDir = path.join(androidDestBase, mipmapDir);
+        
+        // Ensure destination mipmap directory exists
+        if (!fs.existsSync(destMipmapDir)) {
+          await mkdir(destMipmapDir, { recursive: true });
+        }
+        
+        // Copy all files in this mipmap directory
+        const files = await readdir(mipmapPath);
+        for (const file of files) {
+          const sourcePath = path.join(mipmapPath, file);
+          const destPath = path.join(destMipmapDir, file);
+          
+          const fileStats = await stat(sourcePath);
+          if (fileStats.isFile()) {
+            await copyFile(sourcePath, destPath);
+          }
+        }
+      }
+    }
+  }
+}
+
+generateIcons().catch((error) => {
+  console.error('❌ Error generating icons:', error);
+  process.exit(1);
+});
+

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Quick Action Icon: Finly AI Assistant (Robot - matches Android tab bar) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#6366F1">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,2a2,2 0,0 1,2 2c0,0.74 -0.4,1.39 -1,1.73L13,7h1a7,7 0,0 1,7 7h1a1,1 0,0 1,1 1v3a1,1 0,0 1,-1 1h-1v1a2,2 0,0 1,-2 2L5,22a2,2 0,0 1,-2 -2v-1L2,19a1,1 0,0 1,-1 -1v-3a1,1 0,0 1,1 -1h1a7,7 0,0 1,7 -7h1L11,5.73c-0.6,-0.34 -1,-0.99 -1,-1.73a2,2 0,0 1,2 -2M7.5,13a2.5,2.5 0,0 0,0 5,2.5 2.5,0 0,0 0,-5m9,0a2.5,2.5 0,0 0,0 5,2.5 2.5,0 0,0 0,-5m-9,2a0.5,0.5 0,0 1,0.5 0.5,0.5 0.5,0 0,1 -0.5,0.5 0.5,0.5 0,0 1,-0.5 -0.5,0.5 0.5,0 0,1 0.5,-0.5m9,0a0.5,0.5 0,0 1,0.5 0.5,0.5 0.5,0 0,1 -0.5,0.5 0.5,0.5 0,0 1,-0.5 -0.5,0.5 0.5,0 0,1 0.5,-0.5"/>
+</vector>
+

@@ -1,13 +1,49 @@
 {
   "expo": {
-    "name": "finly",
-    "slug": "finly",
+    "name": "Finly AI",
+    "slug": "Finly",
     "version": "1.0.0",
+    "jsEngine": "hermes",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4F46E5"
+    },
     "android": {
-      "package": "com.plantoraffay.finly"
+      "package": "com.raffay.finly",
+      "googleServicesFile": "./android/app/google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#4F46E5"
+      }
     },
     "ios": {
-      "bundleIdentifier": "com.plantoraffay.finly"
+      "bundleIdentifier": "com.raffay.finly",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Finly needs access to your camera to scan receipts and capture expense photos.",
+        "NSPhotoLibraryUsageDescription": "Finly needs access to your photo library to select receipt images.",
+        "NSPhotoLibraryAddUsageDescription": "Finly needs permission to save receipt photos to your library."
+      }
+    },
+    "plugins": [
+      "react-native-iap",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "2.1.20"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "env": "development",
+      "apiUrl": "http://192.168.1.100:3000",
+      "eas": {
+        "projectId": "dfa0ffd0-4dca-4765-b6dd-1ca535a8e731"
+      }
     }
   }
 }

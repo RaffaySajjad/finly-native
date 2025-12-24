@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">View your balance, income, and expenses at a glance.</string>
+    <string name="widget_balance_label">Balance</string>
+    <string name="widget_income_label">Income</string>
+    <string name="widget_expenses_label">Expenses</string>
+    <string name="widget_add_button">Add Transaction</string>
+</resources>
+

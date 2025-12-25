@@ -19,7 +19,7 @@
                BlueprintIdentifier = "9A576F2B2EE18151003A11A9"
                BuildableName = "FinlyWidgetExtension.appex"
                BlueprintName = "FinlyWidgetExtension"
-               ReferencedContainer = "container:Finly.xcodeproj">
+               ReferencedContainer = "container:finly.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -51,7 +51,7 @@
             BlueprintIdentifier = "9A576F2B2EE18151003A11A9"
             BuildableName = "FinlyWidgetExtension.appex"
             BlueprintName = "FinlyWidgetExtension"
-            ReferencedContainer = "container:Finly.xcodeproj">
+            ReferencedContainer = "container:finly.xcodeproj">
          </BuildableReference>
       </RemoteRunnable>
       <EnvironmentVariables>

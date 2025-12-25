@@ -17,7 +17,7 @@ const getBaseUrl = () => {
   const configUrl = Constants.expoConfig?.extra?.apiUrl;
   
   // Default production URL
-  const defaultUrl = 'https://finly-core.up.railway.app';
+  const defaultUrl = 'https://api.heyfinly.ai';
 
   const finalUrl = envUrl || configUrl || defaultUrl;
 

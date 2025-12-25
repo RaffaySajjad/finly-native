@@ -139,8 +139,16 @@ const SubscriptionScreen: React.FC = () => {
       await subscribe(selectedPlan);
       // Force refresh: clear cache and refetch from API
       await forceRefresh();
-      showSuccess('Welcome to Finly Pro!', "You've promised yourself a better financial future. We're here to help you build it.");
-      navigation.goBack();
+      showSuccess(
+        'Welcome to Finly Pro!',
+        "You've promised yourself a better financial future. We're here to help you build it.",
+        [
+          {
+            text: 'Great!',
+            onPress: () => navigation.goBack(),
+          }
+        ]
+      );
     } catch (error: any) {
       console.error('Subscription error:', error);
 

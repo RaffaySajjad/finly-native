@@ -62,8 +62,9 @@ export const checkSubscriptionStatus = createAsyncThunk(
       // First, try to get from backend
       const subscription = await subscriptionService.getSubscriptionStatus();
       
-      // Generate usage limits based on tier
-      const usageLimits: UsageLimits = subscription.tier === 'PREMIUM' 
+      // Generate usage limits based on tier AND isActive status
+      const isPremiumActive = subscription.tier === 'PREMIUM' && subscription.isActive !== false;
+      const usageLimits: UsageLimits = isPremiumActive 
         ? {
             receiptScans: {
               used: 0,

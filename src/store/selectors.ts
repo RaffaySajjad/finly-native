@@ -164,7 +164,7 @@ export const selectSubscriptionState = (state: RootState) => state.subscription;
 
 export const selectIsPremium = createSelector(
   [selectSubscriptionState],
-  (state) => state.subscription.tier === 'PREMIUM'
+  (state) => state.subscription.tier === 'PREMIUM' && state.subscription.isActive === true
 );
 
 export const selectSubscriptionDetails = createSelector(

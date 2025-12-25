@@ -58,3 +58,5 @@ android/gradle/wrapper/wrapper/
 android/gradle/wrapper/android/
 android/app/build/
 android/local.properties
+
+android/app/release/

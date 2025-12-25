@@ -64,10 +64,10 @@ export const subscriptionService = {
       
       if (response.success && response.data) {
         const subscription = response.data.subscription;
-        // Ensure tier is lowercase and isActive is properly set
+        // Ensure tier is UPPERCASE and isActive is properly set
         return {
           ...subscription,
-          tier: subscription.tier.toLowerCase() as 'FREE' | 'PREMIUM',
+          tier: subscription.tier.toUpperCase() as 'FREE' | 'PREMIUM',
           isActive: subscription.isActive !== undefined ? subscription.isActive : true,
         };
       }
@@ -113,20 +113,41 @@ export const subscriptionService = {
       const productKey = productType === 'yearly' ? 'PREMIUM_YEARLY' : 'PREMIUM_MONTHLY';
       const productId = getProductId(productKey, Platform.OS as 'ios' | 'android');
       
-      // For Android, get the base plan ID (Google Play's new subscription model)
-      const basePlanId = Platform.OS === 'android' 
-        ? getAndroidBasePlanId(productKey) 
-        : undefined;
+      console.log(`[Subscription] Starting purchase for: ${productId}, type: ${productType}`);
       
-      console.log(`[Subscription] Starting purchase for: ${productId}${basePlanId ? ` (base plan: ${basePlanId})` : ''}`);
+      // Step 2: For Android, fetch products to get the correct offerToken
+      let offerToken: string | undefined;
+      if (Platform.OS === 'android') {
+        const products = await iapService.getProducts();
+        // Find the product matching the selected plan type (monthly or yearly)
+        const matchingProduct = products.find(p => {
+          const titleLower = (p.title || '').toLowerCase();
+          if (productType === 'monthly') {
+            return titleLower.includes('monthly') && p.offerToken;
+          } else {
+            return titleLower.includes('yearly') && p.offerToken;
+          }
+        });
+        
+        if (matchingProduct?.offerToken) {
+          offerToken = matchingProduct.offerToken;
+          console.log(`[Subscription] Found offerToken for ${productType}: ${offerToken.substring(0, 30)}...`);
+        } else {
+          console.error('[Subscription] Could not find offerToken for', productType);
+          throw new Error(`Could not find subscription offer for ${productType} plan`);
+        }
+      }
       
-      // Step 2: Purchase via native IAP (pass base plan ID as offer token for Android)
-      const purchaseResult: PurchaseResult = await iapService.purchaseSubscription(productId, basePlanId);
+      // Step 3: Purchase via native IAP
+      const purchaseResult: PurchaseResult = await iapService.purchaseSubscription(productId, offerToken);
 
       if (!purchaseResult.success) {
         // Handle specific error cases
         if (purchaseResult.error === 'USER_CANCELLED') {
-          throw new Error('Purchase was cancelled');
+          // Throw with specific message that UI can check for
+          const cancelError = new Error('USER_CANCELLED');
+          (cancelError as any).isCancellation = true;
+          throw cancelError;
         }
         if (purchaseResult.error === 'ALREADY_OWNED') {
           throw new Error('You already own this subscription');
@@ -263,16 +284,30 @@ export const subscriptionService = {
       const productKey = newPlan === 'yearly' ? 'PREMIUM_YEARLY' : 'PREMIUM_MONTHLY';
       const productId = getProductId(productKey, Platform.OS as 'ios' | 'android');
       
-      const basePlanId = Platform.OS === 'android' 
-        ? getAndroidBasePlanId(productKey) 
-        : undefined;
+      console.log(`[Subscription] Changing plan to: ${productId}, type: ${newPlan}`);
       
-      console.log(`[Subscription] Changing plan to: ${productId}${basePlanId ? ` (base plan: ${basePlanId})` : ''}`);
+      // Step 2: For Android, fetch products to get the correct offerToken
+      let offerToken: string | undefined;
+      if (Platform.OS === 'android') {
+        const products = await iapService.getProducts();
+        const matchingProduct = products.find(p => {
+          const titleLower = (p.title || '').toLowerCase();
+          if (newPlan === 'monthly') {
+            return titleLower.includes('monthly') && p.offerToken;
+          } else {
+            return titleLower.includes('yearly') && p.offerToken;
+          }
+        });
+        
+        if (matchingProduct?.offerToken) {
+          offerToken = matchingProduct.offerToken;
+        } else {
+          throw new Error(`Could not find subscription offer for ${newPlan} plan`);
+        }
+      }
       
-      // Step 2: Initiate purchase with upgrade/downgrade context
-      // Note: react-native-iap handles upgrade flows if we pass the correct params
-      // But for now, simple purchase flow usually works for switching plans on Android
-      const purchaseResult: PurchaseResult = await iapService.purchaseSubscription(productId, basePlanId);
+      // Step 3: Initiate purchase with upgrade/downgrade context
+      const purchaseResult: PurchaseResult = await iapService.purchaseSubscription(productId, offerToken);
 
       if (!purchaseResult.success) {
         throw new Error(purchaseResult.error || 'Plan change failed');

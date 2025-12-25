@@ -55,6 +55,9 @@ export interface ProductInfo {
   price: string;
   currency: string;
   localizedPrice: string;
+  // Android-specific: needed for subscription purchases
+  offerToken?: string;
+  basePlanId?: string;
 }
 
 /**
@@ -68,6 +71,9 @@ class IAPService {
   private purchaseUpdatedListener: any = null;
   private purchaseErrorListener: any = null;
   private onPurchaseUpdate: ((purchase: PurchaseResult) => Promise<void>) | null = null;
+  // For handling Android async purchase flow
+  private pendingPurchaseResolver: ((purchase: PurchaseResult) => void) | null = null;
+  private pendingPurchaseRejecter: ((error: Error) => void) | null = null;
 
   /**
    * Initialize IAP connection
@@ -131,12 +137,23 @@ class IAPService {
       const purchaseResult: PurchaseResult = {
         success: true,
         transactionId: purchase.transactionId,
-        receipt: purchase.transactionReceipt,
+        // For Android, use purchaseToken; for iOS, use transactionReceipt
+        receipt: Platform.OS === 'android' 
+          ? (purchase as any).purchaseToken 
+          : ((purchase as any).transactionReceipt || purchase.transactionId),
         productId: purchase.productId,
         platform: Platform.OS as 'ios' | 'android',
-        purchaseToken: purchase.purchaseToken,
+        purchaseToken: (purchase as any).purchaseToken,
         originalPurchase: purchase,
       };
+
+      // If we have a pending purchase promise, resolve it
+      if (this.pendingPurchaseResolver) {
+        logger.debug('[IAP] Resolving pending purchase promise');
+        this.pendingPurchaseResolver(purchaseResult);
+        this.pendingPurchaseResolver = null;
+        this.pendingPurchaseRejecter = null;
+      }
 
       if (this.onPurchaseUpdate) {
         try {
@@ -149,6 +166,27 @@ class IAPService {
 
     this.purchaseErrorListener = purchaseErrorListener((error: PurchaseError) => {
       console.error('[IAP] Purchase error listener triggered:', error);
+      
+      // If we have a pending purchase promise, reject it
+      if (this.pendingPurchaseRejecter) {
+        // Check if it's a user cancellation
+        const errorCode = String(error.code || '');
+        const isUserCancelled = errorCode === 'user-cancelled' || errorCode === 'E_USER_CANCELLED' || errorCode.includes('cancelled');
+        
+        if (isUserCancelled) {
+          // For cancellation, resolve with a failed result instead of rejecting
+          if (this.pendingPurchaseResolver) {
+            this.pendingPurchaseResolver({
+              success: false,
+              error: 'USER_CANCELLED',
+            });
+          }
+        } else {
+          this.pendingPurchaseRejecter(new Error(error.message || 'Purchase failed'));
+        }
+        this.pendingPurchaseResolver = null;
+        this.pendingPurchaseRejecter = null;
+      }
     });
   }
 
@@ -204,7 +242,7 @@ class IAPService {
       ],
       // Android uses single subscription product with multiple base plans
       android: [
-        getProductId('PREMIUM_MONTHLY', 'android'), // Both return 'finly_premium'
+        getProductId('PREMIUM_MONTHLY', 'android'), // Returns 'finly_premium'
       ],
     }) || [];
     
@@ -219,14 +257,53 @@ class IAPService {
         return [];
       }
       
-      return products.map((p: any) => ({
-        productId: p.productId,
-        title: p.title || 'Finly Premium',
-        description: p.description || 'Unlock all premium features',
-        price: p.price || '$9.99',
-        currency: p.currency || 'USD',
-        localizedPrice: p.localizedPrice || p.price || '$9.99',
-      }));
+      const result: ProductInfo[] = [];
+      
+      for (const p of products) {
+        const pAny = p as any;
+        const baseProductId = pAny.productId || pAny.id || 'unknown';
+        
+        // Check if this is an Android product with subscription offer details
+        const subscriptionOffers = pAny.subscriptionOfferDetailsAndroid || pAny.subscriptionOfferDetails;
+        
+        if (subscriptionOffers && subscriptionOffers.length > 0) {
+          // Android: Extract each base plan as a separate product
+          for (const offer of subscriptionOffers) {
+            const basePlanId = offer.basePlanId || '';
+            const pricingPhase = offer.pricingPhases?.pricingPhaseList?.[0];
+            
+            if (pricingPhase) {
+              const isMonthly = basePlanId.includes('monthly') || offer.offerTags?.includes('monthly-premium');
+              const isYearly = basePlanId.includes('yearly') || offer.offerTags?.includes('yearly-premium');
+              
+              result.push({
+                productId: baseProductId,
+                title: isMonthly ? 'Finly Premium Monthly' : isYearly ? 'Finly Premium Yearly' : pAny.displayName || 'Finly Premium',
+                description: pAny.description || 'Unlock all premium features',
+                price: pricingPhase.formattedPrice || `${pricingPhase.priceCurrencyCode} ${parseInt(pricingPhase.priceAmountMicros) / 1000000}`,
+                currency: pricingPhase.priceCurrencyCode || 'USD',
+                localizedPrice: pricingPhase.formattedPrice || `${pricingPhase.priceCurrencyCode} ${parseInt(pricingPhase.priceAmountMicros) / 1000000}`,
+                // Android-specific: needed for subscription purchases
+                offerToken: offer.offerToken,
+                basePlanId: basePlanId,
+              });
+            }
+          }
+        } else {
+          // iOS or simple structure: use direct properties
+          result.push({
+            productId: baseProductId,
+            title: pAny.title || pAny.displayName || 'Finly Premium',
+            description: pAny.description || 'Unlock all premium features',
+            price: pAny.displayPrice || pAny.localizedPrice || pAny.price || '$9.99',
+            currency: pAny.currency || 'USD',
+            localizedPrice: pAny.displayPrice || pAny.localizedPrice || pAny.price || '$9.99',
+          });
+        }
+      }
+      
+      logger.debug('[IAP] Mapped products:', result);
+      return result;
     } catch (error) {
       console.error('[IAP] Failed to get products:', error);
       throw new Error('Failed to load subscription options');
@@ -253,9 +330,43 @@ class IAPService {
 
     try {
       // Ensure products are loaded/fetched first
-      await this.getProducts();
+      const products = await this.getProducts();
 
       logger.debug(`[IAP] Requesting purchase for sku: ${productId} on ${Platform.OS}`);
+      
+      // For Android subscriptions with base plans, we MUST have the offerToken
+      if (Platform.OS === 'android' && !offerToken) {
+        // Try to find the offerToken from the products
+        const matchingProduct = products.find(p => p.productId === productId && p.offerToken);
+        if (matchingProduct?.offerToken) {
+          offerToken = matchingProduct.offerToken;
+          logger.debug(`[IAP] Found offerToken for ${productId}: ${offerToken?.substring(0, 20)}...`);
+        } else {
+          throw new Error('offerToken required for Android subscription purchase');
+        }
+      }
+
+      logger.debug(`[IAP] Using offerToken: ${offerToken ? offerToken.substring(0, 20) + '...' : 'none'}`);
+      
+      // On Android, requestPurchase may return null while the actual purchase data
+      // comes through the listener. Set up the promise BEFORE calling requestPurchase.
+      let purchasePromise: Promise<PurchaseResult> | null = null;
+      
+      if (Platform.OS === 'android') {
+        purchasePromise = new Promise<PurchaseResult>((resolve, reject) => {
+          this.pendingPurchaseResolver = resolve;
+          this.pendingPurchaseRejecter = reject;
+          
+          // Timeout after 60 seconds
+          setTimeout(() => {
+            if (this.pendingPurchaseResolver) {
+              this.pendingPurchaseResolver = null;
+              this.pendingPurchaseRejecter = null;
+              reject(new Error('Purchase timeout - no response received'));
+            }
+          }, 60000);
+        });
+      }
       
       // v14 uses platform-specific parameters wrapped in a request object
       const purchase = await requestPurchase({
@@ -268,10 +379,13 @@ class IAPService {
             }
           : {
               android: {
+                // skus is required by the type, but subscriptionOffers takes precedence
                 skus: [productId],
-                ...(offerToken && {
-                  subscriptionOffers: [{ sku: productId, offerToken }],
-                }),
+                // For subscriptions with base plans, use subscriptionOffers
+                subscriptionOffers: [{ 
+                  sku: productId, 
+                  offerToken: offerToken! 
+                }],
               },
             },
         type: 'subs',
@@ -280,12 +394,23 @@ class IAPService {
       // NOTE: We do NOT acknowledge/finish here anymore.
       // We wait for backend validation first.
 
-      if (!purchase) {
-        throw new Error('Purchase returned null');
+      // Handle the purchase result
+      let purchaseData: any = null;
+      
+      if (purchase) {
+        // Purchase data returned directly - clear the pending promise
+        if (this.pendingPurchaseResolver) {
+          this.pendingPurchaseResolver = null;
+          this.pendingPurchaseRejecter = null;
+        }
+        purchaseData = Array.isArray(purchase) ? purchase[0] : purchase;
       }
-
-      // Handle array response (can happen in some cases)
-      const purchaseData = Array.isArray(purchase) ? purchase[0] : purchase;
+      
+      // On Android, if no data returned directly, wait for the listener
+      if (!purchaseData && Platform.OS === 'android' && purchasePromise) {
+        logger.debug('[IAP] No direct purchase data, waiting for listener...');
+        return await purchasePromise;
+      }
 
       if (!purchaseData) {
         throw new Error('No purchase data returned');
@@ -294,7 +419,10 @@ class IAPService {
       return {
         success: true,
         transactionId: purchaseData.transactionId || '',
-        receipt: (purchaseData as any).transactionReceipt || purchaseData.transactionId || '',
+        // For Android, use purchaseToken (required for Google Play API); for iOS, use transactionReceipt
+        receipt: Platform.OS === 'android'
+          ? (purchaseData as any).purchaseToken || ''
+          : ((purchaseData as any).transactionReceipt || purchaseData.transactionId || ''),
         productId: purchaseData.productId,
         platform: Platform.OS as 'ios' | 'android',
         purchaseToken: (purchaseData as any).purchaseToken,
@@ -303,8 +431,16 @@ class IAPService {
     } catch (error: any) {
       console.error('[IAP] Purchase failed:', error);
       
-      // Handle user cancellation gracefully
-      if (error.code === 'E_USER_CANCELLED') {
+      // Handle user cancellation gracefully (different error codes for different platforms/versions)
+      const isUserCancelled = 
+        error.code === 'E_USER_CANCELLED' || 
+        error.code === 'user-cancelled' ||
+        error.code === 'USER_CANCELLED' ||
+        error.message?.toLowerCase().includes('cancelled') ||
+        error.message?.toLowerCase().includes('canceled');
+        
+      if (isUserCancelled) {
+        logger.debug('[IAP] Purchase was cancelled by user');
         return {
           success: false,
           error: 'USER_CANCELLED',
@@ -312,7 +448,7 @@ class IAPService {
       }
 
       // Handle already owned
-      if (error.code === 'E_ALREADY_OWNED') {
+      if (error.code === 'E_ALREADY_OWNED' || error.code === 'already-owned') {
         return {
           success: false,
           error: 'ALREADY_OWNED',
@@ -370,7 +506,9 @@ class IAPService {
       return purchases.map(p => ({
         success: true,
         transactionId: p.transactionId || undefined,
-        receipt: (p as any).transactionReceipt || p.transactionId,
+        receipt: Platform.OS === 'android' 
+          ? (p as any).purchaseToken 
+          : ((p as any).transactionReceipt || p.transactionId),
         productId: p.productId,
         platform: Platform.OS as 'ios' | 'android',
       }));

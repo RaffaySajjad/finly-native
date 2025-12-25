@@ -12,7 +12,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StatusBar,
-  Alert,
+  Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -27,6 +28,7 @@ import TrialBadge from '../components/TrialBadge';
 import { PaymentIssueModal } from '../components/PaymentIssueModal';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { usePricing } from '../contexts/PricingContext';
+import { useAlert } from '../hooks/useAlert';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -44,12 +46,14 @@ const SubscriptionScreen: React.FC = () => {
     startTrial,
     cancel,
     checkStatus,
+    forceRefresh,
     changePlan,
     paymentState,
     gracePeriodEndDate,
     pendingPlanId,
     pendingChangeDate,
     planId,
+    restore,
   } = useSubscription();
 
   const [processing, setProcessing] = useState(false);
@@ -58,6 +62,9 @@ const SubscriptionScreen: React.FC = () => {
 
   // Dynamic pricing from App Store/Google Play
   const pricing = usePricing();
+
+  // Custom alert dialogs
+  const { showSuccess, showError, showWarning, showAlert, AlertComponent } = useAlert();
 
   useEffect(() => {
     // Only check status once on mount, not on every checkStatus change
@@ -88,60 +95,137 @@ const SubscriptionScreen: React.FC = () => {
         ? 'Successfully switched to Yearly plan! Your new billing cycle starts now.'
         : 'Plan change scheduled. You will switch to Monthly plan at the end of your current subscription period.';
 
-      Alert.alert('Plan Updated', message);
+      showSuccess('Plan Updated', message);
     } catch (error) {
       console.error('Plan change error:', error);
-      Alert.alert('Update Failed', 'Failed to change plan. Please try again later.');
+      showError('Update Failed', 'Failed to change plan. Please try again later.');
     } finally {
       setProcessing(false);
     }
   };
+
+  const handleRestore = async () => {
+    setProcessing(true);
+    try {
+      // @ts-ignore - TS doesn't know about the new method yet
+      const result = await restore() as { subscription: any } | undefined;
+      // Only show success if we actually found something
+      if (result?.subscription) {
+        showSuccess('Restored Successfully', 'Your previous subscription has been restored and linked to this account.');
+      } else {
+        showAlert({ title: 'No Subscription Found', message: 'We could not find any active subscriptions to restore.', type: 'info' });
+      }
+    } catch (error: any) {
+      console.error('Restore error:', error);
+      // Don't show error if it's just "No subscription found"
+      if (error === 'No subscription found to restore') {
+        showAlert({ title: 'No Subscription Found', message: 'We could not find any active subscriptions to restore.', type: 'info' });
+      } else {
+        showError('Restore Failed', 'Failed to restore purchases. Please try again later.');
+      }
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+
+
+
+
 
   const handleUpgrade = async () => {
     setProcessing(true);
     try {
       await subscribe(selectedPlan);
-      // Refetch subscription status to ensure UI updates
-      await checkStatus();
-      Alert.alert('Welcome to Finly Pro!', 'You\'ve promised yourself a better financial future. We\'re here to help you build it.');
+      // Force refresh: clear cache and refetch from API
+      await forceRefresh();
+      showSuccess('Welcome to Finly Pro!', "You've promised yourself a better financial future. We're here to help you build it.");
       navigation.goBack();
-    } catch (error) {
-      Alert.alert('Upgrade Issue', 'We couldn\'t process the upgrade right now. Please check your connection and try again.');
+    } catch (error: any) {
+      console.error('Subscription error:', error);
+
+      // Don't show error for user cancellation
+      if (error?.message === 'USER_CANCELLED' || error === 'CANCELLED') {
+        // User cancelled, just silently return
+        setProcessing(false);
+        return;
+      }
+
+      // Even if there's an error, try to force refresh in case RTDN processed it
+      // This handles race conditions where Google webhook processes before our API call returns
+      setTimeout(async () => {
+        try {
+          await forceRefresh();
+        } catch (e) {
+          // Ignore refresh errors
+        }
+      }, 2000);
+
+      showError('Upgrade Issue', "We couldn't process the upgrade right now. Please check your connection and try again.");
     } finally {
       setProcessing(false);
     }
   };
 
-  const handleCancel = async () => {
-    const isTrialUser = isTrial && !isFree;
-    const title = isTrialUser ? 'End Trial' : 'Cancel Subscription';
-    const message = isTrialUser
-      ? 'Are you sure you want to end your trial? You will lose access to Premium features immediately.'
-      : 'Are you sure you want to cancel your subscription? You will keep Premium access until the end of your current billing period.';
-    const confirmText = isTrialUser ? 'Yes, End Trial' : 'Yes, Cancel';
+  const handleManageSubscription = async () => {
+  // Open platform-specific subscription management
+  // Users must cancel through Google Play or App Store
+  // We receive webhooks (RTDN/App Store Server Notifications) when they cancel
 
-    Alert.alert(title, message, [
-      { text: 'No', style: 'cancel' },
-      {
-        text: confirmText,
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await cancel();
-            // Refresh status to show updated state
-            await checkStatus();
-            Alert.alert(
-              isTrialUser ? 'Trial Ended' : 'Subscription Cancelled',
-              isTrialUser
-                ? 'Your trial has been ended. You can start a new subscription anytime.'
-                : 'Your subscription has been cancelled. You will continue to have Premium access until the end of your current billing period.'
-            );
-          } catch (error) {
-            Alert.alert('Error', `Failed to ${isTrialUser ? 'end trial' : 'cancel subscription'}.`);
-          }
+    const packageName = 'com.raffay.finly'; // Android package name
+    const appStoreAppId = 'YOUR_APP_STORE_ID'; // Replace with actual App Store ID when available
+
+    let subscriptionUrl: string;
+
+    if (Platform.OS === 'android') {
+      // Google Play subscription management deep link
+      subscriptionUrl = `https://play.google.com/store/account/subscriptions?sku=finly_premium&package=${packageName}`;
+    } else {
+      // iOS App Store subscription management
+      subscriptionUrl = 'https://apps.apple.com/account/subscriptions';
+    }
+
+    try {
+      const canOpen = await Linking.canOpenURL(subscriptionUrl);
+      if (canOpen) {
+        await Linking.openURL(subscriptionUrl);
+      } else {
+        // Fallback URLs
+        if (Platform.OS === 'android') {
+          await Linking.openURL('https://play.google.com/store/account/subscriptions');
+        } else {
+          await Linking.openURL('https://apps.apple.com/account/subscriptions');
+        }
+      }
+    } catch (error) {
+      showError(
+        'Unable to Open',
+        Platform.OS === 'android'
+          ? 'Please open Google Play Store > Menu > Subscriptions to manage your subscription.'
+          : 'Please go to Settings > Apple ID > Subscriptions to manage your subscription.'
+      );
+    }
+  };
+
+  const handleCancel = () => {
+    const isTrialUser = isTrial && !isFree;
+    const title = isTrialUser ? 'End Trial' : 'Manage Subscription';
+    const message = Platform.OS === 'android'
+      ? 'To cancel your subscription, you\'ll be taken to Google Play where you can manage your subscriptions. Your access will continue until the end of your current billing period.'
+      : 'To cancel your subscription, you\'ll be taken to the App Store where you can manage your subscriptions. Your access will continue until the end of your current billing period.';
+
+    showAlert({
+      title,
+      message,
+      type: 'info',
+      buttons: [
+        { text: 'Not Now', style: 'cancel' },
+        {
+          text: 'Manage Subscription',
+          onPress: handleManageSubscription,
         },
-      },
-    ]);
+      ],
+    });
   };
 
   const premiumFeatures = [
@@ -198,34 +282,60 @@ const SubscriptionScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Current Status */}
+        {/* Premium Member Status - Elegant Design */}
         {isPremium && (
           <View
             style={[
-              styles.statusCard,
-              { backgroundColor: theme.success + '20', borderColor: theme.success },
+              styles.premiumStatusCard,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.warning,
+              },
             ]}
           >
-            <Icon name={isCanceled ? "alert-circle-outline" : "check-circle"} size={32} color={isCanceled ? theme.warning : theme.success} />
-            <Text style={[styles.statusTitle, { color: theme.text }]}>
-              {isCanceled
-                ? (isTrial ? 'Trial Canceled' : 'Premium Canceled')
-                : (isTrial ? 'Free Trial Active' : 'Premium Active')
-              }
-            </Text>
+            {/* Premium Badge Row */}
+            <View style={styles.premiumBadgeRow}>
+              <View style={[styles.premiumIconBadge, { backgroundColor: theme.warning }]}>
+                <Icon name="crown" size={20} color="#1A1A1A" />
+              </View>
+              <View style={styles.premiumTitleContainer}>
+                <Text style={[styles.premiumTitle, { color: theme.text }]}>
+                  {isTrial ? 'Free Trial' : 'Finly Pro'}
+                </Text>
+                <Text style={[styles.premiumSubtitle, { color: theme.warning }]}>
+                  {isCanceled ? 'Canceled' : 'Active Member'}
+                </Text>
+              </View>
+              {isCanceled && (
+                <Icon name="alert-circle-outline" size={24} color={theme.warning} />
+              )}
+            </View>
+
+            {/* Subscription Details */}
             {subscription.endDate && (
-              <>
-                {isTrial && !isCanceled && <TrialBadge endDate={subscription.endDate} size="medium" />}
-                <Text style={[styles.statusSubtitle, { color: theme.textSecondary }]}>
+              <View style={[styles.renewalInfoRow, { backgroundColor: theme.background }]}>
+                <Icon
+                  name={isCanceled ? "calendar-remove" : (isTrial ? "calendar-clock" : "calendar-check")}
+                  size={16}
+                  color={theme.textSecondary}
+                />
+                <Text style={[styles.renewalInfoText, { color: theme.textSecondary }]}>
                   {isCanceled
-                    ? `Expires on ${new Date(subscription.endDate).toLocaleDateString()}`
+                    ? `Access until ${new Date(subscription.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`
                     : (isTrial
-                      ? `Trial ends ${new Date(subscription.endDate).toLocaleDateString()}`
-                      : `Renews ${new Date(subscription.endDate).toLocaleDateString()}`
+                      ? `Trial ends ${new Date(subscription.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                      : `Renews ${new Date(subscription.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`
                     )
                   }
                 </Text>
-              </>
+              </View>
+            )}
+
+            {/* Trial Badge if applicable */}
+            {isTrial && !isCanceled && subscription.endDate && (
+              <View style={styles.trialBadgeContainer}>
+                <TrialBadge endDate={subscription.endDate} size="medium" />
+              </View>
             )}
           </View>
         )}
@@ -405,22 +515,54 @@ const SubscriptionScreen: React.FC = () => {
               {!pendingPlanId && (
                 <View style={[styles.switchPlanContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
                   <Text style={[styles.switchPlanTitle, { color: theme.text }]}>
-                    Your Plan: {currentActivePlan === 'monthly' ? 'Monthly' : 'Yearly'}
+                    Your Plan: {currentActivePlan === 'monthly' ? 'Monthly' : 'Yearly'} 
                   </Text>
 
-                  <TouchableOpacity
-                    style={[styles.switchButton, { borderColor: theme.primary }]}
-                    onPress={() => handlePlanChange(currentActivePlan === 'monthly' ? 'yearly' : 'monthly')}
-                    disabled={processing}
-                  >
-                    {processing ? (
-                      <ActivityIndicator color={theme.primary} size="small" />
-                    ) : (
-                      <Text style={[styles.switchButtonText, { color: theme.primary }]}>
-                        Switch to {currentActivePlan === 'monthly' ? 'Yearly' : 'Monthly'}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
+                  {/* Enticing Yearly Upgrade Prompt */}
+                  {currentActivePlan === 'monthly' ? (
+                    <TouchableOpacity
+                      style={[
+                        styles.switchButton,
+                        {
+                          backgroundColor: theme.primary,
+                          borderColor: theme.primary,
+                          paddingVertical: spacing.md,
+                        }
+                      ]}
+                      onPress={() => handlePlanChange('yearly')}
+                      disabled={processing}
+                    >
+                      {processing ? (
+                        <ActivityIndicator color="#FFFFFF" size="small" />
+                      ) : (
+                        <View style={{ alignItems: 'center' }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                            <Icon name="star" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 16 }}>
+                              Upgrade to Yearly
+                            </Text>
+                          </View>
+                          <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>
+                            Save {pricing.savings.percent}% — {pricing.yearly.monthlyEquivalent}/month
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ) : (
+                      <TouchableOpacity
+                        style={[styles.switchButton, { borderColor: theme.textSecondary }]}
+                        onPress={() => handlePlanChange('monthly')}
+                        disabled={processing}
+                      >
+                        {processing ? (
+                          <ActivityIndicator color={theme.textSecondary} size="small" />
+                        ) : (
+                          <Text style={[styles.switchButtonText, { color: theme.textSecondary }]}>
+                            Switch to Monthly
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                  )}
                 </View>
               )}
 
@@ -437,36 +579,29 @@ const SubscriptionScreen: React.FC = () => {
               <TouchableOpacity
                 style={[
                   styles.cancelButton,
-                  { backgroundColor: theme.expense + '20', borderColor: theme.expense },
+                  { backgroundColor: theme.textSecondary + '15', borderColor: theme.textSecondary + '40' },
                 ]}
                 onPress={handleCancel}
               >
-                <Text style={[styles.cancelButtonText, { color: theme.expense }]}>
-                  Cancel Subscription
+                <Icon name="cog-outline" size={18} color={theme.textSecondary} style={{ marginRight: spacing.xs }} />
+                <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                  Manage Subscription
                 </Text>
               </TouchableOpacity>
             </View>
           )}
-
-          {/* Debug: Downgrade Option (Only in Dev) */}
-          {__DEV__ && (isPremium || isTrial) && (
-            <TouchableOpacity
-              style={{ marginTop: 20, alignItems: 'center' }}
-              onPress={async () => {
-                await cancel();
-                Alert.alert('Debug', 'Downgraded to Free Tier');
-                navigation.goBack();
-              }}
-            >
-              <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
-                [Debug] Force Downgrade to Free
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
+        {/* Restore Purchases Button - Always visible at bottom */}
+        <TouchableOpacity
+          style={{ alignSelf: 'center', padding: spacing.sm }}
+          onPress={handleRestore}
+          disabled={processing}
+        >
+          <Text style={{ color: theme.textSecondary, fontSize: 14, textDecorationLine: 'underline' }}>
+            Restore Purchases
+          </Text>
+        </TouchableOpacity>
 
-
-        <View style={{ height: spacing.xl }} />
         <View style={{ height: spacing.xl }} />
       </ScrollView>
 
@@ -476,6 +611,9 @@ const SubscriptionScreen: React.FC = () => {
         paymentState={paymentState as 'GRACE_PERIOD' | 'ON_HOLD'}
         gracePeriodEndDate={gracePeriodEndDate}
       />
+
+      {/* Custom Alert Dialog */}
+      {AlertComponent}
     </SafeAreaView>
   );
 };
@@ -510,6 +648,54 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     marginBottom: spacing.lg,
+  },
+  // Premium Status Card Styles
+  premiumStatusCard: {
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1.5,
+    marginBottom: spacing.lg,
+  },
+  premiumBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  premiumIconBadge: {
+    padding: 8,
+    borderRadius: borderRadius.md,
+    marginRight: spacing.sm,
+  },
+  premiumTitleContainer: {
+    flex: 1,
+  },
+  premiumTitle: {
+    ...typography.titleMedium,
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  premiumSubtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  renewalInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
+    alignSelf: 'flex-start',
+  },
+  renewalInfoText: {
+    ...typography.bodySmall,
+    marginLeft: spacing.sm,
+  },
+  trialBadgeContainer: {
+    marginTop: spacing.sm,
+    alignSelf: 'flex-start',
   },
   statusTitle: {
     ...typography.titleMedium,
@@ -600,10 +786,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   cancelButton: {
+    flexDirection: 'row',
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
-    borderWidth: 2,
+    borderWidth: 1,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelButtonText: {
     ...typography.labelLarge,

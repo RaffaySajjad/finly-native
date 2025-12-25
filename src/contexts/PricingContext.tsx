@@ -44,6 +44,8 @@ export interface DynamicPricing {
 
 interface PricingContextValue extends DynamicPricing {
   refreshPricing: () => Promise<void>;
+  debugMessage: string;
+  rawProducts: string;
 }
 
 /**
@@ -84,24 +86,54 @@ interface PricingProviderProps {
  * Parse price string to number
  * Handles various currency formats
  */
-const parsePriceToNumber = (priceString: string): number => {
-  // Remove currency symbols and spaces, keep numbers and decimal
-  const cleaned = priceString.replace(/[^0-9.,]/g, '').replace(',', '.');
+const parsePriceToNumber = (priceInput: string | number | undefined | null): number => {
+  if (priceInput === undefined || priceInput === null) return 0;
+  // If it's already a number, return it directly
+  if (typeof priceInput === 'number') {
+    return priceInput;
+  }
+  // Remove currency symbols and spaces, keep numbers and decimal point
+  // Remove commas (thousands separator) entirely, keep only digits and period
+  const cleaned = String(priceInput)
+    .replace(/[^0-9.,]/g, '')  // Keep only digits, comma, period
+    .replace(/,/g, '');         // Remove commas (thousands separator)
   return parseFloat(cleaned) || 0;
+};
+
+/**
+ * Format number with thousands separators
+ * Shows decimals only if they're not .00
+ */
+const formatNumber = (num: number): string => {
+  // Check if the number has meaningful decimals
+  const hasDecimals = num % 1 !== 0;
+
+  if (hasDecimals) {
+    // Format with 2 decimal places and thousands separators
+    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } else {
+    // No decimals, just format with thousands separators
+    return Math.round(num).toLocaleString('en-US');
+  }
 };
 
 /**
  * Calculate monthly equivalent for yearly price
  */
-const calculateMonthlyEquivalent = (yearlyPrice: string): string => {
+const calculateMonthlyEquivalent = (yearlyPrice: string | number | undefined | null): string => {
+  if (!yearlyPrice) return 'Rs 0';
   const yearlyValue = parsePriceToNumber(yearlyPrice);
   const monthlyValue = yearlyValue / 12;
   
-  // Extract currency symbol from original price
-  const currencyMatch = yearlyPrice.match(/^[^0-9]*/);
-  const currency = currencyMatch ? currencyMatch[0].trim() : '$';
+  // Extract currency symbol from original price if it's a string
+  if (typeof yearlyPrice === 'string') {
+    const currencyMatch = yearlyPrice.match(/^[^0-9]*/);
+    const currency = currencyMatch ? currencyMatch[0].trim() : 'Rs';
+    return `${currency} ${formatNumber(monthlyValue)}`;
+  }
   
-  return `${currency}${monthlyValue.toFixed(2)}`;
+  // If it was a number, just format with Rs
+  return `Rs ${formatNumber(monthlyValue)}`;
 };
 
 /**
@@ -116,16 +148,38 @@ const calculateSavingsPercent = (monthlyPrice: number, yearlyPrice: number): num
 
 export const PricingProvider: React.FC<PricingProviderProps> = ({ children }) => {
   const [pricing, setPricing] = useState<DynamicPricing>(getDefaultPricing());
+  const [debugMessage, setDebugMessage] = useState<string>('Initializing...');
+  const [rawProducts, setRawProducts] = useState<string>('Not fetched yet');
 
   const fetchPricing = useCallback(async () => {
+    setDebugMessage('Starting fetch...');
     setPricing(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
       // Fetch products from IAP
+      setDebugMessage('Calling iapService.getProducts()...');
       const products = await iapService.getProducts();
       
+      // Store raw response for debugging - show structure
+      try {
+        if (products && products.length > 0) {
+          const p = products[0];
+          // Show all keys and their values
+          const keys = Object.keys(p || {});
+          const vals = keys.map(k => `${k}=${JSON.stringify((p as any)[k]).substring(0, 20)}`);
+          setRawProducts(`Keys: ${keys.join(',')} | productId=${p?.productId}, price=${p?.localizedPrice}`);
+        } else {
+          setRawProducts('No products array');
+        }
+      } catch (e: any) {
+        setRawProducts(`Serialize error: ${e.message}`);
+      }
+
+      setDebugMessage(`Got ${products?.length || 0} products`);
+
       if (!products || products.length === 0) {
         console.warn('[Pricing] No products returned, using defaults');
+        setDebugMessage('No products returned!');
         setPricing(prev => ({ 
           ...prev, 
           isLoading: false, 
@@ -141,9 +195,11 @@ export const PricingProvider: React.FC<PricingProviderProps> = ({ children }) =>
       let yearlyProduct: ProductInfo | undefined;
 
       // Try to find products by ID or title
+      setDebugMessage(`Processing ${products.length} products...`);
       for (const product of products) {
-        const lowerTitle = product.title.toLowerCase();
-        const lowerProductId = product.productId.toLowerCase();
+        // Safe access with fallbacks
+        const lowerTitle = (product?.title || '').toLowerCase();
+        const lowerProductId = (product?.productId || '').toLowerCase();
         
         if (lowerProductId.includes('monthly') || lowerTitle.includes('monthly')) {
           monthlyProduct = product;
@@ -156,7 +212,8 @@ export const PricingProvider: React.FC<PricingProviderProps> = ({ children }) =>
       // For now, use the product info and calculate based on config ratios
       if (products.length === 1 && !monthlyProduct && !yearlyProduct) {
         const product = products[0];
-        const basePrice = parsePriceToNumber(product.localizedPrice);
+        const localizedPrice = product?.localizedPrice || '$9.99';
+        const basePrice = parsePriceToNumber(localizedPrice);
         
         // Use config ratios to estimate prices
         // Monthly price is the base, yearly is discounted
@@ -167,15 +224,18 @@ export const PricingProvider: React.FC<PricingProviderProps> = ({ children }) =>
         const estimatedYearlyMonthly = basePrice * yearlySavingsMultiplier;
         const estimatedYearlyTotal = estimatedYearlyMonthly * 12;
         
-        // Extract currency
-        const currencyMatch = product.localizedPrice.match(/^[^0-9]*/);
-        const currency = currencyMatch ? currencyMatch[0].trim() : '$';
+        // Extract currency safely - convert to string first in case it's a number
+        const priceStr = String(localizedPrice);
+        const currencyMatch = priceStr.match(/^[^0-9]*/);
+        const currency = currencyMatch ? currencyMatch[0].trim() : 'PKR';
         
         yearlyProduct = {
-          ...product,
-          productId: product.productId,
-          localizedPrice: `${currency}${estimatedYearlyTotal.toFixed(2)}`,
+          productId: product?.productId || 'finly_premium',
+          title: product?.title || 'Finly Premium Yearly',
+          description: product?.description || '',
           price: `${currency}${estimatedYearlyTotal.toFixed(2)}`,
+          currency: product?.currency || 'USD',
+          localizedPrice: `${currency}${estimatedYearlyTotal.toFixed(2)}`,
         };
       }
 
@@ -189,12 +249,36 @@ export const PricingProvider: React.FC<PricingProviderProps> = ({ children }) =>
         yearlyProduct = products[products.length - 1];
       }
 
+      // If still no yearly, derive from monthly
+      if (!yearlyProduct && monthlyProduct) {
+        const localizedPrice = monthlyProduct?.localizedPrice || '$9.99';
+        const basePrice = parsePriceToNumber(localizedPrice);
+        const yearlySavingsMultiplier = 1 - (PRICING_CONFIG.SAVINGS.percent / 100);
+        const estimatedYearlyMonthly = basePrice * yearlySavingsMultiplier;
+        const estimatedYearlyTotal = estimatedYearlyMonthly * 12;
+        // Extract currency safely - convert to string first in case it's a number
+        const priceStr2 = String(localizedPrice);
+        const currencyMatch = priceStr2.match(/^[^0-9]*/);
+        const currency = currencyMatch ? currencyMatch[0].trim() : 'PKR';
+
+        yearlyProduct = {
+          productId: monthlyProduct?.productId || 'finly_premium',
+          title: 'Finly Premium Yearly',
+          description: '',
+          price: `${currency}${estimatedYearlyTotal.toFixed(2)}`,
+          currency: monthlyProduct?.currency || 'USD',
+          localizedPrice: `${currency}${estimatedYearlyTotal.toFixed(2)}`,
+        };
+      }
+
       const monthlyPrice = monthlyProduct?.localizedPrice || PRICING_CONFIG.MONTHLY.priceFormatted;
       const yearlyPrice = yearlyProduct?.localizedPrice || PRICING_CONFIG.YEARLY.priceFormatted;
       const monthlyValue = parsePriceToNumber(monthlyPrice);
       const yearlyValue = parsePriceToNumber(yearlyPrice);
       
       const savingsPercent = calculateSavingsPercent(monthlyValue, yearlyValue);
+
+      setDebugMessage(`✅ Loaded: Monthly ${monthlyPrice}, Yearly ${yearlyPrice}`);
 
       setPricing({
         monthly: {
@@ -220,10 +304,9 @@ export const PricingProvider: React.FC<PricingProviderProps> = ({ children }) =>
         isLoaded: true,
         error: null,
       });
-
-      console.log('[Pricing] Fetched dynamic pricing:', { monthlyPrice, yearlyPrice, savingsPercent });
     } catch (error: any) {
       console.error('[Pricing] Failed to fetch pricing:', error);
+      setDebugMessage(`Error: ${error.message}`);
       setPricing(prev => ({ 
         ...prev, 
         isLoading: false, 
@@ -241,6 +324,8 @@ export const PricingProvider: React.FC<PricingProviderProps> = ({ children }) =>
   const value: PricingContextValue = {
     ...pricing,
     refreshPricing: fetchPricing,
+    debugMessage,
+    rawProducts,
   };
 
   return (
@@ -264,6 +349,8 @@ export const usePricing = (): PricingContextValue => {
     return {
       ...defaults,
       refreshPricing: async () => {},
+      debugMessage: 'No provider',
+      rawProducts: 'No provider',
     };
   }
   

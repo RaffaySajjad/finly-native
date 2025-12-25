@@ -15,6 +15,7 @@ import {
   incrementInsights,
   incrementVoiceEntries,
   updateCategoryCount,
+  clearSubscriptionCache,
 } from '../store/slices/subscriptionSlice';
 
 /**
@@ -63,6 +64,12 @@ export const useSubscription = () => {
 
   const cancel = useCallback(async () => {
     await dispatch(cancelSubscription()).unwrap();
+  }, [dispatch]);
+
+  // Force refresh: clears cache and fetches fresh from API
+  const forceRefresh = useCallback(async () => {
+    dispatch(clearSubscriptionCache());
+    await dispatch(checkSubscriptionStatus()).unwrap();
   }, [dispatch]);
 
   /**
@@ -158,6 +165,7 @@ export const useSubscription = () => {
 
     // Actions (memoized to prevent re-renders)
     checkStatus,
+    forceRefresh,
     subscribe,
     startTrial,
     cancel,
@@ -165,6 +173,11 @@ export const useSubscription = () => {
       // @ts-ignore - TS doesn't know about the new thunk yet
       const { changeSubscriptionPlan } = require('../store/slices/subscriptionSlice');
       await dispatch(changeSubscriptionPlan(newPlan)).unwrap();
+    }, [dispatch]),
+    restore: useCallback(async () => {
+      // @ts-ignore - TS doesn't know about the new thunk yet
+      const { restoreSubscription } = require('../store/slices/subscriptionSlice');
+      return await dispatch(restoreSubscription()).unwrap();
     }, [dispatch]),
 
     // Payment state helpers

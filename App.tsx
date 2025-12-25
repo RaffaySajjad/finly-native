@@ -13,6 +13,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { PreferencesProvider } from './src/contexts/PreferencesContext';
 import { CurrencyProvider } from './src/contexts/CurrencyContext';
+import { PricingProvider } from './src/contexts/PricingContext';
 import { BottomSheetProvider } from './src/contexts/BottomSheetContext';
 import { AppFlowProvider, useAppFlow } from './src/contexts/AppFlowContext';
 import { store, useAppDispatch, useAppSelector } from './src/store';
@@ -327,14 +328,16 @@ export default function App(): React.ReactElement {
         <PreferencesProvider>
           <ErrorBoundary>
             <CurrencyProvider>
-              <BottomSheetProvider>
-                <AppFlowProvider>
-                  <GestureHandlerRootView style={{ flex: 1 }}>
-                    <AppContent />
-                    <StatusBar style="auto" />
-                  </GestureHandlerRootView>
-                </AppFlowProvider>
-              </BottomSheetProvider>
+              <PricingProvider>
+                <BottomSheetProvider>
+                  <AppFlowProvider>
+                    <GestureHandlerRootView style={{ flex: 1 }}>
+                      <AppContent />
+                      <StatusBar style="auto" />
+                    </GestureHandlerRootView>
+                  </AppFlowProvider>
+                </BottomSheetProvider>
+              </PricingProvider>
             </CurrencyProvider>
           </ErrorBoundary>
         </PreferencesProvider>

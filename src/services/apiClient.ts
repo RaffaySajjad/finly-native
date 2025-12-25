@@ -486,6 +486,10 @@ async function invalidateRelatedCaches(url: string): Promise<void> {
     // Invalidate based on endpoint patterns
     if (url.includes('/auth/preferences')) {
       await apiCacheService.invalidate('/auth/preferences');
+    } else if (url.includes('/subscriptions')) {
+      // Subscription purchases/changes should invalidate status cache
+      await apiCacheService.invalidate('/subscriptions/status');
+      await apiCacheService.invalidate('/subscriptions');
     } else if (url.includes('/categories')) {
       await apiCacheService.invalidate('/categories');
     } else if (url.includes('/expenses')) {

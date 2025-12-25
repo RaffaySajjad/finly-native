@@ -485,9 +485,9 @@ const ProfileScreen: React.FC = () => {
             subtitle={
               isPremium
                 ? subscription.trialEndDate
-                  ? `Trial ends ${new Date(subscription.trialEndDate).toLocaleDateString()}`
+                  ? `Trial ends ${new Date(subscription.trialEndDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`
                   : subscription.endDate
-                    ? `Renews ${new Date(subscription.endDate).toLocaleDateString()}`
+                    ? `Renews ${new Date(subscription.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`
                     : 'Active'
                 : 'Upgrade to unlock Premium features'
             }

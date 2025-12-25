@@ -177,20 +177,30 @@ class AuthService {
       console.error('[AuthService] Logout API error:', error);
       // Continue with local cleanup even if API call fails
     } finally {
-      // Always clear local tokens, user data, and API cache
+      // Always clear tokens
       await tokenManager.clearTokens();
+      
+      // Clear API cache
       await apiCacheService.clear();
       
-      // Clear exchange rate cache to ensure fresh rates on next login
-      // This fixes the bug where currency symbol is correct but value shows in USD
-      const allKeys = await AsyncStorage.getAllKeys();
-      const exchangeRateCacheKeys = allKeys.filter(key => key.startsWith('@finly_exchange_rate_cache'));
-      if (exchangeRateCacheKeys.length > 0) {
-        await AsyncStorage.multiRemove(exchangeRateCacheKeys);
-        logger.info('[AuthService] Cleared exchange rate cache on logout');
+      // Clear ALL user-specific data from AsyncStorage
+      // Only preserve device-specific settings (theme)
+      try {
+        const allKeys = await AsyncStorage.getAllKeys();
+        const keysToRemove = allKeys.filter(key => {
+          // Keep theme (device preference, not user-specific)
+          if (key === '@finly_theme_mode') return false;
+          // Remove all other @finly_ keys (user data)
+          return key.startsWith('@finly_');
+        });
+        
+        if (keysToRemove.length > 0) {
+          await AsyncStorage.multiRemove(keysToRemove);
+          logger.info(`[AuthService] Cleared ${keysToRemove.length} user data keys on logout`);
+        }
+      } catch (clearError) {
+        logger.error('[AuthService] Error clearing user data on logout:', clearError);
       }
-      
-      logger.info('[AuthService] Cleared API cache on logout');
     }
   }
 
@@ -212,11 +222,21 @@ class AuthService {
 
       logger.debug('[AuthService] Account deleted successfully');
 
-      // Clear local data after successful deletion
+      // Clear ALL local data after successful deletion
       await tokenManager.clearTokens();
-      await AsyncStorage.removeItem(STORAGE_KEYS.USER_DATA);
-      await AsyncStorage.removeItem('@finly_onboarding_completed');
-      await AsyncStorage.removeItem('@finly_income_setup_completed');
+      await apiCacheService.clear();
+      
+      // Clear all user-specific data (same as logout)
+      const allKeys = await AsyncStorage.getAllKeys();
+      const keysToRemove = allKeys.filter(key => {
+        if (key === '@finly_theme_mode') return false;
+        return key.startsWith('@finly_');
+      });
+      
+      if (keysToRemove.length > 0) {
+        await AsyncStorage.multiRemove(keysToRemove);
+        logger.info(`[AuthService] Cleared ${keysToRemove.length} user data keys on account deletion`);
+      }
     } catch (error: any) {
       console.error('[AuthService] Delete account error:', error);
       throw this.handleError(error);

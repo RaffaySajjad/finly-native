@@ -226,6 +226,11 @@ export const subscribeToPremium = createAsyncThunk(
         return { subscription, usageLimits };
       }
     } catch (error: any) {
+      // Check if this was a user cancellation - don't show as error
+      if (error.message === 'USER_CANCELLED' || error.isCancellation) {
+        console.log('[SubscriptionSlice] Purchase cancelled by user');
+        return rejectWithValue('CANCELLED'); // Special value to indicate cancellation
+      }
       console.error('[SubscriptionSlice] Purchase failed:', error);
       return rejectWithValue(error.message || 'Subscription failed');
     }
@@ -280,6 +285,42 @@ export const startFreeTrial = createAsyncThunk(
     } catch (error: any) {
       console.error('[SubscriptionSlice] Trial failed:', error);
       return rejectWithValue(error.message || 'Trial start failed');
+    }
+  }
+);
+
+/**
+ * Async thunk to restore subscription
+ * Checks for past purchases and reactivates subscription if found
+ */
+export const restoreSubscription = createAsyncThunk(
+  'subscription/restore',
+  async (_, { rejectWithValue }) => {
+    try {
+      const result = await subscriptionService.restorePurchases();
+      
+      if (result.success && result.subscription) {
+        const subscription = result.subscription;
+        
+        // Use premium limits if restored subscription is premium
+        const usageLimits: UsageLimits = {
+          receiptScans: { used: 0, limit: Infinity, resetDate: new Date().toISOString() },
+          insights: { used: 0, limit: Infinity, resetDate: new Date().toISOString() },
+          voiceEntries: { used: 0, limit: Infinity, resetDate: new Date().toISOString() },
+          categories: { used: 0, limit: Infinity },
+        };
+
+        // Cache locally
+        await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(subscription));
+        await AsyncStorage.setItem(USAGE_LIMITS_KEY, JSON.stringify(usageLimits));
+
+        return { subscription, usageLimits };
+      }
+      
+      return rejectWithValue('No subscription found to restore');
+    } catch (error: any) {
+      console.error('[SubscriptionSlice] Restore failed:', error);
+      return rejectWithValue(error.message || 'Restore failed');
     }
   }
 );
@@ -433,6 +474,14 @@ const subscriptionSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+    // Clear subscription cache to force fresh fetch from API
+    clearSubscriptionCache: (state) => {
+      // Reset to loading state, forcing a fresh API fetch
+      state.isLoading = true;
+      // Remove cached data from AsyncStorage
+      AsyncStorage.removeItem(SUBSCRIPTION_KEY);
+      AsyncStorage.removeItem(USAGE_LIMITS_KEY);
+    },
   },
   extraReducers: (builder) => {
     // Check subscription status
@@ -475,7 +524,10 @@ const subscriptionSlice = createSlice({
       })
       .addCase(subscribeToPremium.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string;
+        // Don't show error for user cancellation
+        if (action.payload !== 'CANCELLED') {
+          state.error = action.payload as string;
+        }
       });
 
     // Start free trial
@@ -490,6 +542,30 @@ const subscriptionSlice = createSlice({
         state.usageLimits = action.payload.usageLimits;
       })
       .addCase(startFreeTrial.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      });
+
+    // Restore subscription
+    builder
+      .addCase(restoreSubscription.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(restoreSubscription.fulfilled, (state, action) => {
+        state.isLoading = false;
+        const subscription = action.payload.subscription;
+        
+        const normalizedSubscription = {
+          ...subscription,
+          tier: (subscription.tier as string).toUpperCase() as SubscriptionTier,
+          isActive: subscription.isActive !== undefined ? subscription.isActive : true,
+        };
+        
+        state.subscription = normalizedSubscription;
+        state.usageLimits = action.payload.usageLimits;
+      })
+      .addCase(restoreSubscription.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
       });
@@ -517,6 +593,6 @@ const subscriptionSlice = createSlice({
   },
 });
 
-export const { incrementReceiptScans, incrementInsights, incrementVoiceEntries, updateCategoryCount, clearError } = subscriptionSlice.actions;
+export const { incrementReceiptScans, incrementInsights, incrementVoiceEntries, updateCategoryCount, clearError, clearSubscriptionCache } = subscriptionSlice.actions;
 export default subscriptionSlice.reducer;
 

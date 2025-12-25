@@ -14,6 +14,7 @@ import {
   Dimensions,
   Animated,
   StatusBar,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
@@ -111,6 +112,7 @@ const OnboardingScreen: React.FC = () => {
   const [currency, setCurrency] = useState('USD');
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [loadingCurrencies, setLoadingCurrencies] = useState(false);
+  const [currencySearch, setCurrencySearch] = useState('');
   const { setCurrency: setGlobalCurrency } = useCurrency();
 
   // Check if user already has transactions on mount
@@ -256,6 +258,16 @@ const OnboardingScreen: React.FC = () => {
       extrapolate: 'clamp',
     });
 
+    // Filter currencies based on search query
+    const filteredCurrencies = currencies.filter((curr) => {
+      const searchLower = currencySearch.toLowerCase().trim();
+      if (!searchLower) return true;
+      return (
+        curr.code.toLowerCase().includes(searchLower) ||
+        curr.name.toLowerCase().includes(searchLower)
+      );
+    });
+
     return (
       <Animated.View
         key={'currency-slide'}
@@ -273,17 +285,37 @@ const OnboardingScreen: React.FC = () => {
         <Text style={[styles.title, { color: theme.text }]}>
           Select Currency
         </Text>
-        <Text style={[styles.description, { color: theme.textSecondary, marginBottom: spacing.xl }]}>
+        <Text style={[styles.description, { color: theme.textSecondary, marginBottom: spacing.md }]}>
           Choose your preferred currency for tracking expenses.
         </Text>
+
+        {/* Search Bar */}
+        <View style={[styles.currencySearchContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Icon name="magnify" size={20} color={theme.textSecondary} />
+          <TextInput
+            style={[styles.currencySearchInput, { color: theme.text }]}
+            placeholder="Search currencies..."
+            placeholderTextColor={theme.textSecondary}
+            value={currencySearch}
+            onChangeText={setCurrencySearch}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {currencySearch.length > 0 && (
+            <TouchableOpacity onPress={() => setCurrencySearch('')}>
+              <Icon name="close-circle" size={18} color={theme.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
 
         <View style={styles.currencyListContainer}>
           <ScrollView
             style={styles.currencyList}
             contentContainerStyle={styles.currencyListContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            {currencies.map((curr) => (
+            {filteredCurrencies.map((curr) => (
               <TouchableOpacity
                 key={curr.code}
                 style={[
@@ -309,6 +341,14 @@ const OnboardingScreen: React.FC = () => {
                 )}
               </TouchableOpacity>
             ))}
+            {filteredCurrencies.length === 0 && (
+              <View style={styles.noResultsContainer}>
+                <Icon name="currency-usd-off" size={40} color={theme.textSecondary} />
+                <Text style={[styles.noResultsText, { color: theme.textSecondary }]}>
+                  No currencies found
+                </Text>
+              </View>
+            )}
           </ScrollView>
         </View>
       </Animated.View>
@@ -694,6 +734,32 @@ const styles = StyleSheet.create({
   },
   currencyFlag: {
     fontSize: 24,
+  },
+  currencySearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  currencySearchInput: {
+    flex: 1,
+    ...typography.bodyMedium,
+    paddingVertical: spacing.xs,
+  },
+  noResultsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xl,
+    gap: spacing.sm,
+  },
+  noResultsText: {
+    ...typography.bodyMedium,
+    textAlign: 'center',
   },
 });
 

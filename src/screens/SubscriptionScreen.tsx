@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../hooks/useSubscription';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import { PremiumBadge } from '../components';
@@ -35,6 +35,7 @@ type NavigationProp = StackNavigationProp<RootStackParamList>;
 const SubscriptionScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<any>();
   const {
     subscription,
     isPremium,
@@ -57,7 +58,10 @@ const SubscriptionScreen: React.FC = () => {
   } = useSubscription();
 
   const [processing, setProcessing] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
+  // Default to yearly if navigated from UpgradePrompt, otherwise monthly
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>(
+    route.params?.selectedPlan || 'monthly'
+  );
   const [showPaymentIssue, setShowPaymentIssue] = useState(false);
 
   // Dynamic pricing from App Store/Google Play

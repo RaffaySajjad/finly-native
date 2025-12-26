@@ -92,9 +92,40 @@ export async function transcribeAudio(
     let fileUri = audioUri;
 
     // iOS: Ensure file:// prefix is present
-    // Android: URI should work as-is
     if (Platform.OS === 'ios' && !audioUri.startsWith('file://')) {
       fileUri = `file://${audioUri}`;
+    }
+
+    // Release builds (both iOS and Android): Copy file to cache for reliable access
+    // In release builds, file URIs may have restricted access when used directly in FormData
+    try {
+      const cacheDir = FileSystem.cacheDirectory;
+      if (cacheDir) {
+        const cachedFilePath = `${cacheDir}audio_transcription_${Date.now()}.${ext}`;
+        
+        console.log('[VoiceTranscription] Copying file to cache for reliable access:', {
+          from: audioUri,
+          to: cachedFilePath,
+          platform: Platform.OS
+        });
+        
+        await FileSystem.copyAsync({
+          from: audioUri,
+          to: cachedFilePath
+        });
+        
+        // Verify the copied file exists and has content
+        const copiedFileInfo = await FileSystem.getInfoAsync(cachedFilePath);
+        if (copiedFileInfo.exists && (copiedFileInfo.size ?? 0) > 0) {
+          fileUri = cachedFilePath;
+          console.log('[VoiceTranscription] Successfully copied file to cache');
+        } else {
+          console.warn('[VoiceTranscription] Copied file verification failed, using original URI');
+        }
+      }
+    } catch (copyError) {
+      console.warn('[VoiceTranscription] Failed to copy file to cache, using original URI:', copyError);
+      // Fall back to original URI - it may still work in debug builds
     }
 
     console.log('[VoiceTranscription] Uploading file:', {

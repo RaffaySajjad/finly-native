@@ -1254,11 +1254,12 @@ const styles = StyleSheet.create({
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md + 2, // Extra padding to prevent text cutoff
+    paddingVertical: spacing.xs + 2,
     borderRadius: borderRadius.md,
     borderWidth: 1,
     gap: spacing.xs,
+    minWidth: 80, // Ensure minimum width for "Amount" text
   },
   sortButtonText: {
     ...typography.labelSmall,

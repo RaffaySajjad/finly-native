@@ -39,6 +39,7 @@ export type RootStackParamList = {
   IncomeManagement: undefined;
   CSVImport: { firstTime?: boolean } | undefined;
   ExportTransactions: undefined;
+  NotificationPreferences: undefined;
   AIAssistant:
     | {
         context?: {

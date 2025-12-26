@@ -53,6 +53,7 @@ import AIAssistantScreen from '../screens/AIAssistantScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsOfServiceScreen from '../screens/TermsOfServiceScreen';
 import DevMenuScreen from '../screens/DevMenuScreen';
+import NotificationPreferencesScreen from '../screens/NotificationPreferencesScreen';
 
 import IncomeSetupScreen from '../screens/IncomeSetupScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
@@ -674,6 +675,15 @@ const AppNavigator: React.FC = () => {
                   headerShown: false,
                 }}
               />
+                    <Stack.Screen
+                      name="NotificationPreferences"
+                      component={NotificationPreferencesScreen}
+                      options={{
+                        title: 'Notification Preferences',
+                        presentation: 'modal',
+                        headerShown: false,
+                      }}
+                    />
             </>
           )}
         </Stack.Navigator>

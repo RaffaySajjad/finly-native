@@ -125,10 +125,12 @@ export const useSubscription = () => {
 
   /**
    * Track usage of a feature
+   * Updates local state immediately for optimistic UI, then refreshes from backend
    */
   const trackUsage = (feature: 'receiptScanning' | 'advancedInsights' | 'voiceEntry'): void => {
     if (isPremium) return; // No limits for premium
 
+    // Optimistic local update for immediate UI feedback
     if (feature === 'receiptScanning') {
       dispatch(incrementReceiptScans());
     } else if (feature === 'advancedInsights') {
@@ -136,6 +138,12 @@ export const useSubscription = () => {
     } else if (feature === 'voiceEntry') {
       dispatch(incrementVoiceEntries());
     }
+
+    // Refresh from backend to ensure sync (delayed to not block UI)
+    // The backend tracks usage via middleware, so this ensures frontend stays in sync
+    setTimeout(() => {
+      dispatch(checkSubscriptionStatus());
+    }, 2000);
   };
 
   /**

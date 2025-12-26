@@ -24,6 +24,7 @@ import { usePricing } from '../contexts/PricingContext';
 interface UpgradePromptProps {
   visible: boolean;
   onClose: () => void;
+  onUpgrade?: () => void; // Optional callback when user clicks upgrade
   feature?: string;
   message?: string;
 }
@@ -33,26 +34,19 @@ type NavigationProp = StackNavigationProp<RootStackParamList>;
 export const UpgradePrompt: React.FC<UpgradePromptProps> = ({
   visible,
   onClose,
+  onUpgrade,
   feature = 'this feature',
   message,
 }) => {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { isPremium, startTrial, subscribe } = useSubscription();
+  const { isPremium } = useSubscription();
   const pricing = usePricing();
 
   const handleUpgrade = () => {
     onClose();
-    navigation.navigate('Subscription' as any);
-  };
-
-  const handleStartTrial = async () => {
-    try {
-      await startTrial();
-      onClose();
-    } catch (error) {
-      // Handle error
-    }
+    onUpgrade?.(); // Call optional callback (e.g., to close parent bottom sheet)
+    navigation.navigate('Subscription' as any, { selectedPlan: 'yearly' });
   };
 
   return (
@@ -116,25 +110,12 @@ export const UpgradePrompt: React.FC<UpgradePromptProps> = ({
           </View>
 
           <View style={styles.buttons}>
-            {!isPremium && (
-              <TouchableOpacity
-                style={[
-                  styles.trialButton,
-                  { backgroundColor: theme.primary + '20', borderColor: theme.primary },
-                ]}
-                onPress={handleStartTrial}
-              >
-                <Text style={[styles.trialButtonText, { color: theme.primary }]}>
-                  Unlock 7 Days Free
-                </Text>
-              </TouchableOpacity>
-            )}
             <TouchableOpacity
               style={[styles.upgradeButton, { backgroundColor: theme.primary }, elevation.sm]}
               onPress={handleUpgrade}
             >
-              <Text style={styles.upgradeButtonText}>Join Finly Pro</Text>
-              <Text style={styles.priceText}>{pricing.monthly.price}/month</Text>
+              <Text style={styles.upgradeButtonText}>Upgrade to Pro</Text>
+              <Text style={styles.priceText}>Starting at {pricing.yearly.monthlyEquivalent}/month</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.cancelButton}
@@ -215,16 +196,6 @@ const styles = StyleSheet.create({
   },
   buttons: {
     gap: spacing.sm,
-  },
-  trialButton: {
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 2,
-    alignItems: 'center',
-  },
-  trialButtonText: {
-    ...typography.labelLarge,
-    fontWeight: '600',
   },
   upgradeButton: {
     paddingVertical: spacing.md + 4,

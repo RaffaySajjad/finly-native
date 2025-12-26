@@ -1105,6 +1105,7 @@ const SharedBottomSheet: React.FC = () => {
           <UpgradePrompt
             visible={showUpgradePrompt}
             onClose={() => setShowUpgradePrompt(false)}
+            onUpgrade={() => bottomSheetRef.current?.close()}
             feature="AI Features"
             message="Unlock unlimited AI features with Finly Premium!"
           />

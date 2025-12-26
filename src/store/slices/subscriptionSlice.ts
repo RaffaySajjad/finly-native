@@ -59,11 +59,16 @@ export const checkSubscriptionStatus = createAsyncThunk(
   'subscription/checkStatus',
   async (_, { rejectWithValue }) => {
     try {
-      // First, try to get from backend
-      const subscription = await subscriptionService.getSubscriptionStatus();
+      // Fetch subscription status and usage limits from backend in parallel
+      const [subscription, usageData] = await Promise.all([
+        subscriptionService.getSubscriptionStatus(),
+        subscriptionService.getUsageLimits(),
+      ]);
       
-      // Generate usage limits based on tier AND isActive status
+      // Use actual usage counts from backend for proper feature gating
       const isPremiumActive = subscription.tier === 'PREMIUM' && subscription.isActive !== false;
+      
+      // Map backend limits format to frontend UsageLimits format
       const usageLimits: UsageLimits = isPremiumActive 
         ? {
             receiptScans: {
@@ -88,23 +93,23 @@ export const checkSubscriptionStatus = createAsyncThunk(
           }
         : {
             receiptScans: {
-              used: 0,
-              limit: 3,
-              resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              used: usageData.limits.receiptScanning?.used ?? 0,
+              limit: usageData.limits.receiptScanning?.limit ?? 3,
+              resetDate: usageData.limits.receiptScanning?.resetAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             },
             insights: {
-              used: 0,
-              limit: 3,
-              resetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              used: usageData.limits.aiInsights?.used ?? 0,
+              limit: usageData.limits.aiInsights?.limit ?? 3,
+              resetDate: usageData.limits.aiInsights?.resetAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
             },
             voiceEntries: {
-              used: 0,
-              limit: 3,
-              resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              used: usageData.limits.voiceEntry?.used ?? 0,
+              limit: usageData.limits.voiceEntry?.limit ?? 3,
+              resetDate: usageData.limits.voiceEntry?.resetAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             },
             categories: {
-              used: 0,
-              limit: 5,
+              used: usageData.limits.categories?.used ?? 0,
+              limit: usageData.limits.categories?.limit ?? 5,
             },
           };
 

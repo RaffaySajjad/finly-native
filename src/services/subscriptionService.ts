@@ -86,6 +86,54 @@ export const subscriptionService = {
   },
 
   /**
+   * Get usage limits from backend
+   * Fetches actual usage counts for feature gating
+   */
+  async getUsageLimits(): Promise<{
+    tier: 'FREE' | 'PREMIUM';
+    isPremium: boolean;
+    limits: {
+      receiptScanning: { remaining: number; limit: number; used: number; resetAt?: string };
+      voiceEntry: { remaining: number; limit: number; used: number; resetAt?: string };
+      aiInsights: { remaining: number; limit: number; used: number; resetAt?: string };
+      aiQueries: { remaining: number; limit: number; used: number; resetAt?: string };
+      categories: { remaining: number; limit: number; used: number };
+    };
+  }> {
+    try {
+      const response = await api.get<{
+        tier: string;
+        isPremium: boolean;
+        limits: any;
+      }>('/subscriptions/usage');
+      
+      if (response.success && response.data) {
+        return {
+          ...response.data,
+          tier: response.data.tier.toUpperCase() as 'FREE' | 'PREMIUM',
+        };
+      }
+      
+      throw new Error('Failed to get usage limits');
+    } catch (error: any) {
+      console.error('[Subscription] Failed to get usage limits:', error);
+      
+      // Return default free tier limits on error
+      return {
+        tier: 'FREE',
+        isPremium: false,
+        limits: {
+          receiptScanning: { remaining: 3, limit: 3, used: 0 },
+          voiceEntry: { remaining: 3, limit: 3, used: 0 },
+          aiInsights: { remaining: 3, limit: 3, used: 0 },
+          aiQueries: { remaining: 5, limit: 5, used: 0 },
+          categories: { remaining: 5, limit: 5, used: 0 },
+        },
+      };
+    }
+  },
+
+  /**
    * Get available products
    * Returns subscription options from store
    */

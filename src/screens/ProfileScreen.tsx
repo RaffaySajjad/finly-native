@@ -428,8 +428,8 @@ const ProfileScreen: React.FC = () => {
           <SettingItem
             icon="bell-outline"
             title="Notifications"
-            subtitle={notificationsEnabled ? 'Enabled - Tap to manage in Settings' : 'Disabled - Tap to enable in Settings'}
-            onPress={handleOpenNotificationSettings}
+            subtitle={notificationsEnabled ? 'Manage notification categories' : 'Disabled - Enable in device settings'}
+            onPress={() => notificationsEnabled ? navigation.navigate('NotificationPreferences') : handleOpenNotificationSettings()}
             rightComponent={
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
                 <View

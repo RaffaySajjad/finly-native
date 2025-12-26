@@ -1305,6 +1305,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
     minWidth: 80,
+    maxWidth: 200, // Prevent overlap with header icons on wide devices
     gap: spacing.xs,
   },
   balancePillIcon: {

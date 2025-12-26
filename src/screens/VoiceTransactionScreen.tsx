@@ -851,7 +851,7 @@ const VoiceTransactionScreen: React.FC = () => {
         visible={showUpgradePrompt}
         onClose={() => setShowUpgradePrompt(false)}
         feature="Smart Entry"
-        message="You've used all 3 free voice entries this month. Upgrade to Premium to log transactions by voice anytime!"
+        message="You've used all 3 free voice entries/ text transcription this month. Upgrade to Premium to log unlimited transactions anytime!"
       />
       {AlertComponent}
     </SafeAreaView>

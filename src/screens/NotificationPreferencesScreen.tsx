@@ -37,6 +37,7 @@ interface NotificationPreferences {
   aiTipsEnabled: boolean;
   subscriptionStateEnabled: boolean;
   systemEnabled: boolean;
+  dailySummaryEnabled: boolean;
   timezone: string;
   quietHoursStart: string | null;
   quietHoursEnd: string | null;
@@ -52,6 +53,7 @@ const defaultPreferences: NotificationPreferences = {
   aiTipsEnabled: true,
   subscriptionStateEnabled: true,
   systemEnabled: true,
+  dailySummaryEnabled: true,
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   quietHoursStart: null,
   quietHoursEnd: null,
@@ -274,6 +276,14 @@ const NotificationPreferencesScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>ENGAGEMENT</Text>
           
+          <NotificationToggle
+            icon="chart-line"
+            title="Daily Summary"
+            subtitle="AI-generated end-of-day spending recap at 9PM"
+            value={preferences.dailySummaryEnabled}
+            onValueChange={(v) => updatePreference('dailySummaryEnabled', v)}
+          />
+
           <NotificationToggle
             icon="pencil"
             title="Daily Nudge"

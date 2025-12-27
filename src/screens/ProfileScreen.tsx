@@ -20,7 +20,7 @@ import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { logger } from '../utils/logger';
@@ -605,6 +605,7 @@ const ProfileScreen: React.FC = () => {
             value={editName}
             onChangeText={setEditName}
             required
+            TextInputComponent={BottomSheetTextInput}
           />
 
           <InputGroup
@@ -615,6 +616,7 @@ const ProfileScreen: React.FC = () => {
             keyboardType="email-address"
             autoCapitalize="none"
             required
+            TextInputComponent={BottomSheetTextInput}
           />
 
           <PrimaryButton
@@ -785,7 +787,7 @@ const ProfileScreen: React.FC = () => {
             <Text style={[styles.feedbackHint, { color: theme.textTertiary }]}>
               Optional - Help us understand what we can improve
             </Text>
-            <TextInput
+            <BottomSheetTextInput
               style={[
                 styles.feedbackInput,
                 {
@@ -811,7 +813,7 @@ const ProfileScreen: React.FC = () => {
             <Text style={[styles.feedbackHint, { color: theme.textTertiary }]}>
               Optional - Share anything else you'd like us to know
             </Text>
-            <TextInput
+            <BottomSheetTextInput
               style={[
                 styles.feedbackInput,
                 {

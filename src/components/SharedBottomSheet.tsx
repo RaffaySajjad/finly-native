@@ -17,7 +17,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -837,6 +837,7 @@ const SharedBottomSheet: React.FC = () => {
                     showSymbol={true}
                     allowDecimals={true}
                     inputStyle={styles.currencyInputField}
+                    TextInputComponent={BottomSheetTextInput}
                   />
                 </View>
                 {incomeAmountError && (
@@ -890,6 +891,7 @@ const SharedBottomSheet: React.FC = () => {
                   numberOfLines={3}
                   textAlignVertical="top"
                   containerStyle={styles.descriptionInputContainer}
+                  TextInputComponent={BottomSheetTextInput}
                 />
               </View>
 
@@ -951,6 +953,7 @@ const SharedBottomSheet: React.FC = () => {
                     showSymbol={true}
                     allowDecimals={true}
                     inputStyle={styles.currencyInputField}
+                    TextInputComponent={BottomSheetTextInput}
                   />
                 </View>
                 {expenseAmountError && (
@@ -1016,6 +1019,7 @@ const SharedBottomSheet: React.FC = () => {
                   numberOfLines={3}
                   textAlignVertical="top"
                   containerStyle={styles.descriptionInputContainer}
+                  TextInputComponent={BottomSheetTextInput}
                 />
               </View>
 

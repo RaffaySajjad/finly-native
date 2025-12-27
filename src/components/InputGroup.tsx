@@ -15,6 +15,11 @@ interface InputGroupProps extends TextInputProps {
   helperText?: string;
   required?: boolean;
   containerStyle?: any;
+  /**
+   * Optional custom TextInput component (e.g., BottomSheetTextInput for use inside bottom sheets)
+   * This fixes Android keyboard focus issues when used inside @gorhom/bottom-sheet
+   */
+  TextInputComponent?: React.ComponentType<any>;
 }
 
 /**
@@ -24,6 +29,7 @@ interface InputGroupProps extends TextInputProps {
  * @param helperText - Helper text below input
  * @param required - Show required indicator
  * @param containerStyle - Custom container styles
+ * @param TextInputComponent - Optional custom TextInput (e.g., BottomSheetTextInput)
  * @param ...rest - All TextInput props
  */
 const InputGroup: React.FC<InputGroupProps> = React.memo(({
@@ -32,6 +38,7 @@ const InputGroup: React.FC<InputGroupProps> = React.memo(({
   helperText,
   required = false,
   containerStyle,
+  TextInputComponent = TextInput,
   ...inputProps
 }) => {
   const { theme } = useTheme();
@@ -42,7 +49,7 @@ const InputGroup: React.FC<InputGroupProps> = React.memo(({
         {label}
         {required && <Text style={{ color: theme.expense }}> *</Text>}
       </Text>
-      <TextInput
+      <TextInputComponent
         style={[
           styles.input,
           {

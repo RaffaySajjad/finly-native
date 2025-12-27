@@ -20,7 +20,7 @@ import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useNavigation } from '@react-navigation/native';
@@ -476,7 +476,7 @@ const IncomeManagementScreen: React.FC = () => {
           {/* Name */}
           <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Name</Text>
-            <TextInput
+            <BottomSheetTextInput
               style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
               placeholder="e.g., Salary, Freelance, Side Gig"
               placeholderTextColor={theme.textTertiary}
@@ -497,6 +497,7 @@ const IncomeManagementScreen: React.FC = () => {
                 showSymbol={true}
                 allowDecimals={true}
                 inputStyle={styles.currencyInputField}
+                TextInputComponent={BottomSheetTextInput}
               />
             </View>
           </View>
@@ -583,7 +584,7 @@ const IncomeManagementScreen: React.FC = () => {
                   </TouchableOpacity>
                 ))}
               </View>
-              <TextInput
+              <BottomSheetTextInput
                 style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text, marginTop: spacing.sm }]}
                 placeholder="Or enter custom day (1-31)"
                 placeholderTextColor={theme.textTertiary}
@@ -604,7 +605,7 @@ const IncomeManagementScreen: React.FC = () => {
           {frequency === 'CUSTOM' && (
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Days of Month</Text>
-              <TextInput
+              <BottomSheetTextInput
                 style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
                 placeholder="e.g., 15, 30 (comma-separated, 1-31)"
                 placeholderTextColor={theme.textTertiary}

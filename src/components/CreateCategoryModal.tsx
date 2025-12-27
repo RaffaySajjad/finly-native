@@ -16,7 +16,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useAlert } from '../hooks/useAlert';
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { logger } from '../utils/logger';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -311,6 +311,7 @@ export const CreateCategoryModal: React.FC = () => {
                 error={errors.name}
               helperText={`${categoryName.length}/30 characters`}
                 maxLength={30}
+              TextInputComponent={BottomSheetTextInput}
               />
           </View>
 
@@ -408,6 +409,7 @@ export const CreateCategoryModal: React.FC = () => {
                 showSymbol={true}
                 allowDecimals={true}
                 inputStyle={styles.currencyInputField}
+                TextInputComponent={BottomSheetTextInput}
               />
             </View>
             {errors.budget && (

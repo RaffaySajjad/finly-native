@@ -22,7 +22,7 @@ import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -845,6 +845,7 @@ const CategoryDetailsScreen: React.FC = () => {
                 showSymbol={true}
                 allowDecimals={true}
                 inputStyle={styles.currencyInputField}
+                TextInputComponent={BottomSheetTextInput}
               />
             </View>
           </View>

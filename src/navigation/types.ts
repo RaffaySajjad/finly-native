@@ -19,6 +19,7 @@ export type AuthStackParamList = {
 export type RootStackParamList = {
   Auth: undefined;
   Onboarding: undefined;
+  Paywall: undefined;
   IncomeSetup: undefined;
   MainTabs: { screen?: keyof MainTabsParamList } | undefined;
   AddIncome: undefined;

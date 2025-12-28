@@ -410,6 +410,46 @@ const CategoryDetailsScreen: React.FC = () => {
 
     setSavingBudget(true);
     try {
+      // Step 1: Validate with backend first (new deep integration feature)
+      const warningRes = await apiService.validateBudget(category.name, budgetValue);
+
+      if (warningRes?.warning) {
+        // Show intelligent warning based on user's goal
+        const { message, suggestion, type } = warningRes.warning;
+
+        // Use AlertComponent via showWarning logic, but customized
+        showWarning(
+          'Goal Check',
+          `${message}\n\n${suggestion}`,
+          [
+            { text: 'Edit Budget', style: 'cancel', onPress: () => { } }, // Just close alert
+            {
+              text: 'Save Anyway',
+              style: 'default',
+              onPress: async () => {
+                await saveBudgetToBackend(budgetValue);
+              }
+            }
+          ]
+        );
+        setSavingBudget(false);
+        return;
+      }
+
+      // No warning, proceed directly
+      await saveBudgetToBackend(budgetValue);
+
+    } catch (error) {
+      showError('Error', 'Failed to update budget');
+      setSavingBudget(false);
+    }
+  };
+
+  const saveBudgetToBackend = async (budgetValue: number) => {
+    if (!category) return;
+
+    try {
+      setSavingBudget(true);
       // Determine which currency the amount is in
       const amountCurrency = selectedBudgetCurrency || currencyCode;
 
@@ -462,8 +502,8 @@ const CategoryDetailsScreen: React.FC = () => {
 
       bottomSheetRef.current?.close();
       showSuccess('Success', 'Budget updated successfully!');
-    } catch (error) {
-      showError('Error', 'Failed to update budget');
+    } catch (err) {
+      showError('Error', 'Failed to save budget update');
     } finally {
       setSavingBudget(false);
     }

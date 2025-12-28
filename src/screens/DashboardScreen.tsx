@@ -62,6 +62,8 @@ import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import * as Haptics from 'expo-haptics';
 import FABQuickActions from '../components/FABQuickActions';
+import GoalFocusCard from '../components/GoalFocusCard';
+import { useGoal } from '../hooks/useGoal';
 import * as Notifications from 'expo-notifications';
 import { convertCurrencyAmountsInText } from '../utils/currencyFormatter';
 import { formatDateLabel } from '../utils/dateFormatter';
@@ -132,6 +134,7 @@ const DashboardScreen: React.FC = () => {
   const optionsSheetRef = useRef<BottomSheet>(null);
   const balanceAdjustSheetRef = useRef<BottomSheet>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const { goal, goalInfo } = useGoal();
   
   const [transactions, setTransactions] = useState<UnifiedTransaction[]>([]);
   const [totalTransactions, setTotalTransactions] = useState<number>(0);
@@ -862,6 +865,29 @@ const DashboardScreen: React.FC = () => {
                 </View>
               </TouchableOpacity>
             </Animated.View>
+          )}
+
+          {/* Goal Focus Card - shows goal-specific metrics */}
+          {goal && stats && (
+            <View style={styles.section}>
+              <GoalFocusCard
+                metrics={{
+                  budgetsOnTrack: categories.filter(c => c.budgetLimit && (c.totalSpent ?? 0) <= Number(c.budgetLimit)).length,
+                  budgetsOverBudget: categories.filter(c => c.budgetLimit && (c.totalSpent ?? 0) > Number(c.budgetLimit)).length,
+                  totalBudgets: categories.filter(c => c.budgetLimit).length,
+                  daysRemaining: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() - new Date().getDate(),
+                  savingsRate: stats.savingsRate || 0,
+                  monthlySavings: Math.max(0, stats.totalIncome - stats.totalExpenses),
+                  monthlyIncome: stats.totalIncome,
+                  transactionCount: transactions.length,
+                  topCategory: categories.length > 0 ? categories.sort((a, b) => (b.totalSpent ?? 0) - (a.totalSpent ?? 0))[0]?.name : undefined,
+                  topCategoryAmount: categories.length > 0 ? categories.sort((a, b) => (b.totalSpent ?? 0) - (a.totalSpent ?? 0))[0]?.totalSpent : undefined,
+                  monthlyExpenses: stats.totalExpenses,
+                  potentialSavings: insights.find(i => i.savingsAmount)?.savingsAmount,
+                }}
+                formatCurrency={formatCurrency}
+              />
+            </View>
           )}
 
           {/* Spending Breakdown */}

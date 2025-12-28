@@ -1406,6 +1406,26 @@ export const apiService = {
   },
 
   /**
+   * Validate a budget amount against user's goal
+   */
+  async validateBudget(categoryName: string, budgetLimit: number): Promise<{ success: boolean; warning?: any }> {
+    try {
+      // Direct path to avoid type issues with config for now
+      const response = await api.post<{ warning?: any }>(
+        '/categories/validate-budget',
+        { categoryName, budgetLimit }
+      );
+      if (!response.success) {
+        return { success: false };
+      }
+      return { success: true, warning: response.data?.warning };
+    } catch (error) {
+      console.error('[API] Validate budget error:', error);
+      return { success: false };
+    }
+  },
+
+  /**
    * Get user preferences
    * @deprecated - Preferences are now device-specific and stored in AsyncStorage
    */
@@ -1566,6 +1586,28 @@ export const apiService = {
       return response;
     } catch (error) {
       console.error('[API] Send test notification to all error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update user's financial goal
+   * @param goal - Financial goal ('budget' | 'save' | 'track' | 'debt')
+   */
+  async updateGoal(
+    goal: 'budget' | 'save' | 'track' | 'debt'
+  ): Promise<{ financialGoal: string; financialGoalSetAt: string }> {
+    try {
+      const response = await api.put<{
+        financialGoal: string;
+        financialGoalSetAt: string;
+      }>('/auth/goal', { goal });
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to update goal');
+      }
+      return response.data!;
+    } catch (error) {
+      console.error('[API] Update goal error:', error);
       throw error;
     }
   }

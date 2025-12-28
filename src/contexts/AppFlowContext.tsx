@@ -2,26 +2,33 @@
  * AppFlowContext
  *
  * Purpose:
- * - Provide an in-memory source of truth for onboarding + income setup completion
+ * - Provide an in-memory source of truth for onboarding + paywall + income setup completion
  * - Sync to AsyncStorage, but avoid high-frequency polling (which hurts perf + battery)
  *
  * Notes:
  * - We refresh on mount, when the app becomes active, and when explicitly requested.
  * - Screens should call the `mark*Complete` helpers so the navigator updates immediately.
+ * - Existing free users (paywallComplete=true from migration) are grandfathered in.
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { INCOME_SETUP_COMPLETED_KEY, ONBOARDING_STORAGE_KEY } from '../constants/storageKeys';
+import {
+  INCOME_SETUP_COMPLETED_KEY,
+  ONBOARDING_STORAGE_KEY,
+  PAYWALL_COMPLETE_KEY
+} from '../constants/storageKeys';
 
 interface AppFlowContextValue {
   onboardingComplete: boolean | null;
+  paywallComplete: boolean | null;
   incomeSetupComplete: boolean | null;
   /** True while initial flow state is being loaded from AsyncStorage */
   isFlowStateLoading: boolean;
   refreshFlowState: () => Promise<void>;
   markOnboardingComplete: () => Promise<void>;
+  markPaywallComplete: () => Promise<void>;
   markIncomeSetupComplete: () => Promise<void>;
   resetFlowStateForTesting: () => Promise<void>;
 }
@@ -39,15 +46,18 @@ async function readBooleanFlag(key: string): Promise<boolean> {
 
 export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
+  const [paywallComplete, setPaywallComplete] = useState<boolean | null>(null);
   const [incomeSetupComplete, setIncomeSetupComplete] = useState<boolean | null>(null);
   const [isFlowStateLoading, setIsFlowStateLoading] = useState(true);
 
   const refreshFlowState = useCallback(async () => {
-    const [onboarding, income] = await Promise.all([
+    const [onboarding, paywall, income] = await Promise.all([
       readBooleanFlag(ONBOARDING_STORAGE_KEY),
+      readBooleanFlag(PAYWALL_COMPLETE_KEY),
       readBooleanFlag(INCOME_SETUP_COMPLETED_KEY),
     ]);
     setOnboardingComplete(onboarding);
+    setPaywallComplete(paywall);
     setIncomeSetupComplete(income);
     setIsFlowStateLoading(false);
   }, []);
@@ -59,6 +69,15 @@ export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ child
       await AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, 'true');
     } catch {
       // If persistence fails, best-effort: keep in-memory state so user can proceed.
+    }
+  }, []);
+
+  const markPaywallComplete = useCallback(async () => {
+    setPaywallComplete(true);
+    try {
+      await AsyncStorage.setItem(PAYWALL_COMPLETE_KEY, 'true');
+    } catch {
+      // Best-effort, same reasoning as above.
     }
   }, []);
 
@@ -74,9 +93,11 @@ export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const resetFlowStateForTesting = useCallback(async () => {
     await Promise.all([
       AsyncStorage.removeItem(ONBOARDING_STORAGE_KEY),
+      AsyncStorage.removeItem(PAYWALL_COMPLETE_KEY),
       AsyncStorage.removeItem(INCOME_SETUP_COMPLETED_KEY),
     ]);
     setOnboardingComplete(false);
+    setPaywallComplete(false);
     setIncomeSetupComplete(false);
   }, []);
 
@@ -100,19 +121,23 @@ export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const value = useMemo<AppFlowContextValue>(
     () => ({
       onboardingComplete,
+      paywallComplete,
       incomeSetupComplete,
       isFlowStateLoading,
       refreshFlowState,
       markOnboardingComplete,
+      markPaywallComplete,
       markIncomeSetupComplete,
       resetFlowStateForTesting,
     }),
     [
       onboardingComplete,
+      paywallComplete,
       incomeSetupComplete,
       isFlowStateLoading,
       refreshFlowState,
       markOnboardingComplete,
+      markPaywallComplete,
       markIncomeSetupComplete,
       resetFlowStateForTesting,
     ]
@@ -128,4 +153,3 @@ export function useAppFlow(): AppFlowContextValue {
   }
   return ctx;
 }
-

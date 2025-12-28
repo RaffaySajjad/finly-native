@@ -49,6 +49,8 @@ import {
 import { usePreferences } from '../contexts/PreferencesContext';
 import { apiService } from '../services/api';
 import { notificationService } from '../services/notificationService';
+import { useGoal, GOAL_INFO } from '../hooks/useGoal';
+import GoalSelectorSheet, { GoalSelectorSheetRef } from '../components/GoalSelectorSheet';
 
 /**
  * ProfileScreen - User settings and preferences
@@ -63,6 +65,8 @@ const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { animateBalancePill, setAnimateBalancePill, diagnosticsEnabled, setDiagnosticsEnabled } = usePreferences();
   const { showError, showSuccess, showWarning, showInfo, AlertComponent } = useAlert();
+  const { goal, goalInfo } = useGoal();
+  const goalSelectorRef = useRef<GoalSelectorSheetRef>(null);
 
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
@@ -459,6 +463,36 @@ const ProfileScreen: React.FC = () => {
           />
         </View>
 
+        {/* Goal Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>YOUR GOAL</Text>
+          <SettingItem
+            icon={goalInfo?.icon || 'target'}
+            title="Financial Goal"
+            subtitle={goalInfo ? goalInfo.description : 'Set your primary focus'}
+            onPress={() => goalSelectorRef.current?.open()}
+            rightComponent={
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                {goalInfo && (
+                  <View
+                    style={{
+                      paddingHorizontal: spacing.sm,
+                      paddingVertical: spacing.xs,
+                      borderRadius: borderRadius.sm,
+                      backgroundColor: goalInfo.color + '20',
+                    }}
+                  >
+                    <Text style={{ color: goalInfo.color, fontSize: 12, fontWeight: '600' }}>
+                      {goalInfo.title}
+                    </Text>
+                  </View>
+                )}
+                <Icon name="chevron-right" size={24} color={theme.textTertiary} />
+              </View>
+            }
+          />
+        </View>
+
         {/* Data & Management Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>DATA & MANAGEMENT</Text>
@@ -753,6 +787,15 @@ const ProfileScreen: React.FC = () => {
           </Text>
         </BottomSheetScrollView>
       </BottomSheet>
+
+      {/* Goal Selector Bottom Sheet */}
+      <GoalSelectorSheet
+        ref={goalSelectorRef}
+        onGoalChanged={(newGoal) => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          showSuccess('Goal Updated', `Your focus is now "${GOAL_INFO[newGoal].title}"`);
+        }}
+      />
 
       {/* Delete Account Feedback Bottom Sheet */}
       <BottomSheet

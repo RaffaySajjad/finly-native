@@ -27,6 +27,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { logger } from '../utils/logger';
 import { apiService } from '../services/api';
+import { useGoal } from '../hooks/useGoal'; // Import useGoal for deep integration
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { useSelector } from 'react-redux';
@@ -87,6 +88,7 @@ const CategoryOnboardingScreen: React.FC = () => {
   const subscription = useSelector((state: RootState) => state.subscription);
   const isPremium = subscription.subscription.tier === 'PREMIUM';
   const { showError, showSuccess, showWarning, showInfo, AlertComponent } = useAlert();
+  const { goal } = useGoal(); // Get user's financial goal
 
   const [step, setStep] = useState<'income' | 'budgets' | 'loading'>('income');
   const [monthlyIncome, setMonthlyIncome] = useState('');
@@ -122,6 +124,48 @@ const CategoryOnboardingScreen: React.FC = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // Calculate suggested budgets based on income
+    // Calculate suggested budgets based on income - GOAL AWARE LOGIC
+    let allocationModifications: Record<string, number> = {};
+    const goalSpecificCategories: CategoryConfig[] = [];
+
+    // Adjust allocations and add categories based on goal
+    if (goal === 'debt') {
+      // Priority: Pay off debt
+      // Reduce wants, create Debt Payments category
+      allocationModifications = {
+        shopping: -5,
+        entertainment: -5,
+        education: -2,
+        dining: -3 // Implied if 'food' is split, but here 'food' is general. Let's just reduce generic wants.
+      };
+
+      goalSpecificCategories.push({
+        name: 'Debt Payments',
+        icon: 'credit-card-check',
+        color: '#EF4444',
+        suggestedBudget: Math.round(income * 0.20), // Suggest 20% for debt
+        percentage: 20,
+        description: 'Accelerate your debt free journey',
+      });
+    } else if (goal === 'save') {
+      // Priority: Savings
+      // Reduce wants, create Savings category
+      allocationModifications = {
+        shopping: -5,
+        entertainment: -5,
+        travel: -5
+      };
+
+      goalSpecificCategories.push({
+        name: 'Savings',
+        icon: 'piggy-bank',
+        color: '#10B981',
+        suggestedBudget: Math.round(income * 0.20), // Suggest 20% for savings
+        percentage: 20,
+        description: 'Pay yourself first',
+      });
+    }
+
     const baseCategories = Object.entries(BUDGET_ALLOCATIONS)
       .filter(([key]) => {
         // Include all base categories
@@ -131,16 +175,25 @@ const CategoryOnboardingScreen: React.FC = () => {
         // Include premium categories only for premium users
         return isPremium;
       })
-      .map(([key, config]) => ({
-        name: key.charAt(0).toUpperCase() + key.slice(1),
-        icon: config.icon,
-        color: config.color,
-        suggestedBudget: Math.round((income * config.percentage) / 100),
-        percentage: config.percentage,
-        description: config.description,
-      }));
+      .map(([key, config]) => {
+        // Apply goal-specific modifiers
+        const modifier = allocationModifications[key] || 0;
+        const adjustedPercentage = Math.max(1, config.percentage + modifier); // Ensure at least 1%
 
-    setCategories(baseCategories);
+        return {
+          name: key.charAt(0).toUpperCase() + key.slice(1),
+          icon: config.icon,
+          color: config.color,
+          suggestedBudget: Math.round((income * adjustedPercentage) / 100),
+          percentage: adjustedPercentage,
+          description: config.description,
+        };
+      });
+
+    // Merge and sort: Put goal specific categories at the top!
+    const finalCategories = [...goalSpecificCategories, ...baseCategories];
+
+    setCategories(finalCategories);
     setStep('budgets');
   };
 
@@ -203,28 +256,56 @@ const CategoryOnboardingScreen: React.FC = () => {
         const originalAmount = cat.suggestedBudget > 0 ? cat.suggestedBudget : undefined;
         const budgetInUSD = originalAmount ? convertToUSD(originalAmount) : undefined;
 
-        // Check if it's a custom category
-        if (cat.description === 'Custom category') {
-          // Create new custom category with original currency preserved
-          return apiService.createCategory({
-            name: cat.name,
-            icon: cat.icon,
-            color: cat.color,
-            budgetLimit: budgetInUSD,
-            originalAmount: originalAmount,
-            originalCurrency: originalAmount ? currencyCode : undefined,
-          });
+        // Check if it's a custom category OR a goal-specific category that isn't in default API response yet
+        // (Since we just added Debt/Savings in UI, they might not exist in backend defaults if setupDefaultCategories didn't run with goal arg yet - wait, 
+        // setupDefaultCategories DOES run with goal arg in auth service, but here we call it without args in line 195. 
+        // Actually, line 195 `apiService.setupDefaultCategories()` calls the endpoint which uses `req.user.userId`. 
+        // The endpoint internally calls `categoryService.setupDefaultCategories(userId)`. 
+        // It DOES NOT pass the goal. 
+        // We treat goal-specific categories as custom creation if they don't exist yet
+        const isGoalCategory =
+          cat.description === 'Custom category' ||
+          cat.description === 'Accelerate your debt free journey' ||
+          cat.description === 'Pay yourself first';
+
+        if (isGoalCategory) {
+          // Check if it already exists (e.g. from backend auto-creation)
+          const existing = apiCategories.find(c => c.name.toLowerCase() === cat.name.toLowerCase());
+
+          if (existing) {
+            // Update existing
+            const budgetInUSD = cat.suggestedBudget > 0 ? convertToUSD(cat.suggestedBudget) : undefined;
+            return apiService.updateCategory(existing.id, {
+              budgetLimit: budgetInUSD,
+              originalAmount: cat.suggestedBudget > 0 ? cat.suggestedBudget : undefined,
+              originalCurrency: cat.suggestedBudget > 0 ? currencyCode : undefined,
+            });
+          } else {
+            // Create new
+            return apiService.createCategory({
+              name: cat.name,
+              icon: cat.icon,
+              color: cat.color,
+              budgetLimit: budgetInUSD,
+              originalAmount: originalAmount,
+              originalCurrency: originalAmount ? currencyCode : undefined,
+            });
+          }
         } else {
           // Update existing system category with budget
           const matchingCategory = apiCategories.find(
             (c) => c.name.toLowerCase().includes(cat.name.toLowerCase())
           );
-          if (matchingCategory && budgetInUSD) {
+
+          if (matchingCategory) {
+            const budgetInUSD = cat.suggestedBudget > 0 ? convertToUSD(cat.suggestedBudget) : undefined;
+            if (budgetInUSD) {
             return apiService.updateCategory(matchingCategory.id, {
               budgetLimit: budgetInUSD,
-              originalAmount: originalAmount,
-              originalCurrency: originalAmount ? currencyCode : undefined,
+              originalAmount: cat.suggestedBudget > 0 ? cat.suggestedBudget : undefined,
+              originalCurrency: cat.suggestedBudget > 0 ? currencyCode : undefined,
             });
+          }
           }
         }
       });

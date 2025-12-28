@@ -57,6 +57,7 @@ import NotificationPreferencesScreen from '../screens/NotificationPreferencesScr
 
 import IncomeSetupScreen from '../screens/IncomeSetupScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
+import PaywallScreen from '../screens/PaywallScreen';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
@@ -260,7 +261,7 @@ const AppNavigator: React.FC = () => {
   const dispatch = useAppDispatch();
   const { isAuthenticated, isRestoringAuth } = useAppSelector((state) => state.auth);
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
-  const { onboardingComplete, incomeSetupComplete, refreshFlowState } = useAppFlow();
+  const { onboardingComplete, paywallComplete, incomeSetupComplete, refreshFlowState } = useAppFlow();
   const { reloadCurrency } = useCurrency();
 
   // Auth status and subscription are now checked in App.tsx during splash screen
@@ -291,7 +292,7 @@ const AppNavigator: React.FC = () => {
   // This runs once when user opens the app already logged in
   const hasPrefetchedRef = useRef(false);
   useEffect(() => {
-    const isUserReady = isAuthenticated && onboardingComplete === true && incomeSetupComplete === true;
+    const isUserReady = isAuthenticated && onboardingComplete === true && paywallComplete === true && incomeSetupComplete === true;
 
     if (isUserReady && !hasPrefetchedRef.current) {
       hasPrefetchedRef.current = true;
@@ -301,7 +302,7 @@ const AppNavigator: React.FC = () => {
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [isAuthenticated, onboardingComplete, incomeSetupComplete]);
+  }, [isAuthenticated, onboardingComplete, paywallComplete, incomeSetupComplete]);
 
   // Handle deep linking from widgets
   const { openBottomSheet } = useBottomSheetActions();
@@ -309,7 +310,7 @@ const AppNavigator: React.FC = () => {
   useEffect(() => {
     const handleDeepLink = (url: string) => {
       // Ensure user is ready to receive deep links
-      const isUserReady = isAuthenticated && onboardingComplete && incomeSetupComplete;
+      const isUserReady = isAuthenticated && onboardingComplete && paywallComplete && incomeSetupComplete;
 
       if (url.startsWith('finly://add-transaction')) {
         // Open SharedBottomSheet for manual transaction entry
@@ -349,7 +350,7 @@ const AppNavigator: React.FC = () => {
     return () => {
       subscription.remove();
     };
-  }, [isAuthenticated, onboardingComplete, incomeSetupComplete, openBottomSheet]);
+  }, [isAuthenticated, onboardingComplete, paywallComplete, incomeSetupComplete, openBottomSheet]);
 
 
   const navigationTheme = useMemo<NavigationTheme>(
@@ -389,8 +390,8 @@ const AppNavigator: React.FC = () => {
   // The splash screen waits for auth restoration and flow state loading
   // before allowing AppNavigator to render, so this check is no longer needed
 
-  // Quick actions are ready when user is authenticated and onboarding is complete
-  const isQuickActionsReady = isAuthenticated && onboardingComplete === true && incomeSetupComplete === true;
+  // Quick actions are ready when user is authenticated and all setup is complete
+  const isQuickActionsReady = isAuthenticated && onboardingComplete === true && paywallComplete === true && incomeSetupComplete === true;
 
   return (
     <NavigationContainer
@@ -453,8 +454,35 @@ const AppNavigator: React.FC = () => {
                 }}
               />
               </>
+            ) : !paywallComplete ? (
+              // Paywall - shown after onboarding, MUST subscribe or restore to continue
+              <>
+                <Stack.Screen
+                  name="Paywall"
+                  component={PaywallScreen}
+                  options={{ headerShown: false, gestureEnabled: false }}
+                />
+                <Stack.Screen
+                  name="TermsOfService"
+                  component={TermsOfServiceScreen}
+                  options={{
+                    title: 'Terms of Service',
+                    presentation: 'modal',
+                    headerShown: false,
+                  }}
+                />
+                <Stack.Screen
+                  name="PrivacyPolicy"
+                  component={PrivacyPolicyScreen}
+                  options={{
+                    title: 'Privacy Policy',
+                    presentation: 'modal',
+                    headerShown: false,
+                  }}
+                />
+              </>
             ) : !incomeSetupComplete ? (
-              // Income Setup - shown after onboarding for first-time users
+                  // Income Setup - shown after paywall for first-time users
               <Stack.Screen
                 name="IncomeSetup"
                 component={IncomeSetupScreen}
@@ -688,7 +716,7 @@ const AppNavigator: React.FC = () => {
           )}
         </Stack.Navigator>
         {/* SharedBottomSheet - rendered outside Stack to be always accessible */}
-        {isAuthenticated && onboardingComplete && incomeSetupComplete && (
+        {isAuthenticated && onboardingComplete && paywallComplete && incomeSetupComplete && (
           <>
             <SharedBottomSheet />
             <CreateCategoryModal />

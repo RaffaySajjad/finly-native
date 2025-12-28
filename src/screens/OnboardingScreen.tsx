@@ -1,10 +1,16 @@
 /**
  * OnboardingScreen Component
- * Purpose: First-time user onboarding flow
- * Introduces key features and guides users through the app
+ * Purpose: Comprehensive first-time user onboarding flow  
+ * 
+ * 3-Phase Structure:
+ * Phase 1: Value Proposition (slides 0-3)
+ * Phase 2: Personalization (slides 4-6)
+ * Phase 3: Call to Action (slide 7)
+ * 
+ * After completing onboarding, users are directed to PaywallScreen.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -32,81 +38,53 @@ import {
   Currency,
   getUserCurrency,
 } from '../services/currencyService';
-import { useEffect } from 'react';
 import { useAppFlow } from '../contexts/AppFlowContext';
-import { IMPORT_SHOWN_KEY, ONBOARDING_STORAGE_KEY } from '../constants/storageKeys';
+import { IMPORT_SHOWN_KEY, USER_GOAL_KEY } from '../constants/storageKeys';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-interface OnboardingSlide {
-  id: string;
+// User goals for personalization
+type UserGoal = 'budget' | 'save' | 'track' | 'debt';
+
+interface GoalOption {
+  id: UserGoal;
   icon: string;
   title: string;
   description: string;
   color: string;
-  type?: 'currency' | 'import' | 'standard';
+}
+
+const GOALS: GoalOption[] = [
+  { id: 'budget', icon: 'chart-pie', title: 'Budget Better', description: 'Control monthly spending', color: '#6366F1' },
+  { id: 'save', icon: 'piggy-bank', title: 'Save More', description: 'Build an emergency fund', color: '#10B981' },
+  { id: 'track', icon: 'magnify', title: 'Track Everything', description: 'Know where money goes', color: '#F59E0B' },
+  { id: 'debt', icon: 'credit-card-off', title: 'Pay Off Debt', description: 'Become debt-free', color: '#EF4444' },
+];
+
+interface OnboardingSlide {
+  id: string;
+  phase: 'value' | 'personalization' | 'action';
+  icon: string;
+  title: string;
+  description: string;
+  color: string;
+  type?: 'standard' | 'features' | 'goal' | 'currency' | 'import' | 'cta';
+  features?: Array<{ icon: string; text: string }>;
 }
 
 const OnboardingScreen: React.FC = () => {
   const { getCurrencySymbol } = useCurrency();
   const { markOnboardingComplete } = useAppFlow();
-
-  const onboardingSlides: OnboardingSlide[] = [
-    {
-      id: '1',
-      icon: 'wallet-outline',
-      title: 'Your Money, Clarity First',
-      description: 'Effortlessly log expenses in seconds—no bank connection needed. Just you and your goals.',
-      color: '#6366F1',
-    },
-    {
-      id: '2',
-      icon: 'cash-multiple',
-      title: 'Watch Your Wealth Grow',
-      description: 'Set up your income sources once, and we’ll handle the rest automatically. Seeing your balance grow has never been easier.',
-      color: '#10B981',
-    },
-    {
-      id: '3',
-      icon: 'receipt-text-outline',
-      title: 'Scan Anything, Anywhere',
-      description: 'Paper receipts, screenshots, emails, or photos—Finly AI reads them all. Just scan, and watch your expenses log themselves.',
-      color: '#F59E0B',
-    },
-    {
-      id: '4',
-      icon: 'microphone',
-      title: 'Just Talk to Finly',
-      description: `Before you forget: "Coffee for ${getCurrencySymbol()}5." Speak naturally, and let Finly AI handle the categorization. It's like magic for your money.`,
-      color: '#8B5CF6',
-    },
-    {
-      id: '5',
-      icon: 'file-import',
-      title: 'Move In Effortlessly',
-      description: 'Switching apps? Bring your history with you in one tap. Your data belongs to you.',
-      color: '#EC4899',
-      type: 'import',
-    },
-    {
-      id: 'currency',
-      icon: 'currency-usd',
-      title: 'Select Currency',
-      description: 'Choose your preferred currency for tracking expenses and income.',
-      color: '#10B981',
-      type: 'currency',
-    },
-  ];
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [wantsToImport, setWantsToImport] = useState<boolean | null>(null);
-  const [shouldShowImportSlide, setShouldShowImportSlide] = useState(true);
-  const [hasTransactions, setHasTransactions] = useState<boolean | null>(null);
+
+  // Personalization state
+  const [selectedGoal, setSelectedGoal] = useState<UserGoal | null>(null);
 
   // Currency state
   const [currency, setCurrency] = useState('USD');
@@ -115,27 +93,125 @@ const OnboardingScreen: React.FC = () => {
   const [currencySearch, setCurrencySearch] = useState('');
   const { setCurrency: setGlobalCurrency } = useCurrency();
 
+  // Import state
+  const [wantsToImport, setWantsToImport] = useState<boolean | null>(null);
+  const [shouldShowImportSlide, setShouldShowImportSlide] = useState(true);
+  const [hasTransactions, setHasTransactions] = useState<boolean | null>(null);
+
+  // Animation values for feature highlights
+  const featureAnim = useRef(new Animated.Value(0)).current;
+
+  const onboardingSlides: OnboardingSlide[] = [
+    // Phase 1: Value Proposition
+    {
+      id: 'welcome',
+      phase: 'value',
+      icon: 'hand-wave',
+      title: 'Welcome to Finly',
+      description: 'Your AI-powered personal finance companion. Take control of your money with intelligent insights and effortless tracking.',
+      color: '#6366F1',
+      type: 'standard',
+    },
+    {
+      id: 'ai-power',
+      phase: 'value',
+      icon: 'brain',
+      title: 'AI That Understands You',
+      description: 'Ask questions in plain English. Get personalized insights. Finly learns your habits to help you spend smarter.',
+      color: '#8B5CF6',
+      type: 'features',
+      features: [
+        { icon: 'chat-processing', text: 'Chat with your finances' },
+        { icon: 'lightbulb', text: 'Smart spending insights' },
+        { icon: 'trending-up', text: 'Personalized tips' },
+        { icon: 'lock', text: 'Your data stays private' },
+      ],
+    },
+    {
+      id: 'effortless',
+      phase: 'value',
+      icon: 'lightning-bolt',
+      title: 'Track Effortlessly',
+      description: 'Multiple ways to log expenses in seconds. No bank connection needed—your data stays private.',
+      color: '#10B981',
+      type: 'features',
+      features: [
+        { icon: 'microphone', text: `"Coffee for ${getCurrencySymbol()}5" — done` },
+        { icon: 'camera', text: 'Snap a receipt' },
+        { icon: 'keyboard', text: 'Quick manual entry' },
+      ],
+    },
+    {
+      id: 'analytics',
+      phase: 'value',
+      icon: 'chart-box',
+      title: 'See the Big Picture',
+      description: 'Beautiful charts and trends. Understand your spending patterns. Make informed decisions.',
+      color: '#F59E0B',
+      type: 'features',
+      features: [
+        { icon: 'chart-pie', text: 'Category breakdown' },
+        { icon: 'chart-line', text: 'Monthly trends' },
+        { icon: 'calendar-month', text: 'Year comparisons' },
+      ],
+    },
+    // Phase 2: Personalization
+    {
+      id: 'goal',
+      phase: 'personalization',
+      icon: 'target',
+      title: "What's Your Goal?",
+      description: 'Help us personalize your experience. Pick your primary focus.',
+      color: '#EC4899',
+      type: 'goal',
+    },
+    {
+      id: 'currency',
+      phase: 'personalization',
+      icon: 'currency-usd',
+      title: 'Select Currency',
+      description: 'Choose your primary currency for tracking expenses and income.',
+      color: '#10B981',
+      type: 'currency',
+    },
+    {
+      id: 'import',
+      phase: 'personalization',
+      icon: 'file-import',
+      title: 'Switching Apps?',
+      description: 'Bring your transaction history from another app. Your financial journey continues seamlessly.',
+      color: '#6366F1',
+      type: 'import',
+    },
+    // Phase 3: Call to Action
+    {
+      id: 'ready',
+      phase: 'action',
+      icon: 'rocket-launch',
+      title: "You're All Set!",
+      description: "Let's unlock the full power of Finly and start your journey to financial clarity.",
+      color: '#10B981',
+      type: 'cta',
+    },
+  ];
+
   // Check if user already has transactions on mount
   useEffect(() => {
     const checkExistingTransactions = async () => {
       try {
-        // Check if user has any transactions (single request, minimal payload).
         const result = await apiService.getUnifiedTransactionsPaginated({ limit: 1 }).catch(() => ({
           transactions: [],
           pagination: { hasMore: false, nextCursor: null, total: 0 },
         }));
 
         const hasAnyTransactions = result.transactions.length > 0;
-
         setHasTransactions(hasAnyTransactions);
 
-        // If user has transactions, skip import slide
         if (hasAnyTransactions) {
           setShouldShowImportSlide(false);
         }
       } catch (error) {
         console.error('[Onboarding] Error checking transactions:', error);
-        // On error, show import slide (default behavior)
         setHasTransactions(false);
       }
     };
@@ -143,6 +219,22 @@ const OnboardingScreen: React.FC = () => {
     checkExistingTransactions();
     loadCurrencies();
   }, []);
+
+  // Animate features when on feature slides
+  useEffect(() => {
+    const currentSlide = filteredSlides[currentIndex];
+    if (currentSlide?.type === 'features') {
+      featureAnim.setValue(0);
+      Animated.stagger(150, [
+        Animated.spring(featureAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }),
+      ]).start();
+    }
+  }, [currentIndex]);
 
   const loadCurrencies = async () => {
     setLoadingCurrencies(true);
@@ -166,45 +258,51 @@ const OnboardingScreen: React.FC = () => {
     await setGlobalCurrency(curr);
   };
 
-  // Filter slides based on import preference and existing transactions
-  const filteredSlides = onboardingSlides.filter((slide, index) => {
-    // Show import slide only if user hasn't decided yet, wants to import, and has no existing transactions
-    if (slide.id === '5' && (!shouldShowImportSlide || hasTransactions)) {
+  const handleGoalSelect = async (goal: UserGoal) => {
+    setSelectedGoal(goal);
+    await AsyncStorage.setItem(USER_GOAL_KEY, goal);
+
+    // Sync goal with backend for personalized insights
+    try {
+      await apiService.updateGoal(goal);
+    } catch (error) {
+      // Silent fail - goal is saved locally, will sync on next app load
+      console.warn('[Onboarding] Failed to sync goal with backend:', error);
+    }
+  };
+
+  // Filter slides based on import preference
+  const filteredSlides = onboardingSlides.filter((slide) => {
+    if (slide.type === 'import' && (!shouldShowImportSlide || hasTransactions)) {
       return false;
     }
     return true;
   });
 
-  // Ensure currentIndex is valid when slides change
-  useEffect(() => {
-    if (currentIndex >= filteredSlides.length) {
-      setCurrentIndex(Math.max(0, filteredSlides.length - 1));
-    }
-  }, [filteredSlides.length]);
-
   const handleImportChoice = async (choice: boolean) => {
     setWantsToImport(choice);
     
     if (choice) {
-      // User wants to import - navigate to CSV import screen
-      navigation.navigate('CSVImport');
+      navigation.navigate('CSVImport' as any);
     } else {
-      // User doesn't want to import - mark import as skipped
       setShouldShowImportSlide(false);
-      // Mark import as shown/skipped so it doesn't appear after income setup
       await AsyncStorage.setItem(IMPORT_SHOWN_KEY, 'true');
-      // Don't complete yet, proceed to currency selection
     }
   };
 
   const handleNext = () => {
-    // Special handling for import question slide (now last slide)
     const currentSlide = filteredSlides[currentIndex];
 
     if (!currentSlide) return;
 
+    // Validate goal selection
+    if (currentSlide.type === 'goal' && !selectedGoal) {
+      return; // Must select a goal
+    }
+
+    // Handle import slide
     if (currentSlide.type === 'import' && wantsToImport === null) {
-      return; // Don't proceed if they haven't answered
+      return;
     }
 
     if (currentIndex < filteredSlides.length - 1) {
@@ -219,12 +317,20 @@ const OnboardingScreen: React.FC = () => {
     }
   };
 
-  const handleSkip = async () => {
-    await markOnboardingComplete();
+  const handleBack = () => {
+    if (currentIndex > 0) {
+      const prevIndex = currentIndex - 1;
+      scrollViewRef.current?.scrollTo({
+        x: prevIndex * width,
+        animated: true,
+      });
+      setCurrentIndex(prevIndex);
+    }
   };
 
   const handleComplete = async () => {
     await markOnboardingComplete();
+    // Navigation to Paywall is handled by AppNavigator based on flow state
   };
 
   const handleScroll = Animated.event(
@@ -239,7 +345,58 @@ const OnboardingScreen: React.FC = () => {
     }
   );
 
-  const renderCurrencySelectionSlide = (index: number) => {
+  // Get current phase for progress indicator
+  const getCurrentPhase = (): 'value' | 'personalization' | 'action' => {
+    return filteredSlides[currentIndex]?.phase || 'value';
+  };
+
+  const renderPhaseIndicator = () => {
+    const phase = getCurrentPhase();
+    const phases = [
+      { key: 'value', label: 'Discover' },
+      { key: 'personalization', label: 'Personalize' },
+      { key: 'action', label: 'Start' },
+    ];
+
+    return (
+      <View style={styles.phaseContainer}>
+        {phases.map((p, index) => (
+          <View key={p.key} style={styles.phaseItem}>
+            <View
+              style={[
+                styles.phaseDot,
+                {
+                  backgroundColor: phase === p.key ? theme.primary : theme.border,
+                  transform: [{ scale: phase === p.key ? 1.2 : 1 }],
+                },
+              ]}
+            />
+            <Text
+              style={[
+                styles.phaseLabel,
+                {
+                  color: phase === p.key ? theme.primary : theme.textSecondary,
+                  fontWeight: phase === p.key ? '600' : '400',
+                },
+              ]}
+            >
+              {p.label}
+            </Text>
+            {index < phases.length - 1 && (
+              <View
+                style={[
+                  styles.phaseLine,
+                  { backgroundColor: theme.border },
+                ]}
+              />
+            )}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const renderStandardSlide = (slide: OnboardingSlide, index: number) => {
     const inputRange = [
       (index - 1) * width,
       index * width,
@@ -258,7 +415,166 @@ const OnboardingScreen: React.FC = () => {
       extrapolate: 'clamp',
     });
 
-    // Filter currencies based on search query
+    return (
+      <Animated.View
+        key={slide.id}
+        style={[
+          styles.slide,
+          { opacity, transform: [{ scale }] },
+        ]}
+      >
+        <View style={[styles.iconContainer, { backgroundColor: slide.color + '20' }]}>
+          <Icon name={slide.icon as any} size={80} color={slide.color} />
+        </View>
+        <Text style={[styles.title, { color: theme.text }]}>{slide.title}</Text>
+        <Text style={[styles.description, { color: theme.textSecondary }]}>
+          {slide.description}
+        </Text>
+      </Animated.View>
+    );
+  };
+
+  const renderFeaturesSlide = (slide: OnboardingSlide, index: number) => {
+    const inputRange = [
+      (index - 1) * width,
+      index * width,
+      (index + 1) * width,
+    ];
+
+    const opacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.3, 1, 0.3],
+      extrapolate: 'clamp',
+    });
+
+    const scale = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.8, 1, 0.8],
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <Animated.View
+        key={slide.id}
+        style={[styles.slide, { opacity, transform: [{ scale }] }]}
+      >
+        <View style={[styles.iconContainer, { backgroundColor: slide.color + '20' }]}>
+          <Icon name={slide.icon as any} size={80} color={slide.color} />
+        </View>
+        <Text style={[styles.title, { color: theme.text }]}>{slide.title}</Text>
+        <Text style={[styles.description, { color: theme.textSecondary, marginBottom: spacing.lg }]}>
+          {slide.description}
+        </Text>
+
+        {/* Feature list */}
+        <View style={styles.featuresList}>
+          {slide.features?.map((feature, fIndex) => (
+            <Animated.View
+              key={fIndex}
+              style={[
+                styles.featureItem,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                  opacity: currentIndex === index ? 1 : 0.5,
+                },
+              ]}
+            >
+              <View style={[styles.featureIconContainer, { backgroundColor: slide.color + '20' }]}>
+                <Icon name={feature.icon as any} size={24} color={slide.color} />
+              </View>
+              <Text style={[styles.featureText, { color: theme.text }]}>{feature.text}</Text>
+            </Animated.View>
+          ))}
+        </View>
+      </Animated.View>
+    );
+  };
+
+  const renderGoalSlide = (slide: OnboardingSlide, index: number) => {
+    const inputRange = [
+      (index - 1) * width,
+      index * width,
+      (index + 1) * width,
+    ];
+
+    const opacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.3, 1, 0.3],
+      extrapolate: 'clamp',
+    });
+
+    const scale = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.8, 1, 0.8],
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <Animated.View
+        key={slide.id}
+        style={[styles.slide, { opacity, transform: [{ scale }] }]}
+      >
+        <View style={[styles.iconContainer, { backgroundColor: slide.color + '20' }]}>
+          <Icon name={slide.icon as any} size={80} color={slide.color} />
+        </View>
+        <Text style={[styles.title, { color: theme.text }]}>{slide.title}</Text>
+        <Text style={[styles.description, { color: theme.textSecondary }]}>
+          {slide.description}
+        </Text>
+
+        <View style={styles.goalsGrid}>
+          {GOALS.map((goal) => (
+            <TouchableOpacity
+              key={goal.id}
+              style={[
+                styles.goalCard,
+                {
+                  backgroundColor: selectedGoal === goal.id ? goal.color + '20' : theme.card,
+                  borderColor: selectedGoal === goal.id ? goal.color : theme.border,
+                },
+              ]}
+              onPress={() => handleGoalSelect(goal.id)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.goalIconContainer, { backgroundColor: goal.color + '20' }]}>
+                <Icon name={goal.icon as any} size={28} color={goal.color} />
+              </View>
+              <Text style={[styles.goalTitle, { color: theme.text }]}>{goal.title}</Text>
+              <Text style={[styles.goalDescription, { color: theme.textSecondary }]}>
+                {goal.description}
+              </Text>
+              {selectedGoal === goal.id && (
+                <View style={[styles.goalCheck, { backgroundColor: goal.color }]}>
+                  <Icon name="check" size={16} color="#FFFFFF" />
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Animated.View>
+    );
+  };
+
+  const renderCurrencySlide = (index: number) => {
+    const inputRange = [
+      (index - 1) * width,
+      index * width,
+      (index + 1) * width,
+    ];
+
+    const opacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.3, 1, 0.3],
+      extrapolate: 'clamp',
+    });
+
+    const scale = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.8, 1, 0.8],
+      extrapolate: 'clamp',
+    });
+
     const filteredCurrencies = currencies.filter((curr) => {
       const searchLower = currencySearch.toLowerCase().trim();
       if (!searchLower) return true;
@@ -270,26 +586,17 @@ const OnboardingScreen: React.FC = () => {
 
     return (
       <Animated.View
-        key={'currency-slide'}
-        style={[
-          styles.slide,
-          {
-            opacity,
-            transform: [{ scale }],
-          },
-        ]}
+        key="currency-slide"
+        style={[styles.slide, { opacity, transform: [{ scale }] }]}
       >
         <View style={[styles.iconContainer, { backgroundColor: '#10B981' + '20' }]}>
           <Icon name="currency-usd" size={80} color="#10B981" />
         </View>
-        <Text style={[styles.title, { color: theme.text }]}>
-          Select Currency
-        </Text>
+        <Text style={[styles.title, { color: theme.text }]}>Select Currency</Text>
         <Text style={[styles.description, { color: theme.textSecondary, marginBottom: spacing.md }]}>
-          Choose your preferred currency for tracking expenses.
+          Choose your primary currency for tracking.
         </Text>
 
-        {/* Search Bar */}
         <View style={[styles.currencySearchContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Icon name="magnify" size={20} color={theme.textSecondary} />
           <TextInput
@@ -314,6 +621,7 @@ const OnboardingScreen: React.FC = () => {
             contentContainerStyle={styles.currencyListContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
           >
             {filteredCurrencies.map((curr) => (
               <TouchableOpacity
@@ -341,96 +649,13 @@ const OnboardingScreen: React.FC = () => {
                 )}
               </TouchableOpacity>
             ))}
-            {filteredCurrencies.length === 0 && (
-              <View style={styles.noResultsContainer}>
-                <Icon name="currency-usd-off" size={40} color={theme.textSecondary} />
-                <Text style={[styles.noResultsText, { color: theme.textSecondary }]}>
-                  No currencies found
-                </Text>
-              </View>
-            )}
           </ScrollView>
         </View>
       </Animated.View>
     );
   };
 
-  const renderImportQuestionSlide = (index: number) => {
-    const inputRange = [
-      (index - 1) * width,
-      index * width,
-      (index + 1) * width,
-    ];  
-
-    const opacity = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.3, 1, 0.3],
-      extrapolate: 'clamp',
-    });
-
-    const scale = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.8, 1, 0.8],
-      extrapolate: 'clamp',
-    });
-
-    return (
-      <Animated.View
-        key={'import-question-slide'}
-        style={[
-          styles.slide,
-          {
-            opacity,
-            transform: [{ scale }],
-          },
-        ]}
-      >
-        <View style={[styles.iconContainer, { backgroundColor: '#EC4899' + '20' }]}>
-          <Icon name="file-import" size={80} color="#EC4899" />
-        </View>
-        <Text style={[styles.title, { color: theme.text }]}>
-          Want to Import Your Data?
-        </Text>
-        <Text style={[styles.description, { color: theme.textSecondary }]}>
-          Switching from another app? You can import your existing transactions now.
-        </Text>
-        
-        <View style={styles.importButtonsContainer}>
-          <TouchableOpacity
-            style={[
-              styles.importButton,
-              styles.importYesButton,
-              { backgroundColor: theme.primary },
-              elevation.md,
-            ]}
-            onPress={() => handleImportChoice(true)}
-            activeOpacity={0.8}
-          >
-            <Icon name="check" size={24} color="#FFFFFF" />
-            <Text style={styles.importButtonText}>Yes, Import</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[
-              styles.importButton,
-              styles.importNoButton,
-              { backgroundColor: theme.card, borderColor: theme.border },
-              elevation.sm,
-            ]}
-            onPress={() => handleImportChoice(false)}
-            activeOpacity={0.8}
-          >
-            <Icon name="close" size={24} color={theme.textSecondary} />
-            <Text style={[styles.importButtonTextSecondary, { color: theme.textSecondary }]}>
-              Skip for Now
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-    );
-  };
-
-  const renderSlide = (slide: OnboardingSlide, index: number) => {
+  const renderImportSlide = (slide: OnboardingSlide, index: number) => {
     const inputRange = [
       (index - 1) * width,
       index * width,
@@ -452,13 +677,7 @@ const OnboardingScreen: React.FC = () => {
     return (
       <Animated.View
         key={slide.id}
-        style={[
-          styles.slide,
-          {
-            opacity,
-            transform: [{ scale }],
-          },
-        ]}
+        style={[styles.slide, { opacity, transform: [{ scale }] }]}
       >
         <View style={[styles.iconContainer, { backgroundColor: slide.color + '20' }]}>
           <Icon name={slide.icon as any} size={80} color={slide.color} />
@@ -467,18 +686,116 @@ const OnboardingScreen: React.FC = () => {
         <Text style={[styles.description, { color: theme.textSecondary }]}>
           {slide.description}
         </Text>
+        
+        <View style={styles.importButtonsContainer}>
+          <TouchableOpacity
+            style={[styles.importButton, styles.importYesButton, { backgroundColor: theme.primary }, elevation.md]}
+            onPress={() => handleImportChoice(true)}
+            activeOpacity={0.8}
+          >
+            <Icon name="file-upload" size={24} color="#FFFFFF" />
+            <Text style={styles.importButtonText}>Import Data</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.importButton, styles.importNoButton, { backgroundColor: theme.card, borderColor: theme.border }]}
+            onPress={() => handleImportChoice(false)}
+            activeOpacity={0.8}
+          >
+            <Icon name="arrow-right" size={24} color={theme.textSecondary} />
+            <Text style={[styles.importButtonTextSecondary, { color: theme.textSecondary }]}>
+              Start Fresh
+            </Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
     );
+  };
+
+  const renderCtaSlide = (slide: OnboardingSlide, index: number) => {
+    const inputRange = [
+      (index - 1) * width,
+      index * width,
+      (index + 1) * width,
+    ];
+
+    const opacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.3, 1, 0.3],
+      extrapolate: 'clamp',
+    });
+
+    const scale = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.8, 1, 0.8],
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <Animated.View
+        key={slide.id}
+        style={[styles.slide, { opacity, transform: [{ scale }] }]}
+      >
+        <View style={[styles.iconContainer, { backgroundColor: slide.color + '20' }]}>
+          <Icon name={slide.icon as any} size={80} color={slide.color} />
+        </View>
+        <Text style={[styles.title, { color: theme.text }]}>{slide.title}</Text>
+        <Text style={[styles.description, { color: theme.textSecondary }]}>
+          {slide.description}
+        </Text>
+
+        {/* Recap of what they'll get */}
+        <View style={styles.recapContainer}>
+          <View style={[styles.recapItem, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Icon name="check-circle" size={20} color={theme.primary} />
+            <Text style={[styles.recapText, { color: theme.text }]}>AI-Powered Insights</Text>
+          </View>
+          <View style={[styles.recapItem, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Icon name="check-circle" size={20} color={theme.primary} />
+            <Text style={[styles.recapText, { color: theme.text }]}>Effortless Tracking</Text>
+          </View>
+          <View style={[styles.recapItem, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Icon name="check-circle" size={20} color={theme.primary} />
+            <Text style={[styles.recapText, { color: theme.text }]}>Beautiful Analytics</Text>
+          </View>
+        </View>
+      </Animated.View>
+    );
+  };
+
+  const renderSlide = (slide: OnboardingSlide, index: number) => {
+    switch (slide.type) {
+      case 'features':
+        return renderFeaturesSlide(slide, index);
+      case 'goal':
+        return renderGoalSlide(slide, index);
+      case 'currency':
+        return renderCurrencySlide(index);
+      case 'import':
+        return renderImportSlide(slide, index);
+      case 'cta':
+        return renderCtaSlide(slide, index);
+      default:
+        return renderStandardSlide(slide, index);
+    }
+  };
+
+  const canProceed = () => {
+    const currentSlide = filteredSlides[currentIndex];
+    if (!currentSlide) return false;
+
+    if (currentSlide.type === 'goal' && !selectedGoal) return false;
+    if (currentSlide.type === 'import' && wantsToImport === null) return false;
+
+    return true;
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
       <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
 
-      {/* Skip Button */}
-      {/* <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-        <Text style={[styles.skipText, { color: theme.textSecondary }]}>Skip</Text>
-      </TouchableOpacity> */}
+      {/* Phase Indicator */}
+      {renderPhaseIndicator()}
 
       {/* Slides */}
       <ScrollView
@@ -488,17 +805,9 @@ const OnboardingScreen: React.FC = () => {
         showsHorizontalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        scrollEnabled={canProceed()}
       >
-        {filteredSlides.map((slide, index) => {
-          if (slide.type === 'currency') {
-            return renderCurrencySelectionSlide(index);
-          }
-          // Render import question slide instead of regular import slide
-          if (slide.type === 'import' && shouldShowImportSlide) {
-            return renderImportQuestionSlide(index);
-          }
-          return renderSlide(slide, index);
-        })}
+        {filteredSlides.map((slide, index) => renderSlide(slide, index))}
       </ScrollView>
 
       {/* Pagination Dots */}
@@ -543,28 +852,31 @@ const OnboardingScreen: React.FC = () => {
         {currentIndex > 0 && (
           <TouchableOpacity
             style={[styles.backButton, { backgroundColor: theme.card, borderColor: theme.border }]}
-            onPress={() => {
-              const prevIndex = currentIndex - 1;
-              scrollViewRef.current?.scrollTo({
-                x: prevIndex * width,
-                animated: true,
-              });
-              setCurrentIndex(prevIndex);
-            }}
+            onPress={handleBack}
           >
             <Icon name="arrow-left" size={20} color={theme.text} />
-            <Text style={[styles.backButtonText, { color: theme.text }]}>Back</Text>
           </TouchableOpacity>
         )}
 
-        {/* Hide Next button on import question slide if they haven't answered */}
-        {!(filteredSlides[currentIndex]?.type === 'import' && wantsToImport === null && shouldShowImportSlide) && (
+        {/* Spacer when no back button */}
+        {currentIndex === 0 && <View style={{ flex: 1 }} />}
+
+        {/* Hide Next on import slide if unanswered */}
+        {!(filteredSlides[currentIndex]?.type === 'import' && wantsToImport === null) && (
           <TouchableOpacity
-            style={[styles.nextButton, { backgroundColor: theme.primary }, elevation.md]}
+            style={[
+              styles.nextButton,
+              {
+                backgroundColor: canProceed() ? theme.primary : theme.border,
+                flex: currentIndex === 0 ? 1 : 2,
+              },
+              elevation.md,
+            ]}
             onPress={handleNext}
+            disabled={!canProceed()}
           >
             <Text style={styles.nextButtonText}>
-              {currentIndex === filteredSlides.length - 1 ? 'Get Started' : 'Next'}
+              {currentIndex === filteredSlides.length - 1 ? 'Continue' : 'Next'}
             </Text>
             {currentIndex < filteredSlides.length - 1 && (
               <Icon name="arrow-right" size={20} color="#FFFFFF" />
@@ -580,16 +892,30 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  skipButton: {
-    position: 'absolute',
-    top: spacing.lg,
-    right: spacing.md,
-    zIndex: 10,
-    padding: spacing.sm,
+  phaseContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
   },
-  skipText: {
-    ...typography.labelMedium,
-    fontWeight: '600',
+  phaseItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  phaseDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: spacing.xs,
+  },
+  phaseLabel: {
+    ...typography.labelSmall,
+  },
+  phaseLine: {
+    width: 30,
+    height: 2,
+    marginHorizontal: spacing.sm,
   },
   slide: {
     width,
@@ -599,18 +925,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
   },
   iconContainer: {
-    width: 160,
-    height: 160,
+    width: 140,
+    height: 140,
     borderRadius: borderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   title: {
     ...typography.headlineLarge,
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   description: {
     ...typography.bodyLarge,
@@ -618,122 +944,73 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     paddingHorizontal: spacing.md,
   },
-  pagination: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+  featuresList: {
+    width: '100%',
     gap: spacing.sm,
-    marginBottom: spacing.lg,
   },
-  dot: {
-    height: 8,
-    borderRadius: 4,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
-    gap: spacing.md,
-  },
-  backButton: {
-    flex: 1,
+  featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md,
+    padding: spacing.md,
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    gap: spacing.xs,
-  },
-  backButtonText: {
-    ...typography.labelMedium,
-    fontWeight: '600',
-  },
-  nextButton: {
-    flex: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md + 4,
-    borderRadius: borderRadius.md,
-    gap: spacing.sm,
-  },
-  nextButtonText: {
-    ...typography.labelLarge,
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  importButtonsContainer: {
-    width: '100%',
     gap: spacing.md,
-    marginTop: spacing.xl,
-    paddingHorizontal: spacing.md,
   },
-  importButton: {
-    flexDirection: 'row',
+  featureIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.md + 4,
-    borderRadius: borderRadius.md,
-    gap: spacing.sm,
   },
-  importYesButton: {
-    // backgroundColor set inline
-  },
-  importNoButton: {
-    borderWidth: 2,
-  },
-  importButtonText: {
-    ...typography.labelLarge,
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  importButtonTextSecondary: {
-    ...typography.labelLarge,
-    fontWeight: '700',
-  },
-  currencyListContainer: {
-    height: 240,
-    width: '100%',
-    marginTop: spacing.md,
-  },
-  currencyList: {
+  featureText: {
+    ...typography.bodyMedium,
     flex: 1,
-    width: '100%'
+    fontWeight: '500',
   },
-  currencyListContent: {
-    paddingHorizontal: spacing.sm,
-  },
-  currencyOption: {
+  goalsGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 2,
-  },
-  currencyInfo: {
-    flex: 1,
-  },
-  currencyCode: {
-    ...typography.titleMedium,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  currencyName: {
-    ...typography.bodySmall,
-  },
-  currencyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: '100%',
+    marginTop: spacing.lg,
     gap: spacing.sm,
-    marginBottom: 2,
   },
-  currencyFlag: {
-    fontSize: 24,
+  goalCard: {
+    width: '48%',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 2,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  goalIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  goalTitle: {
+    ...typography.titleSmall,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  goalDescription: {
+    ...typography.bodySmall,
+    textAlign: 'center',
+  },
+  goalCheck: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   currencySearchContainer: {
     flexDirection: 'row',
@@ -751,15 +1028,130 @@ const styles = StyleSheet.create({
     ...typography.bodyMedium,
     paddingVertical: spacing.xs,
   },
-  noResultsContainer: {
+  currencyListContainer: {
+    height: 200,
+    width: '100%',
+    marginTop: spacing.sm,
+  },
+  currencyList: {
+    flex: 1,
+    width: '100%',
+  },
+  currencyListContent: {
+    paddingHorizontal: spacing.sm,
+  },
+  currencyOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+  },
+  currencyInfo: {
+    flex: 1,
+  },
+  currencyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: 2,
+  },
+  currencyFlag: {
+    fontSize: 24,
+  },
+  currencyCode: {
+    ...typography.titleMedium,
+    fontWeight: '700',
+  },
+  currencyName: {
+    ...typography.bodySmall,
+  },
+  importButtonsContainer: {
+    width: '100%',
+    gap: spacing.md,
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.md,
+  },
+  importButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.xl,
+    paddingVertical: spacing.md + 4,
+    borderRadius: borderRadius.md,
     gap: spacing.sm,
   },
-  noResultsText: {
+  importYesButton: {},
+  importNoButton: {
+    borderWidth: 2,
+  },
+  importButtonText: {
+    ...typography.labelLarge,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  importButtonTextSecondary: {
+    ...typography.labelLarge,
+    fontWeight: '700',
+  },
+  recapContainer: {
+    width: '100%',
+    marginTop: spacing.xl,
+    gap: spacing.sm,
+  },
+  recapItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    gap: spacing.md,
+  },
+  recapText: {
     ...typography.bodyMedium,
-    textAlign: 'center',
+    fontWeight: '500',
+  },
+  pagination: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  dot: {
+    height: 8,
+    borderRadius: 4,
+  },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+    gap: spacing.md,
+  },
+  backButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+  },
+  nextButton: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md + 4,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+  },
+  nextButtonText: {
+    ...typography.labelLarge,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });
 
@@ -770,7 +1162,7 @@ export default OnboardingScreen;
  */
 export async function hasCompletedOnboarding(): Promise<boolean> {
   try {
-    const completed = await AsyncStorage.getItem(ONBOARDING_STORAGE_KEY);
+    const completed = await AsyncStorage.getItem('@finly_onboarding_completed');
     return completed === 'true';
   } catch {
     return false;
@@ -781,6 +1173,5 @@ export async function hasCompletedOnboarding(): Promise<boolean> {
  * Reset onboarding (for testing)
  */
 export async function resetOnboarding(): Promise<void> {
-  await AsyncStorage.removeItem(ONBOARDING_STORAGE_KEY);
+  await AsyncStorage.removeItem('@finly_onboarding_completed');
 }
-

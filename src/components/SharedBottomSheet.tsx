@@ -17,8 +17,10 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
-import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput, BottomSheetFooter, BottomSheetFooterProps } from '@gorhom/bottom-sheet';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
@@ -26,6 +28,8 @@ import { useCurrency } from '../contexts/CurrencyContext';
 import { useSubscription } from '../hooks/useSubscription';
 import { logger } from '../utils/logger';
 import { useBottomSheetActions, useBottomSheetEditState } from '../contexts/BottomSheetContext';
+import { useAppDispatch } from '../store';
+import { refreshUser } from '../store/slices/authSlice';
 import { BottomSheetBackground, PremiumBadge, UpgradePrompt, CurrencyInput, DatePickerInput, CategoryPickerModal, InputGroup } from '../components';
 import { useAlert } from '../hooks/useAlert';
 import { shouldUseLiquidGlass } from './BottomSheetBackground';
@@ -35,6 +39,12 @@ import { Expense, PaymentMethod, Tag, Category } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { Animated } from 'react-native';
+import { glowEffects, shadowPresets, brandGradients } from '../theme/DesignTokens';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Cast colors to the expected type for LinearGradient to avoid lint errors
+const expenseColors = brandGradients.expense.colors as [string, string, ...string[]];
+const successColors = brandGradients.success.colors as [string, string, ...string[]];
 
 const PAYMENT_METHODS = [
   { id: 'CREDIT_CARD' as PaymentMethod, name: 'Credit Card', icon: 'credit-card' },
@@ -49,6 +59,7 @@ type SharedBottomSheetNavigationProp = StackNavigationProp<RootStackParamList>;
 
 const SharedBottomSheet: React.FC = () => {
   const { theme } = useTheme();
+  const dispatch = useAppDispatch();
   const { formatCurrency, getCurrencySymbol, convertToUSD, convertFromUSD, getTransactionDisplayAmount, currencyCode } = useCurrency();
   const { isPremium, getRemainingUsage, requiresUpgrade } = useSubscription();
   const [toggleWidth, setToggleWidth] = useState(0);
@@ -264,7 +275,7 @@ const SharedBottomSheet: React.FC = () => {
   // Pre-fill form when editing expense - useLayoutEffect runs synchronously before paint
   // This eliminates the flash of stale data
   useLayoutEffect(() => {
-    if (editingExpense && isEditingExpense) {
+    if (editingExpense) {
       // Only populate if we haven't already populated for this transaction
       if (populatedTransactionId.current !== editingExpense.id) {
         populateExpenseForm(editingExpense);
@@ -414,6 +425,9 @@ const SharedBottomSheet: React.FC = () => {
 
       // Trigger dashboard refresh
       onTransactionAdded();
+
+      // Premium haptic feedback on success
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       showError('Error', isEditingExpense ? 'Failed to update expense' : 'Failed to add expense');
       console.error(error);
@@ -509,6 +523,9 @@ const SharedBottomSheet: React.FC = () => {
 
       // Trigger dashboard refresh
       onTransactionAdded();
+
+      // Premium haptic feedback on success
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       showError('Error', isEditingIncome ? 'Failed to update income' : 'Failed to add income');
       console.error(error);
@@ -593,6 +610,93 @@ const SharedBottomSheet: React.FC = () => {
     }
   };
 
+  const insets = useSafeAreaInsets();
+
+  // Render Footer for BottomSheet
+  const renderFooter = useCallback(
+    (props: BottomSheetFooterProps) => (
+      <BottomSheetFooter {...props} bottomInset={0}>
+        <View style={[
+          styles.fixedFooter,
+          {
+            backgroundColor: theme.background,
+            paddingBottom: Math.max(spacing.lg, insets.bottom),
+          },
+          shadowPresets.soft
+        ]}>
+          {transactionType === 'expense' ? (
+            <TouchableOpacity
+              style={[
+                styles.addButton,
+                glowEffects.error
+              ]}
+              onPress={handleAddExpense}
+              disabled={isAddingExpense}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={expenseColors}
+                start={brandGradients.expense.start}
+                end={brandGradients.expense.end}
+                style={styles.addButtonGradient}
+              >
+                {isAddingExpense ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Icon name="check-circle" size={20} color="#FFFFFF" />
+                    <Text style={styles.addButtonText}>
+                      {isEditingExpense ? 'Update Expense' : 'Add Expense'}
+                    </Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.addButton,
+                glowEffects.success
+              ]}
+              onPress={handleAddIncome}
+              disabled={isAddingIncome}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={successColors}
+                start={brandGradients.success.start}
+                end={brandGradients.success.end}
+                style={styles.addButtonGradient}
+              >
+                {isAddingIncome ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Icon name="check-circle" size={22} color="#FFFFFF" />
+                    <Text style={styles.addButtonText}>
+                      {isEditingIncome ? 'Update Income' : 'Add Income'}
+                    </Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+        </View>
+      </BottomSheetFooter>
+    ),
+    [
+      theme,
+      transactionType,
+      isAddingExpense,
+      isAddingIncome,
+      isEditingExpense,
+      isEditingIncome,
+      handleAddExpense,
+      handleAddIncome,
+      insets.bottom
+    ]
+  );
+
   // Get selected category display info
   const selectedCategory = categories.find(cat => cat.id === newExpenseCategoryId);
 
@@ -612,6 +716,7 @@ const SharedBottomSheet: React.FC = () => {
         snapPoints={['80%']}
         enablePanDownToClose
         backgroundComponent={BottomSheetBackground}
+        footerComponent={renderFooter}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
         onChange={(index) => {
           // Track when bottom sheet opens (index >= 0) or closes (index === -1)
@@ -648,18 +753,27 @@ const SharedBottomSheet: React.FC = () => {
       >
         <BottomSheetScrollView
           style={styles.bottomSheetContent}
-          contentContainerStyle={[styles.bottomSheetContentContainer, { paddingTop: spacing.md, paddingBottom: 100 }]}
+          contentContainerStyle={[styles.bottomSheetContentContainer, { paddingTop: spacing.md, paddingBottom: spacing.md }]}
         >
-          <Text style={[styles.sheetTitle, { color: theme.text }]}>
-            {isEditingExpense || isEditingIncome ? 'Edit Transaction' : 'Add Transaction'}
-          </Text>
+          {/* Header with Gradient Accent */}
+          <View style={styles.headerContainer}>
+            <Text style={[styles.sheetTitle, { color: theme.text }]}>
+              {isEditingExpense || isEditingIncome ? 'Edit Transaction' : 'Add Transaction'}
+            </Text>
+            <LinearGradient
+              colors={[theme.primary + '40', 'transparent']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.headerGradient}
+            />
+          </View>
 
           {/* Quick Add Options - Show First for Better UX */}
           {!isEditingExpense && !isEditingIncome && (
             <View style={styles.quickAddButtons}>
               <View style={styles.aiButtonContainer}>
                 <TouchableOpacity
-                  style={[styles.aiButton, { backgroundColor: theme.primary }]}
+                  style={styles.aiButton}
                   onPress={() => {
                     if (requiresUpgrade('voiceEntry')) {
                       setShowUpgradePrompt(true);
@@ -668,40 +782,52 @@ const SharedBottomSheet: React.FC = () => {
                     bottomSheetRef.current?.close();
                     setTimeout(() => navigation.navigate('VoiceTransaction'), 300);
                   }}
+                  activeOpacity={0.8}
                 >
-                  <Icon name="microphone" size={22} color="#FFFFFF" />
-                  <Text style={styles.aiButtonText}>
-                    Speak
-                  </Text>
+                  <LinearGradient
+                    colors={[theme.primary, theme.primaryDark]}
+                    style={styles.quickActionGradient}
+                  >
+                    <Icon name="microphone" size={24} color="#FFFFFF" />
+                    <Text style={styles.aiButtonText}>
+                      Speak
+                    </Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.scanButtonContainer}>
                 <TouchableOpacity
-                  style={[styles.scanButton, { backgroundColor: theme.income }]}
+                  style={styles.scanButton}
                   onPress={() => {
                     bottomSheetRef.current?.close();
                     setTimeout(() => navigation.navigate('ReceiptUpload'), 300);
                   }}
+                  activeOpacity={0.8}
                 >
-                  <Icon name="camera-outline" size={22} color="#FFFFFF" />
-                  <Text style={styles.scanButtonText}>
-                    Scan
-                  </Text>
-                  {!isPremium && (() => {
-                    const remaining = getRemainingUsage('receiptScanning');
-                    // Only show badge if remaining is a finite number (not Infinity)
-                    if (remaining !== Infinity && remaining > 0) {
-                      return (
-                        <View style={styles.scanButtonBadge}>
-                          <Text style={styles.scanButtonBadgeText}>
-                            {remaining} left
-                          </Text>
-                        </View>
-                      );
-                    }
-                    return null;
-                  })()}
+                  <LinearGradient
+                    colors={[theme.income, theme.income + 'DD']}
+                    style={styles.quickActionGradient}
+                  >
+                    <Icon name="camera-outline" size={24} color="#FFFFFF" />
+                    <Text style={styles.scanButtonText}>
+                      Scan
+                    </Text>
+                    {!isPremium && (() => {
+                      const remaining = getRemainingUsage('receiptScanning');
+                      // Only show badge if remaining is a finite number (not Infinity)
+                      if (remaining !== Infinity && remaining > 0) {
+                        return (
+                          <View style={styles.scanButtonBadge}>
+                            <Text style={styles.scanButtonBadgeText}>
+                              {remaining} left
+                            </Text>
+                          </View>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </LinearGradient>
                 </TouchableOpacity>
                 {isPremium && (
                   <View style={styles.premiumBadgeOverlay}>
@@ -903,6 +1029,7 @@ const SharedBottomSheet: React.FC = () => {
                   label="Date"
                 />
               </View>
+              <View style={{ height: spacing.xxxl }} />
 
             </>
           )}
@@ -1100,6 +1227,7 @@ const SharedBottomSheet: React.FC = () => {
                     })}
                   </View>
                 )}
+                <View style={{ height: spacing.xxxl }} />
               </View>
 
             </>
@@ -1114,39 +1242,6 @@ const SharedBottomSheet: React.FC = () => {
             message="Unlock unlimited AI features with Finly Premium!"
           />
         </BottomSheetScrollView>
-
-        {/* Fixed Footer with Add Buttons */}
-        <View style={[styles.fixedFooter, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
-          {transactionType === 'expense' ? (
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: theme.primary }, elevation.sm]}
-              onPress={handleAddExpense}
-              disabled={isAddingExpense}
-            >
-              {isAddingExpense ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                  <Text style={styles.addButtonText}>
-                    {isEditingExpense ? 'Update Expense' : 'Add Expense'}
-                  </Text>
-              )}
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: theme.income }, elevation.sm]}
-              onPress={handleAddIncome}
-              disabled={isAddingIncome}
-            >
-              {isAddingIncome ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                    <Text style={styles.addButtonText}>
-                      {isEditingIncome ? 'Update Income' : 'Add Income'}
-                    </Text>
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
       </BottomSheet>
 
       {/* Category Picker Modal */}
@@ -1174,12 +1269,17 @@ const SharedBottomSheet: React.FC = () => {
           onPressOut={() => setShowPaymentMethodPicker(false)}
         >
           <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Select Payment Method</Text>
-              <TouchableOpacity onPress={() => setShowPaymentMethodPicker(false)}>
-                <Icon name="close" size={24} color={theme.textSecondary} />
-              </TouchableOpacity>
-            </View>
+            <LinearGradient
+              colors={[theme.primary + '15', 'transparent']}
+              style={styles.modalHeaderGradient}
+            >
+              <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>Select Payment Method</Text>
+                <TouchableOpacity onPress={() => setShowPaymentMethodPicker(false)}>
+                  <Icon name="close" size={24} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
             <ScrollView style={styles.modalScrollView}>
               {PAYMENT_METHODS.map((method) => (
                 <TouchableOpacity
@@ -1214,12 +1314,17 @@ const SharedBottomSheet: React.FC = () => {
           onPressOut={() => setShowTagsPicker(false)}
         >
           <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Select Tags</Text>
-              <TouchableOpacity onPress={() => setShowTagsPicker(false)}>
-                <Icon name="close" size={24} color={theme.textSecondary} />
-              </TouchableOpacity>
-            </View>
+            <LinearGradient
+              colors={[theme.primary + '15', 'transparent']}
+              style={styles.modalHeaderGradient}
+            >
+              <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>Select Tags</Text>
+                <TouchableOpacity onPress={() => setShowTagsPicker(false)}>
+                  <Icon name="close" size={24} color={theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
             <ScrollView style={styles.modalScrollView}>
               {availableTags.length === 0 ? (
                 <View style={styles.emptyTagsContainer}>
@@ -1385,8 +1490,10 @@ const SharedBottomSheet: React.FC = () => {
                 setShowCreateIncomeSourceModal(true);
               }}
             >
-              <Icon name="plus" size={20} color="#FFFFFF" />
-              <Text style={styles.addButtonText}>Create New Income Source</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, justifyContent: 'center', padding: spacing.md }}>
+                <Icon name="plus" size={20} color="#FFFFFF" />
+                <Text style={styles.addButtonText}>Create New Income Source</Text>
+              </View>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -1522,14 +1629,14 @@ const SharedBottomSheet: React.FC = () => {
                   />
                 </View>
                 <TouchableOpacity
-                  style={[styles.addButton, { backgroundColor: theme.primary, marginTop: spacing.lg }]}
+                  style={[styles.addButton, { backgroundColor: theme.primary, marginTop: spacing.lg, padding: spacing.md, alignItems: 'center' }]}
                   onPress={handleCreateIncomeSource}
                   disabled={isCreatingIncomeSource}
                 >
                   {isCreatingIncomeSource ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.addButtonText}>Create Income Source</Text>
+                      <Text style={styles.addButtonText}>Create Income Source</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -1553,12 +1660,20 @@ const styles = StyleSheet.create({
   },
   bottomSheetContentContainer: {
     padding: spacing.lg,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxl + 120, // Increased padding to ensure all content is scrollable above the fixed footer
   },
   sheetTitle: {
     ...typography.headlineSmall,
     fontWeight: '700',
     marginBottom: spacing.md,
+  },
+  headerContainer: {
+    marginBottom: spacing.sm,
+  },
+  headerGradient: {
+    height: 3,
+    marginTop: spacing.xs,
+    borderRadius: borderRadius.full,
   },
   transactionTypeToggle: {
     flexDirection: 'row',
@@ -1602,11 +1717,15 @@ const styles = StyleSheet.create({
   },
   aiButton: {
     width: '100%',
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+    ...elevation.sm,
+  },
+  quickActionGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.md,
-    borderRadius: borderRadius.md,
     gap: spacing.xs,
     minHeight: 56,
   },
@@ -1621,13 +1740,9 @@ const styles = StyleSheet.create({
   },
   scanButton: {
     width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.md,
     borderRadius: borderRadius.md,
-    gap: spacing.xs,
-    minHeight: 56,
+    overflow: 'hidden',
+    ...elevation.sm,
   },
   scanButtonText: {
     ...typography.labelMedium,
@@ -1796,13 +1911,17 @@ const styles = StyleSheet.create({
   fixedFooter: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
-    borderTopWidth: 1,
   },
   addButton: {
-    paddingVertical: spacing.md + 4,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+  },
+  addButtonGradient: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
   },
   addButtonText: {
     ...typography.labelLarge,
@@ -1825,11 +1944,14 @@ const styles = StyleSheet.create({
   },
   modalHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
+  },
+  modalHeaderGradient: {
+    paddingTop: spacing.sm,
   },
   modalTitle: {
     ...typography.titleLarge,

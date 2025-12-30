@@ -7,7 +7,7 @@ import { apiService } from './api';
 import { getCurrentUserId } from './userService';
 import logger from '../utils/logger';
 
-const PERMISSION_BANNER_SHOWN_KEY = '@finly:notification_permission_banner_shown';
+const PERMISSION_BANNER_SHOWN_KEY = '@finly_notification_permission_banner_shown';
 
 const PROJECT_ID = 'dfa0ffd0-4dca-4765-b6dd-1ca535a8e731';
 
@@ -28,8 +28,9 @@ class NotificationService {
 
   async initialize(): Promise<void> {
     try {
+      // Only setup Android channel - DO NOT request permissions automatically
+      // Permissions will be requested when user explicitly grants them via NotificationPermissionBanner
       await this.setupAndroidChannel();
-      await this.requestPermissions();
     } catch (error) {
       logger.error('[NotificationService] Initialization failed:', error);
     }

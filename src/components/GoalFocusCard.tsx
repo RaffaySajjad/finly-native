@@ -11,6 +11,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useGoal, GOAL_INFO, UserGoal } from '../hooks/useGoal';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { useNavigation } from '@react-navigation/native';
+import { useBottomSheetActions } from '../contexts/BottomSheetContext';
+import ScaleButton from './ScaleButton';
 
 interface GoalMetrics {
   // Budget goal metrics
@@ -38,16 +40,19 @@ interface GoalFocusCardProps {
   metrics: GoalMetrics;
   onPress?: () => void;
   formatCurrency: (amount: number) => string;
+  categories: any[]; // Using any[] to avoid circular dependency, but should be Category[]
 }
 
 const GoalFocusCard: React.FC<GoalFocusCardProps> = ({
   metrics,
   onPress,
   formatCurrency,
+  categories,
 }) => {
   const { theme } = useTheme();
   const { goal, goalInfo } = useGoal();
   const navigation = useNavigation<any>();
+  const { openBottomSheet } = useBottomSheetActions();
 
   // Render goal-specific content
   const content = useMemo(() => {
@@ -97,7 +102,7 @@ const GoalFocusCard: React.FC<GoalFocusCardProps> = ({
             <View style={styles.metricItem}>
               <Icon name="percent" size={20} color={rateColor} />
               <Text style={[styles.metricValue, { color: rateColor }]}>
-                {savingsRate.toFixed(0)}%
+                {savingsRate.toFixed(2)}%
               </Text>
               <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>
                 Savings Rate
@@ -182,67 +187,82 @@ const GoalFocusCard: React.FC<GoalFocusCardProps> = ({
     let actionIcon = '';
     let actionRoute = '';
     let actionParams = {};
+    let targetCategoryName = '';
+    let isTransactionAction = false;
 
     switch (goal) {
       case 'debt':
         actionLabel = 'Log Debt Payment';
         actionIcon = 'credit-card-check';
-        actionRoute = 'AddExpense';
-        actionParams = { category: 'Debt Payments' };
-        break;
-      case 'save':
-        actionLabel = 'Add Savings';
-        actionIcon = 'piggy-bank';
-        actionRoute = 'AddExpense';
-        actionParams = { category: 'Savings' };
+        isTransactionAction = true;
+        targetCategoryName = 'Debt Payments';
         break;
       case 'budget':
         actionLabel = 'Review Budgets';
         actionIcon = 'chart-box';
-        actionRoute = 'CategoryList';
+        actionRoute = 'Categories';
         break;
       case 'track':
         actionLabel = 'Log Transaction';
         actionIcon = 'plus-circle';
-        actionRoute = 'AddExpense';
+        isTransactionAction = true;
         break;
     }
 
     if (!actionLabel) return null;
 
     return (
-      <TouchableOpacity
+      <ScaleButton
         style={[styles.actionButton, { backgroundColor: theme.card, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.md, marginTop: spacing.sm, borderTopWidth: 1 }]}
         onPress={() => {
-          if (actionRoute) {
+          if (isTransactionAction) {
+            // Find category ID if a target name is specified
+            let categoryId = '';
+            if (targetCategoryName && categories) {
+              const category = categories.find(c => c.name === targetCategoryName);
+              if (category) {
+                categoryId = category.id;
+              }
+            }
+
+            // Open bottom sheet with pre-filled category
+            // We pass a partial expense object that acts as a template
+            // @ts-ignore - Partial expense for pre-fill
+            openBottomSheet({
+              categoryId: categoryId,
+              description: targetCategoryName || '',
+              date: new Date().toISOString(),
+            });
+          } else if (actionRoute) {
             // @ts-ignore
             navigation.navigate(actionRoute, actionParams);
           }
         }}
-        activeOpacity={0.7}
+        hapticFeedback="medium"
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <Icon name={actionIcon as any} size={20} color={theme.primary} />
           <Text style={[styles.actionButtonText, { color: theme.primary, fontWeight: '600' }]}>{actionLabel}</Text>
         </View>
         <Icon name="chevron-right" size={20} color={theme.textTertiary} />
-      </TouchableOpacity>
+      </ScaleButton>
     );
   };
+
 
   if (!goal || !goalInfo) {
     return null;
   }
 
   return (
-    <TouchableOpacity
+    <ScaleButton
       style={[
         styles.container,
         { backgroundColor: theme.card, borderColor: theme.border },
         elevation.sm,
       ]}
       onPress={onPress || (() => navigation.navigate('Categories'))}
-      activeOpacity={0.7}
+      hapticFeedback="light"
     >
       {/* Header */}
       <View style={styles.header}>
@@ -265,7 +285,7 @@ const GoalFocusCard: React.FC<GoalFocusCardProps> = ({
 
       {/* Quick Action */}
       {renderGoalAction()}
-    </TouchableOpacity>
+    </ScaleButton>
   );
 };
 

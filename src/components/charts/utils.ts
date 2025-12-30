@@ -4,19 +4,23 @@
  */
 
 import { ChartDataPoint, RangeChangeMetrics, VisibleRange } from './types';
-import { Y_AXIS_PADDING_RATIO, MIN_Y_AXIS_RANGE } from './constants';
+import { Y_AXIS_PADDING_RATIO, MIN_Y_AXIS_RANGE, CHART_CONFIG } from './constants';
 
 /**
  * Calculate Y-axis bounds for a dataset with smart padding
  */
 export function calculateYAxisBounds(
   data: ChartDataPoint[],
-  visibleRange?: VisibleRange
+  visibleRange?: VisibleRange,
+  useNormalizedRange = false
 ): { min: number; max: number; sections: number } {
-  if (!data || data.length === 0) {
+  if (useNormalizedRange) {
     return { min: 0, max: 100, sections: 4 };
   }
 
+  if (!data || data.length === 0) {
+    return { min: 0, max: 100, sections: 4 };
+  }
   let values: number[];
   
   if (visibleRange) {
@@ -33,18 +37,27 @@ export function calculateYAxisBounds(
 
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
-  const range = maxValue - minValue;
+  let range = maxValue - minValue;
 
-  const effectiveRange = Math.max(range, MIN_Y_AXIS_RANGE);
-  const padding = effectiveRange * Y_AXIS_PADDING_RATIO;
+  // Handle zero-range or small range cases
+  if (range < 0.01) {
+    range = MIN_Y_AXIS_RANGE;
+  }
 
-  const adjustedMin = minValue - padding;
+  const padding = range * Y_AXIS_PADDING_RATIO;
+
+  // Stabilize bounds: Avoid negative minimum if all data is positive
+  let adjustedMin = minValue - padding;
+  if (minValue >= 0 && adjustedMin < 0) {
+    adjustedMin = 0;
+  }
+  
   const adjustedMax = maxValue + padding;
 
   return {
     min: adjustedMin,
     max: adjustedMax,
-    sections: 4,
+    sections: CHART_CONFIG.axis.numberOfSections || 4,
   };
 }
 
@@ -65,7 +78,7 @@ export function calculateRangeMetrics(
   const sign = isPositive ? '+' : '';
   const formattedPercentage = Math.abs(percentageChange) > 999 
     ? '999+' 
-    : percentageChange.toFixed(1);
+    : percentageChange.toFixed(2);
   const formattedChange = `${sign}${formattedPercentage}%`;
 
   return {
@@ -216,5 +229,28 @@ export function isSignificantChange(
   threshold = 5
 ): boolean {
   return Math.abs(percentageChange) >= threshold;
+}
+
+/**
+ * Normalize data to a 0-100 range for SVG rendering stability
+ */
+export function normalizeData(
+  data: ChartDataPoint[]
+): { normalizedData: ChartDataPoint[]; min: number; max: number; range: number } {
+  if (!data || data.length === 0) {
+    return { normalizedData: [], min: 0, max: 100, range: 100 };
+  }
+
+  const values = data.map(d => d.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = (max - min) || 1; // Avoid division by zero
+
+  const normalizedData = data.map(d => ({
+    ...d,
+    value: ((d.value - min) / range) * 100,
+  }));
+
+  return { normalizedData, min, max, range };
 }
 

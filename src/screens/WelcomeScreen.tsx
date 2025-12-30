@@ -4,7 +4,7 @@
  * Features: Animated logo, value propositions, elegant gradient design
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,10 @@ import * as Haptics from 'expo-haptics';
 
 import { AuthStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { brandGradients, glowEffects } from '../theme/DesignTokens';
+import { springPresets, timingPresets, staggerDelays } from '../theme/AnimationConfig';
+import { usePerformance } from '../contexts/PerformanceContext';
+import { GlowButton } from '../components/PremiumComponents';
 
 type WelcomeNavigationProp = StackNavigationProp<AuthStackParamList, 'Welcome'>;
 
@@ -37,59 +41,86 @@ interface FeatureItem {
 }
 
 const features: FeatureItem[] = [
-  { icon: 'lightning-bolt', title: 'Track expenses instantly', delay: 400 },
-  { icon: 'receipt-text-outline', title: 'Scan any receipt or screenshot', delay: 550 },
-  { icon: 'microphone', title: 'Voice-powered entries', delay: 700 },
-  { icon: 'chart-line', title: 'AI-driven insights', delay: 850 },
-  { icon: 'shield-check-outline', title: 'Your data stays private & secure', delay: 1000 },
+  { icon: 'lightning-bolt', title: 'Know where your money goes', delay: 400 },
+  { icon: 'receipt-text-outline', title: 'Snap any receipt. Done!', delay: 550 },
+  { icon: 'microphone', title: 'Just say it, we\'ll log it', delay: 700 },
+  { icon: 'chart-line', title: 'AI insights that matter', delay: 850 },
+  { icon: 'shield-check-outline', title: 'Your data stays yours', delay: 1000 },
 ];
 
 /**
- * WelcomeScreen - Beautiful landing page for first-time users
+ * WelcomeScreen - Beautiful landing page with premium animations
  */
 const WelcomeScreen: React.FC = () => {
   const navigation = useNavigation<WelcomeNavigationProp>();
+  const { shouldUseComplexAnimations, shouldUseGlowEffects } = usePerformance();
 
   // Animation values
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const titleSlide = useRef(new Animated.Value(30)).current;
   const subtitleOpacity = useRef(new Animated.Value(0)).current;
-  const featuresOpacity = useRef(new Animated.Value(0)).current;
   const buttonsOpacity = useRef(new Animated.Value(0)).current;
   const buttonsSlide = useRef(new Animated.Value(50)).current;
+
+  // 3D Logo animation
+  const logoScale = useRef(new Animated.Value(0.8)).current;
+  const logoRotate = useRef(new Animated.Value(0)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+
+  // Gradient animation
+  const [gradientColors, setGradientColors] = useState(brandGradients.primary.colors);
+  const gradientAnim = useRef(new Animated.Value(0)).current;
 
   // Feature item animations
   const featureAnimations = features.map(() => ({
     opacity: useRef(new Animated.Value(0)).current,
     slide: useRef(new Animated.Value(20)).current,
+    scale: useRef(new Animated.Value(0.9)).current,
   }));
 
   useEffect(() => {
-    // Orchestrated entrance animation
-    const animationSequence = Animated.sequence([
+    // 3D Logo entrance animation
+    const logoAnimations: Animated.CompositeAnimation[] = [
+      Animated.spring(logoScale, {
+        toValue: 1,
+        ...springPresets.bouncy,
+      }),
+      Animated.timing(logoOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ];
+
+    // Add rotation only for high-end devices
+    if (shouldUseComplexAnimations) {
+      logoAnimations.push(
+        Animated.spring(logoRotate, {
+          toValue: 1,
+          ...springPresets.gentle,
+        })
+      );
+    }
+
+    Animated.sequence([
+      Animated.parallel(logoAnimations),
       // Title fade in
       Animated.parallel([
         Animated.timing(titleOpacity, {
           toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
+          ...timingPresets.normal,
         }),
         Animated.spring(titleSlide, {
           toValue: 0,
-          tension: 50,
-          friction: 8,
-          useNativeDriver: true,
+          ...springPresets.smooth,
         }),
       ]),
       // Subtitle
       Animated.timing(subtitleOpacity, {
         toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
+        ...timingPresets.fast,
       }),
-    ]);
-
-    animationSequence.start();
+    ]).start();
 
     // Features staggered animation
     features.forEach((_, index) => {
@@ -102,9 +133,11 @@ const WelcomeScreen: React.FC = () => {
           }),
           Animated.spring(featureAnimations[index].slide, {
             toValue: 0,
-            tension: 50,
-            friction: 8,
-            useNativeDriver: true,
+            ...springPresets.smooth,
+          }),
+          Animated.spring(featureAnimations[index].scale, {
+            toValue: 1,
+            ...springPresets.gentle,
           }),
         ]).start();
       }, features[index].delay);
@@ -115,18 +148,33 @@ const WelcomeScreen: React.FC = () => {
       Animated.parallel([
         Animated.timing(buttonsOpacity, {
           toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
+          ...timingPresets.normal,
         }),
         Animated.spring(buttonsSlide, {
           toValue: 0,
-          tension: 50,
-          friction: 8,
-          useNativeDriver: true,
+          ...springPresets.bouncy,
         }),
       ]).start();
     }, 900);
-  }, []);
+
+    // Animated gradient (if device supports complex animations)
+    if (shouldUseComplexAnimations) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(gradientAnim, {
+            toValue: 1,
+            duration: 3000,
+            useNativeDriver: false,
+          }),
+          Animated.timing(gradientAnim, {
+            toValue: 0,
+            duration: 3000,
+            useNativeDriver: false,
+          }),
+        ])
+      ).start();
+    }
+  }, [shouldUseComplexAnimations]);
 
   const handleGetStarted = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -137,6 +185,12 @@ const WelcomeScreen: React.FC = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     navigation.navigate('Login');
   };
+
+  // Interpolate logo rotation for 3D effect
+  const logoRotateInterpolate = logoRotate.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   return (
     <View style={styles.container}>
@@ -158,16 +212,35 @@ const WelcomeScreen: React.FC = () => {
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {/* Hero Section */}
         <View style={styles.heroSection}>
-          {/* Static Logo Image */}
-          <View style={styles.logoContainer}>
-            <View style={styles.logoInner}>
+          {/* 3D Animated Logo */}
+          <Animated.View
+            style={[
+              styles.logoContainer,
+              {
+                opacity: logoOpacity,
+                transform: [
+                  { scale: logoScale },
+                  { rotateY: shouldUseComplexAnimations ? logoRotateInterpolate : '0deg' },
+                ],
+              },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.logoInner,
+                shouldUseGlowEffects && {
+                  ...glowEffects.medium,
+                  shadowColor: '#6366F1',
+                },
+              ]}
+            >
               <Image
                 source={require('../../assets/icon-white.png')}
                 style={styles.logoImage}
                 resizeMode="contain"
               />
-            </View>
-          </View>
+            </Animated.View>
+          </Animated.View>
 
           {/* Title */}
           <Animated.Text
@@ -189,7 +262,7 @@ const WelcomeScreen: React.FC = () => {
               { opacity: subtitleOpacity },
             ]}
           >
-            Your AI-powered finance companion
+            Financial Clarity. Effortlessly.
           </Animated.Text>
         </View>
 
@@ -202,13 +275,24 @@ const WelcomeScreen: React.FC = () => {
                 styles.featureItem,
                 {
                   opacity: featureAnimations[index].opacity,
-                  transform: [{ translateX: featureAnimations[index].slide }],
+                  transform: [
+                    { translateX: featureAnimations[index].slide },
+                    { scale: featureAnimations[index].scale },
+                  ],
                 },
               ]}
             >
-              <View style={styles.featureIcon}>
+              <Animated.View
+                style={[
+                  styles.featureIcon,
+                  shouldUseGlowEffects && {
+                    ...glowEffects.subtle,
+                    shadowColor: '#22D3EE',
+                  },
+                ]}
+              >
                 <Icon name={feature.icon as any} size={20} color="#22D3EE" />
-              </View>
+              </Animated.View>
               <Text style={styles.featureText}>{feature.title}</Text>
             </Animated.View>
           ))}
@@ -224,15 +308,18 @@ const WelcomeScreen: React.FC = () => {
             },
           ]}
         >
-          {/* Get Started Button */}
-          <TouchableOpacity
-            style={styles.primaryButton}
+          {/* Get Started Button - Premium Glow Button */}
+          <GlowButton
             onPress={handleGetStarted}
-            activeOpacity={0.9}
+            variant="primary"
+            glowIntensity="medium"
+            style={styles.primaryButton}
           >
-            <Text style={styles.primaryButtonText}>Get Started</Text>
-            <Icon name="arrow-right" size={20} color="#4F46E5" />
-          </TouchableOpacity>
+            <View style={styles.buttonContent}>
+              <Text style={styles.primaryButtonText}>Get Started</Text>
+              <Icon name="arrow-right" size={20} color="#FFFFFF" />
+            </View>
+          </GlowButton>
 
           {/* Sign In Button */}
           <TouchableOpacity
@@ -389,29 +476,19 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   primaryButton: {
+    borderRadius: borderRadius.lg,
+  },
+  buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: spacing.md + 4,
-    borderRadius: borderRadius.lg,
     gap: spacing.sm,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    paddingVertical: spacing.sm,
   },
   primaryButtonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#4F46E5',
+    color: '#FFFFFF',
   },
   secondaryButton: {
     alignItems: 'center',

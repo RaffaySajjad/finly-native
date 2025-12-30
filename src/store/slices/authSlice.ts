@@ -13,6 +13,15 @@ interface User {
   name: string;
   email: string;
   emailVerified?: boolean;
+  streakCount?: number;
+  streakUpdatedAt?: string;
+  lastActiveAt?: string;
+  financialGoal?: string;
+  currentXP?: number;
+  level?: number;
+  originalBalanceAmount?: number | null;
+  originalBalanceCurrency?: string | null;
+  startingBalance?: number;
 }
 
 interface AuthState {
@@ -80,6 +89,22 @@ export const login = createAsyncThunk(
         message: errorMessage,
         code: errorCode
       });
+    }
+  }
+);
+
+/**
+ * Async thunk to refresh user data from API
+ * Called on app launch to ensure local data is up to date
+ */
+export const refreshUser = createAsyncThunk(
+  'auth/refresh',
+  async (_, { rejectWithValue }) => {
+    try {
+      const user = await authService.getCurrentUser();
+      return { user };
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to refresh user data');
     }
   }
 );
@@ -329,6 +354,15 @@ const authSlice = createSlice({
     builder.addCase(deleteAccount.rejected, state => {
       // Keep user logged in if deletion fails
     });
+
+    // Refresh User
+    builder
+      .addCase(refreshUser.fulfilled, (state, action) => {
+        state.user = action.payload.user;
+      })
+      .addCase(refreshUser.rejected, (state, action) => {
+        console.warn('Failed to refresh user:', action.payload);
+      });
 
     // Update profile
     builder

@@ -19,7 +19,7 @@ import {
   Animated,
 } from 'react-native';
 import { useAlert } from '../hooks/useAlert';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
@@ -33,12 +33,15 @@ import { logger } from '../utils/logger';
 import { useVoiceRecording } from '../hooks/useVoiceRecording';
 import { useBottomSheetActions, ParsedTransactionUpdate } from '../contexts/BottomSheetContext';
 import { UpgradePrompt, DatePickerInput, ToggleSelector } from '../components';
+import { GradientHeader } from '../components/GradientHeader';
 import { parseTransactionInput } from '../services/aiTransactionService';
 import { transcribeAudio } from '../services/voiceTranscriptionService';
 import { apiService } from '../services/api';
 import { RootStackParamList } from '../navigation/types';
-import { Expense, IncomeTransaction } from '../types';
+import { Expense, IncomeTransaction, Category } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { useAppSelector } from '../store';
+import { getValidIcon } from '../utils/iconUtils';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -60,6 +63,22 @@ const VoiceTransactionScreen: React.FC = () => {
     requestPermissions,
   } = useVoiceRecording();
   const { showError, showSuccess, showInfo, AlertComponent } = useAlert();
+  const { categories: reduxCategories } = useAppSelector(state => state.categories);
+
+  // Local categories fallback if Redux is empty
+  const [localCategories, setLocalCategories] = useState<Category[]>([]);
+
+  // Merge Redux and local categories (Redux takes priority)
+  const categories = reduxCategories.length > 0 ? reduxCategories : localCategories;
+
+  // Fetch categories on mount if Redux is empty
+  useEffect(() => {
+    if (reduxCategories.length === 0) {
+      apiService.getCategories()
+        .then(setLocalCategories)
+        .catch(err => console.error('Failed to fetch categories for Voice screen', err));
+    }
+  }, [reduxCategories.length]);
 
   const [inputMode, setInputMode] = useState<InputMode>('voice');
   const [input, setInput] = useState('');
@@ -479,10 +498,13 @@ const VoiceTransactionScreen: React.FC = () => {
     outputRange: [0.3, 1],
   });
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { marginTop: insets.top }]}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
@@ -644,14 +666,14 @@ const VoiceTransactionScreen: React.FC = () => {
               )}
             </View>
 
-            {isTranscribing && (
+            {/* {isTranscribing && (
               <View style={styles.transcribingIndicator}>
                 <ActivityIndicator size="small" color={theme.primary} />
                 <Text style={[styles.transcribingText, { color: theme.textSecondary }]}>
                   Transcribing...
                 </Text>
               </View>
-            )}
+            )} */}
           </View>
         )}
 
@@ -710,20 +732,20 @@ const VoiceTransactionScreen: React.FC = () => {
             ) : (
               <>
                 <Icon name="auto-fix" size={20} color="#FFFFFF" />
-                <Text style={styles.processButtonText}>Process with AI</Text>
+                  <Text style={styles.processButtonText}>Process with Finly AI</Text>
               </>
             )}
           </TouchableOpacity>
         )}
 
         {/* Date Picker */}
-        <View style={styles.dateSection}>
+        {/* <View style={styles.dateSection}>
           <DatePickerInput
             date={transactionDate}
             onDateChange={setTransactionDate}
             label="DEFAULT DATE (IF NOT SPECIFIED)"
           />
-        </View>
+        </View> */}
 
         {/* Parsed Transactions Preview */}
         {parsedTransactions.length > 0 && (
@@ -744,7 +766,16 @@ const VoiceTransactionScreen: React.FC = () => {
               </View>
             </View>
 
-            {parsedTransactions.map((tx, index) => (
+            {parsedTransactions.map((tx, index) => {
+              // Lookup category for expense transactions
+              const category = tx.type === 'expense' && tx.categoryId
+                ? categories.find((c: Category) => c.id === tx.categoryId)
+                : null;
+              const iconName = category ? getValidIcon(category.icon) : (tx.type === 'income' ? 'cash-plus' : 'cash-minus');
+              const iconColor = category ? category.color : (tx.type === 'income' ? theme.income : theme.expense);
+              const categoryName = category ? category.name : (tx.type === 'income' ? 'Income' : 'Uncategorized');
+
+              return (
               <TouchableOpacity
                 key={index}
                 style={[
@@ -775,47 +806,20 @@ const VoiceTransactionScreen: React.FC = () => {
                 >
                   {tx.selected && <Icon name="check" size={16} color="#FFFFFF" />}
                 </TouchableOpacity>
-                <View style={[styles.transactionIcon, { backgroundColor: theme.primary + '20' }]}>
+                  <View style={[styles.transactionIcon, { backgroundColor: iconColor + '20' }]}>
                   <Icon
-                    name="check-circle-outline"
+                      name={iconName as any}
                     size={24}
-                    color={theme.primary}
+                      color={iconColor}
                   />
                 </View>
                 <View style={styles.transactionDetails}>
-                  <View style={styles.transactionHeader}>
-                  <Text style={[styles.transactionDescription, { color: theme.text }]}>
-                    {tx.description}
-                  </Text>
-                    <View style={[
-                      styles.typeBadge,
-                      { backgroundColor: tx.type === 'income' ? theme.income + '20' : theme.expense + '20' }
-                    ]}>
-                      <Icon
-                        name={tx.type === 'income' ? 'arrow-down' : 'arrow-up'}
-                        size={12}
-                        color={tx.type === 'income' ? theme.income : theme.expense}
-                      />
-                      <Text style={[
-                        styles.typeBadgeText,
-                        { color: tx.type === 'income' ? theme.income : theme.expense }
-                      ]}>
-                        {tx.type === 'income' ? 'Income' : 'Expense'}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.transactionMeta}>
-                    {tx.type === 'expense' && tx.categoryId && (
-                    <Text style={[styles.transactionCategory, { color: theme.textSecondary }]}>
-                        Category: {tx.categoryId.substring(0, 8)}...
+                    <Text style={[styles.transactionDescription, { color: theme.text }]} numberOfLines={1}>
+                      {tx.description}
                     </Text>
-                    )}
-                    {tx.type === 'income' && tx.incomeSourceId && (
-                      <Text style={[styles.transactionCategory, { color: theme.textSecondary }]}>
-                        Source: {tx.incomeSourceId.substring(0, 8)}...
-                      </Text>
-                    )}
-                  </View>
+                    <Text style={[styles.transactionCategory, { color: theme.textSecondary }]}>
+                      {categoryName}
+                    </Text>
                 </View>
                 <Text style={[
                   styles.transactionAmount,
@@ -824,7 +828,8 @@ const VoiceTransactionScreen: React.FC = () => {
                   {tx.type === 'income' ? '+' : '-'}{formatCurrency(convertToUSD(tx.amount))}
                 </Text>
               </TouchableOpacity>
-            ))}
+              );
+            })}
 
             <TouchableOpacity
               style={[styles.confirmButton, { backgroundColor: theme.success }, elevation.md]}
@@ -850,11 +855,11 @@ const VoiceTransactionScreen: React.FC = () => {
       <UpgradePrompt
         visible={showUpgradePrompt}
         onClose={() => setShowUpgradePrompt(false)}
-        feature="Smart Entry"
-        message="You've used all 3 free voice entries/ text transcription this month. Upgrade to Premium to log unlimited transactions anytime!"
+        feature="Voice Entry"
+        message="Speak your spending! Unlock unlimited voice transactions to record expenses on the go."
       />
       {AlertComponent}
-    </SafeAreaView>
+    </View>
   );
 };
 

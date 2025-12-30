@@ -17,7 +17,8 @@ import {
   ActivityIndicator,
   Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GradientHeader } from '../components/GradientHeader';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -31,6 +32,8 @@ import { typography, spacing, borderRadius, elevation } from '../theme';
 import { AuthStackParamList } from '../navigation/types';
 import authService from '../services/authService';
 import { useAlert } from '../hooks/useAlert';
+import { AnimatedInput } from '../components/AnimatedInput';
+import { GlowButton } from '../components/PremiumComponents';
 
 type LoginNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
 
@@ -39,6 +42,7 @@ type LoginNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
  */
 const LoginScreen: React.FC = () => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const { isLoading: authLoading } = useAppSelector((state) => state.auth);
   const navigation = useNavigation<LoginNavigationProp>();
@@ -233,7 +237,8 @@ const LoginScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       <LinearGradient
         colors={[theme.primary + '20', theme.background, theme.background]}
         style={styles.gradient}
@@ -276,72 +281,40 @@ const LoginScreen: React.FC = () => {
               ]}
             >
               {/* Email Input */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: theme.textSecondary }]}>Email</Text>
-                <View style={[
-                  styles.inputContainer,
-                  {
-                    backgroundColor: theme.background,
-                    borderColor: emailError ? theme.expense : theme.border,
-                  }
-                ]}>
-                  <Icon name="email-outline" size={20} color={emailError ? theme.expense : theme.textSecondary} />
-                  <TextInput
-                    style={[styles.input, { color: theme.text }]}
-                      placeholder="you@email.com"
-                    placeholderTextColor={theme.textTertiary}
-                    value={email}
-                    onChangeText={(text) => {
-                      setEmail(text);
-                      if (emailError) setEmailError('');
-                      if (generalError) setGeneralError('');
-                    }}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
-                {emailError && (
-                  <Text style={[styles.errorText, { color: theme.expense }]}>{emailError}</Text>
-                )}
-              </View>
+              <AnimatedInput
+                label="Email"
+                icon="email-outline"
+                placeholder="you@email.com"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (emailError) setEmailError('');
+                  if (generalError) setGeneralError('');
+                }}
+                error={emailError}
+                isValid={!emailError && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
 
               {/* Password Input */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: theme.textSecondary }]}>Password</Text>
-                <View style={[
-                  styles.inputContainer,
-                  {
-                    backgroundColor: theme.background,
-                    borderColor: passwordError ? theme.expense : theme.border,
-                  }
-                ]}>
-                  <Icon name="lock-outline" size={20} color={passwordError ? theme.expense : theme.textSecondary} />
-                  <TextInput
-                    style={[styles.input, { color: theme.text }]}
-                    placeholder="Enter your password"
-                    placeholderTextColor={theme.textTertiary}
-                    value={password}
-                    onChangeText={(text) => {
-                      setPassword(text);
-                      if (passwordError) setPasswordError('');
-                      if (generalError) setGeneralError('');
-                    }}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                    <Icon
-                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                      size={20}
-                      color={passwordError ? theme.expense : theme.textSecondary}
-                    />
-                  </TouchableOpacity>
-                </View>
-                {passwordError && (
-                  <Text style={[styles.errorText, { color: theme.expense }]}>{passwordError}</Text>
-                )}
-              </View>
+              <AnimatedInput
+                label="Password"
+                icon="lock-outline"
+                placeholder="Enter your password"
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (passwordError) setPasswordError('');
+                  if (generalError) setGeneralError('');
+                }}
+                error={passwordError}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                rightIcon={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                onRightIconPress={() => setShowPassword(!showPassword)}
+              />
 
               {/* Forgot Password Link */}
               <TouchableOpacity
@@ -362,23 +335,22 @@ const LoginScreen: React.FC = () => {
               )}
 
               {/* Login Button */}
-              <TouchableOpacity
+              <GlowButton
+                onPress={handleLogin}
+                variant="primary"
+                glowIntensity="medium"
+                disabled={authLoading}
                 style={[
                   styles.loginButton,
-                  { backgroundColor: theme.primary },
                   generalError && { marginTop: spacing.md },
-                  elevation.md
                 ]}
-                onPress={handleLogin}
-                disabled={authLoading}
-                activeOpacity={0.9}
               >
                 {authLoading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <Text style={styles.loginButtonText}>Log In</Text>
                 )}
-              </TouchableOpacity>
+              </GlowButton>
             </Animated.View>
 
             {/* Signup Link */}
@@ -396,7 +368,7 @@ const LoginScreen: React.FC = () => {
       
       {/* Alert Dialog */}
       {AlertComponent}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -413,7 +385,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: spacing.md + 44, // Account for status bar
   },
   header: {
     marginBottom: spacing.xl,
@@ -473,9 +445,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   loginButton: {
-    paddingVertical: spacing.md + 4,
     borderRadius: borderRadius.md,
-    alignItems: 'center',
   },
   loginButtonText: {
     ...typography.labelLarge,

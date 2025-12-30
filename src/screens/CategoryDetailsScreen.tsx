@@ -17,7 +17,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useAlert } from '../hooks/useAlert';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
@@ -26,12 +26,16 @@ import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorho
 
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { usePerformance } from '../contexts/PerformanceContext';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { getDateKey, formatDateLabel, isCurrentMonth, getMonthLabel } from '../utils/dateFormatter';
-import { TransactionCard, BottomSheetBackground, CurrencyInput } from '../components';
+import { TransactionCard, BottomSheetBackground, CurrencyInput, EmptyState } from '../components';
+import { GlowButton } from '../components/PremiumComponents';
+import { GradientHeader } from '../components/GradientHeader';
 import { Expense, Category, UnifiedTransaction, RolloverSummary, BudgetType } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { springPresets } from '../theme/AnimationConfig';
 import { RootStackParamList } from '../navigation/types';
 
 type CategoryDetailsRouteProp = RouteProp<RootStackParamList, 'CategoryDetails'>;
@@ -157,11 +161,13 @@ const groupExpensesByMonthAndDate = (expenses: Expense[]): MonthGroupedExpenses[
 const CategoryDetailsScreen: React.FC = () => {
   const { theme } = useTheme();
   const { formatCurrency, getCurrencySymbol, convertFromUSD, convertToUSD, currencyCode, formatTransactionAmount } = useCurrency();
+  const { shouldUseComplexAnimations, shouldUseGlowEffects, requiresUpgrade } = usePerformance();
   const navigation = useNavigation<CategoryDetailsNavigationProp>();
   const route = useRoute<CategoryDetailsRouteProp>();
 
   const { categoryId } = route.params;
   const { showError, showSuccess, showWarning, showInfo, AlertComponent } = useAlert();
+  const insets = useSafeAreaInsets();
 
   const [category, setCategory] = useState<Category | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -529,11 +535,12 @@ const CategoryDetailsScreen: React.FC = () => {
 
   if (loading || !category) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-        <View style={styles.loadingContainer}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <GradientHeader />
+        <View style={[styles.loadingContainer, { marginTop: insets.top }]}>
           <ActivityIndicator size="large" color={theme.primary} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -545,9 +552,10 @@ const CategoryDetailsScreen: React.FC = () => {
   const currentMonthCount = expenses.filter(expense => isCurrentMonth(expense.date)).length;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { marginTop: insets.top }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -779,12 +787,12 @@ const CategoryDetailsScreen: React.FC = () => {
         }
         ListEmptyComponent={
           !loading ? (
-            <View style={styles.emptyState}>
-              <Icon name="receipt-text-outline" size={64} color={theme.textTertiary} />
-              <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
-                No transactions in this category yet
-              </Text>
-            </View>
+            <EmptyState
+              variant="transactions"
+              title="No transactions yet"
+              subtitle="Your expenses in this category will appear here."
+              compact
+            />
           ) : null
         }
         ListFooterComponent={
@@ -811,7 +819,7 @@ const CategoryDetailsScreen: React.FC = () => {
       <BottomSheet
         ref={bottomSheetRef}
         index={-1}
-        snapPoints={['65%']}
+        snapPoints={['45%']}
         enablePanDownToClose
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
@@ -916,17 +924,19 @@ const CategoryDetailsScreen: React.FC = () => {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            style={[styles.saveButton, { backgroundColor: theme.primary }, elevation.sm]}
+          <GlowButton
             onPress={handleSaveBudget}
+            variant="primary"
             disabled={savingBudget}
+            glowIntensity={shouldUseGlowEffects ? 'medium' : undefined}
+            style={styles.saveButton}
           >
             {savingBudget ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.saveButtonText}>Save Budget</Text>
             )}
-          </TouchableOpacity>
+          </GlowButton>
         </BottomSheetScrollView>
       </BottomSheet>
 
@@ -1053,17 +1063,12 @@ const CategoryDetailsScreen: React.FC = () => {
               })}
             </View>
           ) : (
-            <View style={styles.emptyHistory}>
-                <View style={[styles.emptyHistoryIcon, { backgroundColor: theme.textTertiary + '20' }]}>
-                  <Icon name="history" size={32} color={theme.textTertiary} />
-                </View>
-                <Text style={[styles.emptyHistoryTitle, { color: theme.text }]}>
-                  No changes yet
-                </Text>
-              <Text style={[styles.emptyHistoryText, { color: theme.textSecondary }]}>
-                  Your budget change history will appear here
-              </Text>
-            </View>
+              <EmptyState
+                variant="history"
+                title="No changes yet"
+                subtitle="Your budget change history will appear here."
+                compact
+              />
           )}
 
           {/* Monthly Breakdown */}
@@ -1128,7 +1133,7 @@ const CategoryDetailsScreen: React.FC = () => {
         </BottomSheetScrollView>
       </BottomSheet>
       {AlertComponent}
-    </SafeAreaView>
+    </View>
   );
 };
 

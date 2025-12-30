@@ -15,19 +15,26 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { usePerformance } from '../contexts/PerformanceContext';
 import { useSubscription } from '../hooks/useSubscription';
 import { logger } from '../utils/logger';
 import { getDateKey, formatDateLabel } from '../utils/dateFormatter';
 import { InsightCard, PremiumBadge, UpgradePrompt, AIAssistantFAB } from '../components';
+import { GradientHeader } from '../components/GradientHeader';
+import { AnimatedCard } from '../components/PremiumComponents';
 import { apiService } from '../services/api';
 import { Insight } from '../types';
 import { typography, spacing } from '../theme';
+import { springPresets } from '../theme/AnimationConfig';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
@@ -104,6 +111,8 @@ const groupInsightsByDate = (insights: Insight[]): GroupedInsights[] => {
 const InsightsScreen: React.FC = () => {
   const { theme } = useTheme();
   const { getCurrencySymbol, convertFromUSD } = useCurrency();
+  const { shouldUseComplexAnimations, shouldUseGlowEffects } = usePerformance();
+  const insets = useSafeAreaInsets();
   const currencySymbol = getCurrencySymbol();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const dispatch = useAppDispatch();
@@ -120,8 +129,17 @@ const InsightsScreen: React.FC = () => {
   const [isFirstLoad, setIsFirstLoad] = useState<boolean | null>(null);
   const flatListRef = useRef<FlatList<GroupedInsights>>(null);
 
+  // Entry animation
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     checkFirstLoad();
+    // Entry animation
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
   // Mark all insights as read when screen gains focus
@@ -287,6 +305,7 @@ const InsightsScreen: React.FC = () => {
    * Navigates to relevant screen based on action type
    */
   const handleActionPress = useCallback((insight: Insight) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     logger.debug('[InsightsScreen] Action pressed:', { 
       id: insight.id, 
       actionType: insight.actionType,
@@ -377,12 +396,14 @@ const InsightsScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-      <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar translucent backgroundColor="transparent" barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
+      {/* Premium Header with Gradient Accent */}
+      <Animated.View style={{ opacity: fadeAnim, zIndex: 1 }}>
+        <GradientHeader />
+        <View style={[styles.header, { marginTop: insets.top }]}>
+            <View style={styles.headerTop}>
           {Platform.OS === 'android' && (
             <TouchableOpacity
               onPress={() => navigation.goBack()}
@@ -427,7 +448,8 @@ const InsightsScreen: React.FC = () => {
             </TouchableOpacity>
           )}
         </View>
-      </View>
+        </View>
+      </Animated.View>
 
       {loading && insights.length === 0 ? (
         <View style={styles.loadingContainer}>
@@ -471,13 +493,16 @@ const InsightsScreen: React.FC = () => {
             : undefined
         }
       />
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  headerGradient: {
+    paddingBottom: spacing.md,
   },
   header: {
     paddingHorizontal: spacing.md,

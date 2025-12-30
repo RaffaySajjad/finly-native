@@ -11,19 +11,10 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  Animated,
-  StatusBar,
-  TextInput,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated, StatusBar, TextInput } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import { GradientHeader } from '../components';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useNavigation } from '@react-navigation/native';
@@ -31,6 +22,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { springPresets } from '../theme/AnimationConfig';
 import { apiService } from '../services/api';
 import {
   getCurrencies,
@@ -39,7 +31,11 @@ import {
   getUserCurrency,
 } from '../services/currencyService';
 import { useAppFlow } from '../contexts/AppFlowContext';
+import { usePerformance } from '../contexts/PerformanceContext';
 import { IMPORT_SHOWN_KEY, USER_GOAL_KEY } from '../constants/storageKeys';
+import AIIntroSlide from '../components/onboarding/AIIntroSlide';
+import { GlowButton } from '../components/PremiumComponents';
+import * as Haptics from 'expo-haptics';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -70,7 +66,7 @@ interface OnboardingSlide {
   title: string;
   description: string;
   color: string;
-  type?: 'standard' | 'features' | 'goal' | 'currency' | 'import' | 'cta';
+  type?: 'standard' | 'features' | 'goal' | 'currency' | 'import' | 'cta' | 'ai-demo';
   features?: Array<{ icon: string; text: string }>;
 }
 
@@ -82,6 +78,8 @@ const OnboardingScreen: React.FC = () => {
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const [currentIndex, setCurrentIndex] = useState(0);
+  const { shouldUseGlowEffects } = usePerformance();
+  const insets = useSafeAreaInsets();
 
   // Personalization state
   const [selectedGoal, setSelectedGoal] = useState<UserGoal | null>(null);
@@ -98,6 +96,9 @@ const OnboardingScreen: React.FC = () => {
   const [shouldShowImportSlide, setShouldShowImportSlide] = useState(true);
   const [hasTransactions, setHasTransactions] = useState<boolean | null>(null);
 
+  // AI Demo state - track if user has interacted with AI demo
+  const [hasInteractedWithAI, setHasInteractedWithAI] = useState(false);
+
   // Animation values for feature highlights
   const featureAnim = useRef(new Animated.Value(0)).current;
 
@@ -108,7 +109,7 @@ const OnboardingScreen: React.FC = () => {
       phase: 'value',
       icon: 'hand-wave',
       title: 'Welcome to Finly',
-      description: 'Your AI-powered personal finance companion. Take control of your money with intelligent insights and effortless tracking.',
+      description: 'Your path to financial clarity, without the spreadsheets, without the stress.',
       color: '#6366F1',
       type: 'standard',
     },
@@ -116,36 +117,45 @@ const OnboardingScreen: React.FC = () => {
       id: 'ai-power',
       phase: 'value',
       icon: 'brain',
-      title: 'AI That Understands You',
-      description: 'Ask questions in plain English. Get personalized insights. Finly learns your habits to help you spend smarter.',
+      title: 'AI That Gets You',
+      description: 'Ask questions in plain English. Get answers, not data dumps. Finly understands your habits and helps you make smarter decisions.',
       color: '#8B5CF6',
       type: 'features',
       features: [
-        { icon: 'chat-processing', text: 'Chat with your finances' },
-        { icon: 'lightbulb', text: 'Smart spending insights' },
-        { icon: 'trending-up', text: 'Personalized tips' },
-        { icon: 'lock', text: 'Your data stays private' },
+        { icon: 'chat-processing', text: 'Ask anything about your money' },
+        { icon: 'lightbulb', text: 'Insights that actually help' },
+        { icon: 'shield-lock', text: 'Private. Always.' }
       ],
     },
     {
       id: 'effortless',
       phase: 'value',
       icon: 'lightning-bolt',
-      title: 'Track Effortlessly',
-      description: 'Multiple ways to log expenses in seconds. No bank connection needed—your data stays private.',
+      title: 'Effortless. Really.',
+      description: 'Multiple ways to log expenses in seconds. No bank connection needed. Your data stays private.',
       color: '#10B981',
       type: 'features',
       features: [
-        { icon: 'microphone', text: `"Coffee for ${getCurrencySymbol()}5" — done` },
+        { icon: 'microphone', text: `"Coffee for ${getCurrencySymbol()}5, Fast food for 20". Done!` },
         { icon: 'camera', text: 'Snap a receipt' },
         { icon: 'keyboard', text: 'Quick manual entry' },
       ],
+    },
+    // AI Demo - Let users try the AI before committing
+    {
+      id: 'ai-demo',
+      phase: 'value',
+      icon: 'robot-happy',
+      title: 'Try Me Out!',
+      description: 'See how I can help you achieve financial clarity.',
+      color: '#8B5CF6',
+      type: 'ai-demo',
     },
     {
       id: 'analytics',
       phase: 'value',
       icon: 'chart-box',
-      title: 'See the Big Picture',
+      title: 'Clarity at a Glance',
       description: 'Beautiful charts and trends. Understand your spending patterns. Make informed decisions.',
       color: '#F59E0B',
       type: 'features',
@@ -763,6 +773,39 @@ const OnboardingScreen: React.FC = () => {
     );
   };
 
+  /**
+   * Render AI Demo Slide - Interactive AI chat demo
+   */
+  const renderAIDemoSlide = (slide: OnboardingSlide, index: number) => {
+    const inputRange = [
+      (index - 1) * width,
+      index * width,
+      (index + 1) * width,
+    ];
+    const opacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0, 1, 0],
+      extrapolate: 'clamp',
+    });
+    const translateY = scrollX.interpolate({
+      inputRange,
+      outputRange: [50, 0, 50],
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <Animated.View
+        key={slide.id}
+        style={[styles.slide, { width, opacity, transform: [{ translateY }] }]}
+      >
+        <AIIntroSlide
+          slideColor={slide.color}
+          onDemoComplete={() => setHasInteractedWithAI(true)}
+        />
+      </Animated.View>
+    );
+  };
+
   const renderSlide = (slide: OnboardingSlide, index: number) => {
     switch (slide.type) {
       case 'features':
@@ -775,6 +818,8 @@ const OnboardingScreen: React.FC = () => {
         return renderImportSlide(slide, index);
       case 'cta':
         return renderCtaSlide(slide, index);
+      case 'ai-demo':
+        return renderAIDemoSlide(slide, index);
       default:
         return renderStandardSlide(slide, index);
     }
@@ -786,12 +831,22 @@ const OnboardingScreen: React.FC = () => {
 
     if (currentSlide.type === 'goal' && !selectedGoal) return false;
     if (currentSlide.type === 'import' && wantsToImport === null) return false;
+    if (currentSlide.type === 'ai-demo' && !hasInteractedWithAI) return false;
 
     return true;
   };
 
+  // Get the appropriate button text for the current slide
+  const getNextButtonText = () => {
+    const currentSlide = filteredSlides[currentIndex];
+    if (currentIndex === filteredSlides.length - 1) return 'Continue';
+    if (currentSlide?.type === 'ai-demo') return "I'm Impressed! Continue";
+    return 'Next';
+  };
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
 
       {/* Phase Indicator */}
@@ -848,11 +903,14 @@ const OnboardingScreen: React.FC = () => {
       </View>
 
       {/* Bottom Actions */}
-      <View style={styles.actions}>
+      <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
         {currentIndex > 0 && (
           <TouchableOpacity
             style={[styles.backButton, { backgroundColor: theme.card, borderColor: theme.border }]}
-            onPress={handleBack}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              handleBack();
+            }}
           >
             <Icon name="arrow-left" size={20} color={theme.text} />
           </TouchableOpacity>
@@ -863,28 +921,28 @@ const OnboardingScreen: React.FC = () => {
 
         {/* Hide Next on import slide if unanswered */}
         {!(filteredSlides[currentIndex]?.type === 'import' && wantsToImport === null) && (
-          <TouchableOpacity
+          <GlowButton
+            variant="primary"
+            glowIntensity={canProceed() ? 'medium' : 'subtle'}
+            disabled={!canProceed()}
+            onPress={handleNext}
             style={[
               styles.nextButton,
-              {
-                backgroundColor: canProceed() ? theme.primary : theme.border,
-                flex: currentIndex === 0 ? 1 : 2,
-              },
-              elevation.md,
+              { flex: currentIndex === 0 ? 1 : 2 },
             ]}
-            onPress={handleNext}
-            disabled={!canProceed()}
           >
-            <Text style={styles.nextButtonText}>
-              {currentIndex === filteredSlides.length - 1 ? 'Continue' : 'Next'}
-            </Text>
-            {currentIndex < filteredSlides.length - 1 && (
-              <Icon name="arrow-right" size={20} color="#FFFFFF" />
-            )}
-          </TouchableOpacity>
+            <View style={styles.nextButtonContent}>
+              <Text style={styles.nextButtonText}>
+                {getNextButtonText()}
+              </Text>
+              {currentIndex < filteredSlides.length - 1 && (
+                <Icon name="arrow-right" size={20} color="#FFFFFF" />
+              )}
+            </View>
+          </GlowButton>
         )}
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -898,6 +956,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xxxl,
   },
   phaseItem: {
     flexDirection: 'row',
@@ -1128,7 +1187,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
+    paddingTop: spacing.md,
     gap: spacing.md,
   },
   backButton: {
@@ -1141,11 +1200,12 @@ const styles = StyleSheet.create({
   },
   nextButton: {
     flex: 2,
+    borderRadius: borderRadius.md,
+  },
+  nextButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.md + 4,
-    borderRadius: borderRadius.md,
     gap: spacing.sm,
   },
   nextButtonText: {

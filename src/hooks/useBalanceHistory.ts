@@ -355,6 +355,16 @@ export const useBalanceHistory = () => {
         currentBalance = currentBalance - daysIncome + daysExpense;
       }
 
+      // 4.5. Trim leading empty days (where income and expenses are 0)
+      let firstActiveIndex = dailyBalances.findIndex(d => (d.income || 0) > 0 || (d.expenses || 0) > 0);
+      
+      // If we found activity, trim but keep one day buffer if possible
+      if (firstActiveIndex > 0) {
+        // Keep one day of "pre-activity" balance for a better chart start
+        const trimIndex = Math.max(0, firstActiveIndex - 1);
+        dailyBalances.splice(0, trimIndex);
+      }
+
       // Store the end balance for current period
       const currentEndBalance = currentBalance;
 

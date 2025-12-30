@@ -14,7 +14,7 @@ import { useCurrency } from '../../contexts/CurrencyContext';
 import { typography, spacing, borderRadius, elevation } from '../../theme';
 import { ChartDataPoint } from './types';
 import { CHART_CONFIG } from './constants';
-import { formatYAxisLabel, formatChartDate } from './utils';
+import { formatYAxisLabel, formatChartDate, normalizeData } from './utils';
 import { useSmoothRangeSelection } from './hooks/useSmoothRangeSelection';
 import { useDynamicYAxis } from './hooks/useDynamicYAxis';
 import { RangeSelectionBadge } from './RangeSelectionBadge';
@@ -32,13 +32,19 @@ interface BalanceChartProps {
   periodLabel?: string;
   enableRangeSelection?: boolean;
   enableDynamicYAxis?: boolean;
+  curved?: boolean;
+  showArea?: boolean;
 }
+
+const MAX_CHART_POINTS = 40;
 
 export const BalanceChart: React.FC<BalanceChartProps> = ({
   data,
   periodLabel,
   enableRangeSelection = true,
-  enableDynamicYAxis = true,
+  enableDynamicYAxis = false,
+  curved = true,
+  showArea = true,
 }) => {
   const { theme, isDark } = useTheme();
   const { formatCurrency, convertFromUSD, getCurrencySymbol } = useCurrency();
@@ -46,18 +52,51 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({
   
   const chartWidth = SCREEN_WIDTH - 50;
   const chartHeight = CHART_CONFIG.defaultHeight;
-  const itemSpacing = data.length <= 7 ? 50 : data.length <= 14 ? 40 : 35;
 
-  const chartData: ChartDataPoint[] = useMemo(() => {
-    return data.map((d, index) => ({
+  // 1. Convert all points to display currency and sample if needed
+  const processedPoints = useMemo(() => {
+    const allPoints = data.map((d, index) => ({
       value: convertFromUSD(d.balance),
       originalValue: d.balance,
-      label: index % Math.ceil(data.length / 7) === 0 
-        ? formatChartDate(d.date, 'short') 
-        : '',
       date: d.date,
+      index,
     }));
+
+    let sampled = allPoints;
+    if (allPoints.length > MAX_CHART_POINTS) {
+      const step = Math.ceil(allPoints.length / MAX_CHART_POINTS);
+      sampled = [];
+      for (let i = 0; i < allPoints.length; i += step) {
+        sampled.push(allPoints[i]);
+      }
+      if (sampled[sampled.length - 1].date !== allPoints[allPoints.length - 1].date) {
+        sampled.push(allPoints[allPoints.length - 1]);
+      }
+    }
+    return sampled;
   }, [data, convertFromUSD]);
+
+  // 2. Normalize values to 0-100 for SVG stability
+  const { normalizedData, min: rawMin, max: rawMax, range: rawRange } = useMemo(() => {
+    // Map to the internal type expected by utils
+    const points = processedPoints.map(p => ({
+      ...p,
+      value: p.value as number,
+    })) as ChartDataPoint[];
+
+    return normalizeData(points);
+  }, [processedPoints]);
+
+  // 3. Final chart data with labels
+  const chartData: ChartDataPoint[] = useMemo(() => {
+    const labelInterval = Math.ceil(normalizedData.length / 7);
+    return normalizedData.map((p: ChartDataPoint, i: number) => ({
+      ...p,
+      label: i % labelInterval === 0 ? formatChartDate(p.date || '', 'short') : '',
+    }));
+  }, [normalizedData]);
+
+  const itemSpacing = chartData.length <= 7 ? 40 : chartData.length <= 30 ? 30 : 25;
 
   // Use the new smooth gesture-based range selection (long-press + drag)
   const {
@@ -78,21 +117,15 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({
     yAxisOffset: CHART_CONFIG.axis.yLabelWidth - 10, // Account for wrapper marginLeft: -10
   });
 
-  const {
-    yAxisBounds,
-    handleScroll,
-  } = useDynamicYAxis({
-    data: chartData,
-    itemSpacing,
-    chartWidth,
-    enabled: enableDynamicYAxis,
-  });
 
   const formatYLabel = useCallback((val: string) => {
-    const num = parseFloat(val);
-    if (isNaN(num)) return val;
-    return formatYAxisLabel(num, currencySymbol);
-  }, [currencySymbol]);
+    const normalizedVal = parseFloat(val);
+    if (isNaN(normalizedVal)) return val;
+
+    // Map internal 0-100 back to raw balance
+    const originalRawValue = rawMin + (normalizedVal / 100) * rawRange;
+    return formatYAxisLabel(originalRawValue, currencySymbol);
+  }, [rawMin, rawRange, currencySymbol]);
 
   const selectionLabels = useMemo(() => {
     if (!hasSelection || selection.startIndex === null || selection.endIndex === null) {
@@ -221,40 +254,35 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({
               width={chartWidth}
               height={chartHeight}
               spacing={itemSpacing}
-              initialSpacing={20}
-              endSpacing={20}
+              initialSpacing={10}
+              endSpacing={10}
               color={theme.primary}
-              thickness={CHART_CONFIG.line.thickness}
+              thickness={4}
               startFillColor={theme.primary}
               endFillColor={theme.primary}
-              startOpacity={CHART_CONFIG.area.startOpacity}
-              endOpacity={CHART_CONFIG.area.endOpacity}
-              areaChart
-              curved
-              curvature={CHART_CONFIG.line.curveIntensity}
+              startOpacity={0.2}
+              endOpacity={0.05}
+              areaChart={showArea}
+              curved={curved}
+              curvature={0.25}
               hideRules={false}
               rulesType="solid"
-              rulesColor={theme.border + '50'}
-              rulesThickness={0.5}
+              rulesColor={theme.border + '20'}
+              rulesThickness={1}
               yAxisColor="transparent"
               xAxisColor={theme.border}
-              xAxisThickness={0.5}
+              xAxisThickness={1}
               yAxisTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
               xAxisLabelTextStyle={[styles.axisLabel, { color: theme.textTertiary }]}
               yAxisLabelWidth={CHART_CONFIG.axis.yLabelWidth}
-              maxValue={yAxisBounds.max}
-              mostNegativeValue={yAxisBounds.min}
-              noOfSections={yAxisBounds.sections}
+              maxValue={101}
+              mostNegativeValue={-1}
+              noOfSections={4}
               formatYLabel={formatYLabel}
-              scrollToEnd
-              onScroll={(e: any) => {
-                if (enableDynamicYAxis && e?.nativeEvent?.contentOffset) {
-                  handleScroll(e.nativeEvent.contentOffset.x);
-                }
-              }}
               hideDataPoints={false}
               dataPointsColor={theme.primary}
-              dataPointsRadius={CHART_CONFIG.dataPoints.radius}
+              dataPointsRadius={4}
+              focusEnabled={false}
               pointerConfig={enableRangeSelection ? undefined : pointerConfig}
               showVerticalLines={hasSelection || hasSinglePoint}
               verticalLinesUptoDataPoint
@@ -265,48 +293,6 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({
               }
               verticalLinesThickness={1}
               verticalLinesStrokeDashArray={[4, 4]}
-              customDataPoint={(item: any, index: number) => {
-                const isRangeSelected = selection.startIndex === index || selection.endIndex === index;
-                const isSingleSelected = selectedPointIndex === index;
-                const isInRange = hasSelection && 
-                  selection.startIndex !== null && 
-                  selection.endIndex !== null &&
-                  index >= selection.startIndex && 
-                  index <= selection.endIndex;
-                
-                if (!isRangeSelected && !isSingleSelected && !isInRange) return null;
-                
-                let pointColor: string;
-                let pointRadius: number;
-                
-                if (isSingleSelected) {
-                  pointColor = theme.primary;
-                  pointRadius = CHART_CONFIG.dataPoints.activeRadius + 2;
-                } else if (isRangeSelected) {
-                  pointColor = rangeMetrics?.isPositive ? theme.success : theme.expense;
-                  pointRadius = CHART_CONFIG.dataPoints.activeRadius + 2;
-                } else {
-                  pointColor = theme.primary + '60';
-                  pointRadius = CHART_CONFIG.dataPoints.radius;
-                }
-                
-                return (
-                  <View
-                    style={[
-                      styles.customDataPoint,
-                      {
-                        width: pointRadius * 2,
-                        height: pointRadius * 2,
-                        borderRadius: pointRadius,
-                        backgroundColor: pointColor,
-                        borderWidth: (isRangeSelected || isSingleSelected) ? 2 : 0,
-                        borderColor: theme.card,
-                      },
-                      (isRangeSelected || isSingleSelected) && elevation.sm,
-                    ]}
-                  />
-                );
-              }}
             />
           </View>
         </GestureDetector>
@@ -322,9 +308,8 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
     overflow: 'hidden',
+    height: 300,
   },
   header: {
     flexDirection: 'row',
@@ -352,6 +337,7 @@ const styles = StyleSheet.create({
   },
   chartArea: {
     position: 'relative',
+    height: 220,
   },
   badgeOverlay: {
     position: 'absolute',

@@ -1,5 +1,5 @@
 /**
- * BalanceHistoryScreen - Balance History & Insights
+ * BalanceHistoryScreen - Balance Analytics & Insights
  * Purpose: Shows balance trends, projections, and actionable insights
  * Features: Clean balance overview, trend chart, collapsible details, date filters
  */
@@ -16,10 +16,12 @@ import {
   LayoutAnimation,
   UIManager,
   ScrollView,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { GradientHeader } from '../components/GradientHeader';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Animated, {
   useSharedValue,
@@ -34,15 +36,31 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
+import { useAppSelector } from '../store';
 
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { usePerformance } from '../contexts/PerformanceContext';
 import { PullToRefreshScrollView } from '../components';
+import { CountingNumber, GlassCard } from '../components/PremiumComponents';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { springPresets } from '../theme/AnimationConfig';
 import { useBalanceHistory, ComparisonStats } from '../hooks/useBalanceHistory';
 import { BalanceChart } from '../components/charts/BalanceChart';
 import { BalanceInsightCard } from '../components/trends/BalanceInsightCard';
 import { DateRangeFilter, DateRange } from '../components/filters/DateRangeFilter';
+import { useRef, useEffect } from 'react';
+import NumberTicker from '../components/NumberTicker';
+import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { useAlert } from '../hooks/useAlert';
+import { apiService } from '../services/api';
+import { Category } from '../types';
+import {
+  PrimaryButton,
+  CurrencyInput,
+  BottomSheetBackground,
+  IconButton
+} from '../components';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -78,7 +96,7 @@ const ChangeIndicator: React.FC<ChangeIndicatorProps> = ({ value, inverted = fal
 
   // Cap display value for readability
   const absValue = Math.abs(value);
-  const displayValue = absValue > 999 ? '999+' : absValue.toFixed(0);
+  const displayValue = absValue > 999 ? '999+' : absValue.toFixed(2);
 
   return (
     <View style={[styles.changeIndicator, { backgroundColor: color + '15' }]}>
@@ -140,7 +158,11 @@ const formatCompactValue = (value: number, symbol: string, exchangeRate: number 
 
 const BalanceHistoryScreen: React.FC = () => {
   const { theme, isDark } = useTheme();
-  const { formatCurrency, getCurrencySymbol, exchangeRate } = useCurrency();
+  const { user } = useAppSelector((state) => state.auth);
+  const { formatCurrency, getCurrencySymbol, exchangeRate, convertFromUSD, convertToUSD, currencyCode, showDecimals } = useCurrency();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const { showError, showInfo, showSuccess } = useAlert();
+  const { shouldUseComplexAnimations, shouldUseGlowEffects } = usePerformance();
   
   // Helper for compact currency in tight spaces
   const compactCurrency = useCallback((value: number) => {
@@ -172,6 +194,92 @@ const BalanceHistoryScreen: React.FC = () => {
     endDate: dateRange.endDate,
     periodPreset: '30d',
   }));
+
+  // Fetch categories for adjustment
+  useEffect(() => {
+    apiService.getCategories()
+      .then(setCategories)
+      .catch(err => console.error('Failed to load categories for adjustment', err));
+  }, []);
+
+  // Balance adjustment state
+  const [newBalance, setNewBalance] = useState('');
+  const [isAdjustingBalance, setIsAdjustingBalance] = useState(false);
+  const balanceAdjustSheetRef = useRef<BottomSheet>(null);
+  const balanceSheetSnapPoints = useMemo(() => ['45%', '65%'], []);
+
+  const handleAdjustBalance = async () => {
+    if (!newBalance || isNaN(parseFloat(newBalance))) {
+      showInfo('Check Amount', 'Please double-check the balance amount entered.');
+      return;
+    }
+
+    setIsAdjustingBalance(true);
+    try {
+      // Convert the entered balance from display currency to USD
+      const newBalanceInDisplayCurrency = parseFloat(newBalance);
+      const newBalanceInUSD = convertToUSD(newBalanceInDisplayCurrency);
+      const currentBalanceInUSD = stats?.balance || 0;
+      const difference = newBalanceInUSD - currentBalanceInUSD;
+
+      // If difference is negligible, just close
+      if (Math.abs(difference) < 0.01) {
+        balanceAdjustSheetRef.current?.close();
+        return;
+      }
+
+      if (difference > 0) {
+        // Income: Create income transaction
+        await apiService.createIncomeTransaction({
+          amount: difference,
+          description: 'Balance Adjustment',
+          date: new Date(),
+          originalAmount: convertFromUSD(difference),
+          originalCurrency: currencyCode,
+        });
+      } else {
+        // Expense: Create expense transaction
+        // Find a suitable category (Other, Misc, or first available)
+        const adjustmentCategory = categories.find((c: Category) =>
+          c.name.toLowerCase().includes('other') ||
+          c.name.toLowerCase().includes('misc') ||
+          c.name.toLowerCase().includes('general')
+        ) || categories[0];
+
+        if (!adjustmentCategory) {
+          throw new Error('No categories available to create adjustment expense');
+        }
+
+        await apiService.addExpense({
+          amount: Math.abs(difference),
+          categoryId: adjustmentCategory.id,
+          description: 'Balance Adjustment',
+          date: new Date(),
+          originalAmount: convertFromUSD(Math.abs(difference)),
+          originalCurrency: currencyCode,
+        });
+      }
+
+      await forceRefresh(); // Refresh data using the hook's refresh method
+      balanceAdjustSheetRef.current?.close();
+      setNewBalance('');
+      showSuccess('Success', 'Balance updated successfully! 🎉');
+    } catch (error) {
+      showError('Error', 'Failed to adjust balance');
+      console.error(error);
+    } finally {
+      setIsAdjustingBalance(false);
+    }
+  };
+
+  const handleOpenBalanceAdjust = () => {
+    if (stats) {
+      // Convert balance from USD to display currency for editing
+      const displayBalance = convertFromUSD(stats.balance);
+      setNewBalance(displayBalance.toString());
+      balanceAdjustSheetRef.current?.expand();
+    }
+  };
 
   // Haptic feedback helper
   const triggerHaptic = useCallback(() => {
@@ -277,12 +385,13 @@ const BalanceHistoryScreen: React.FC = () => {
   // Only show full loading screen when we have no cached data
   if (loading && !balanceData) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <View style={styles.header}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <GradientHeader />
+        <View style={[styles.header, { marginTop: insets.top }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Icon name="arrow-left" size={24} color={theme.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Balance History</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Balance Analytics</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
@@ -291,18 +400,19 @@ const BalanceHistoryScreen: React.FC = () => {
             Analyzing your balance...
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!balanceData || !stats) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <View style={styles.header}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <GradientHeader />
+        <View style={[styles.header, { marginTop: insets.top }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Icon name="arrow-left" size={24} color={theme.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Balance History</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Balance Analytics</Text>
           <View style={{ width: 40 }} />
         </View>
         <PullToRefreshScrollView onRefresh={forceRefresh} contentContainerStyle={{ paddingBottom: EXPANDED_HEIGHT + 20 }}>
@@ -346,7 +456,7 @@ const BalanceHistoryScreen: React.FC = () => {
             </Animated.View>
           </Animated.View>
         </GestureDetector>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -354,19 +464,25 @@ const BalanceHistoryScreen: React.FC = () => {
   const periodStats = balanceData.periodStats;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { marginTop: insets.top }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Icon name="arrow-left" size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Balance History</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Balance Analytics</Text>
           {(refreshing || loading) && balanceData && (
             <ActivityIndicator size="small" color={theme.primary} style={styles.headerSpinner} />
           )}
         </View>
-        <View style={{ width: 40 }} />
+        <IconButton
+          icon="pencil"
+          size={20}
+          onPress={handleOpenBalanceAdjust}
+          containerStyle={{ width: 40, height: 40, backgroundColor: theme.surface }}
+        />
       </View>
 
       <PullToRefreshScrollView
@@ -380,7 +496,7 @@ const BalanceHistoryScreen: React.FC = () => {
             <LinearGradient
               colors={isDark 
                 ? ['#1A3A52', '#0D2438', '#1E4A6F']
-                : [theme.primary, theme.primaryDark, '#2563EB']
+                : ['#4F46E5', '#4A90E2', '#0EA5E9']
               }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -396,7 +512,33 @@ const BalanceHistoryScreen: React.FC = () => {
               <View style={styles.balanceRow}>
                 <View style={styles.balanceMain}>
                   <Text style={styles.balanceLabel}>Current Balance</Text>
-                  <Text style={styles.balanceAmount}>{formatCurrency(stats.balance)}</Text>
+                  <NumberTicker
+                    value={(() => {
+                      // 1. Prioritize backend-calculated base balance if currency matches anchor
+                      if (stats.baseBalance !== undefined && stats.baseCurrency === currencyCode) {
+                        return stats.baseBalance;
+                      }
+
+                      // 2. Secondary: If user has preserved original balance locally, calculate native amount
+                      if (
+                        user?.originalBalanceAmount !== undefined &&
+                        user?.originalBalanceAmount !== null &&
+                        user?.originalBalanceCurrency === currencyCode &&
+                        stats
+                      ) {
+                        const incomeNative = convertFromUSD(stats.totalIncome);
+                        const expensesNative = convertFromUSD(stats.totalExpenses);
+                        return user.originalBalanceAmount + incomeNative - expensesNative;
+                      }
+
+                      // 3. Fallback: Standard conversion from USD balance (stats.balance is in USD)
+                      // No double conversion here as convertFromUSD handles it correctly.
+                      return convertFromUSD(stats.balance);
+                    })()}
+                    style={styles.balanceAmount}
+                    prefix={getCurrencySymbol()}
+                    decimalPlaces={showDecimals ? 2 : 0}
+                  />
                 </View>
                 {comparison && (
                   <View style={styles.balanceChange}>
@@ -413,7 +555,7 @@ const BalanceHistoryScreen: React.FC = () => {
                         styles.balanceChangeText,
                         { color: comparison.changes.balance >= 0 ? '#4ADE80' : '#F87171' }
                       ]}>
-                        {Math.abs(comparison.changes.balance).toFixed(1)}%
+                        {Math.abs(comparison.changes.balance).toFixed(2)}%
                       </Text>
                     </View>
                     <Text style={styles.balanceChangeLabel}>vs prev period</Text>
@@ -620,7 +762,53 @@ const BalanceHistoryScreen: React.FC = () => {
           </Animated.View>
         </Animated.View>
       </GestureDetector>
-    </SafeAreaView>
+
+      {/* Balance Adjustment Bottom Sheet */}
+      <BottomSheet
+        ref={balanceAdjustSheetRef}
+        index={-1}
+        snapPoints={balanceSheetSnapPoints}
+        enablePanDownToClose
+        backgroundComponent={BottomSheetBackground}
+        handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+        keyboardBehavior="extend"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
+      >
+        <BottomSheetScrollView
+          style={styles.bottomSheetContent}
+          contentContainerStyle={styles.bottomSheetContentContainer}
+        >
+          <Text style={[styles.bottomSheetTitle, { color: theme.text }]}>Adjust Balance</Text>
+          <Text style={[styles.bottomSheetSubtitle, { color: theme.textSecondary }]}>
+            Update your current balance. A transaction will be created to reflect this change.
+          </Text>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>New Balance</Text>
+            <View style={[styles.amountInput, { backgroundColor: theme.background, borderColor: theme.border }]}>
+              <CurrencyInput
+                value={newBalance}
+                onChangeText={setNewBalance}
+                placeholder="0.00"
+                placeholderTextColor={theme.textTertiary}
+                showSymbol={true}
+                allowDecimals={true}
+                inputStyle={styles.currencyInputField}
+                TextInputComponent={BottomSheetTextInput}
+              />
+            </View>
+          </View>
+
+          <PrimaryButton
+            label="Update Balance"
+            onPress={handleAdjustBalance}
+            loading={isAdjustingBalance}
+            fullWidth
+          />
+        </BottomSheetScrollView>
+      </BottomSheet>
+    </View>
   );
 };
 
@@ -764,6 +952,41 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
+  },
+  bottomSheetContent: {
+    flex: 1,
+  },
+  bottomSheetContentContainer: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+  bottomSheetTitle: {
+    ...typography.headlineSmall,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  bottomSheetSubtitle: {
+    ...typography.bodySmall,
+    marginBottom: spacing.lg,
+  },
+  inputGroup: {
+    marginBottom: spacing.md,
+  },
+  inputLabel: {
+    ...typography.labelMedium,
+    marginBottom: spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  amountInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+  },
+  currencyInputField: {
+    paddingVertical: spacing.md,
   },
   statItem: {
     minWidth: 110,

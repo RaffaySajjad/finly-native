@@ -25,6 +25,7 @@ import { notificationService } from '../services/notificationService';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import * as Haptics from 'expo-haptics';
 import { Header } from '../components';
+import { GradientHeader } from '../components/GradientHeader';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -190,6 +191,7 @@ const NotificationPreferencesScreen: React.FC = () => {
   if (isLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+        <GradientHeader />
         <Header
           title="Notification Preferences"
           showBackButton
@@ -204,6 +206,7 @@ const NotificationPreferencesScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <GradientHeader />
       <Header
         title="Notification Preferences"
         showBackButton
@@ -234,14 +237,6 @@ const NotificationPreferencesScreen: React.FC = () => {
             />
           </View>
         )}
-
-        {/* Timezone Info */}
-        <View style={[styles.infoCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Icon name="earth" size={20} color={theme.primary} />
-          <Text style={[styles.infoText, { color: theme.textSecondary }]}>
-            Notifications are scheduled for your timezone: {preferences.timezone}
-          </Text>
-        </View>
 
         {/* Financial Alerts */}
         <View style={styles.section}>

@@ -17,10 +17,10 @@ import {
   Animated,
 } from 'react-native';
 import { useAlert } from '../hooks/useAlert';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { logger } from '../utils/logger';
@@ -29,10 +29,11 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
 import { createIncomeSource } from '../services/incomeService';
 import { IncomeFrequency } from '../types';
-import { BottomSheetBackground, CurrencyInput } from '../components';
+import { BottomSheetBackground, CurrencyInput, GradientHeader } from '../components';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setStartingBalance, getStartingBalance } from '../services/userService';
+import { GlowButton, SuccessAnimation } from '../components/PremiumComponents';
 import {
   getCurrencies,
   getUserCurrency,
@@ -61,6 +62,7 @@ const IncomeSetupScreen: React.FC = () => {
   const navigation = useNavigation<IncomeSetupNavigationProp>();
   const { markIncomeSetupComplete } = useAppFlow();
   const { showError, showSuccess, showInfo, AlertComponent } = useAlert();
+  const insets = useSafeAreaInsets();
   
   // Step management
   const [currentStep, setCurrentStep] = useState<SetupStep>(0); // Start with currency selection
@@ -390,14 +392,15 @@ const IncomeSetupScreen: React.FC = () => {
       // Convert balance to USD before sending to backend
       const balanceInUSD = convertToUSD(balance);
 
-      // Use apiService to save balance to DB
-      await apiService.adjustBalance(balanceInUSD, 'Initial balance setup');
-      // Also save locally for setup checks (save the original currency value or USD? 
-      // Local storage usually keeps preference, but getStartingBalance might be used for display.
-      // Let's save the USD value to be consistent with backend, or check how getStartingBalance is used.
-      // Actually setStartingBalance just saves to AsyncStorage. If we save USD there, we need to know to convert it back.
-      // But getStartingBalance is mainly used for the check in this file.
-      // Let's save the USD value to be safe, assuming app logic expects USD from "source of truth".
+      // Use apiService to save balance to DB with baseCurrency anchor
+      await apiService.adjustBalance(
+        balanceInUSD,
+        'Initial balance setup',
+        balance, // Original Amount
+      currencyCode, // Original Currency
+      currencyCode // This first selection becomes the 'Base Currency' anchor
+    );
+      // Also save locally for setup checks (save the USD value to be consistent)
       await setStartingBalance(balanceInUSD);
 
       logger.debug(`[IncomeSetupScreen] Starting balance saved successfully`);
@@ -525,7 +528,7 @@ const IncomeSetupScreen: React.FC = () => {
       </View>
 
       <View style={styles.inputGroup}>
-        <TextInput
+        <BottomSheetTextInput
           style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
           placeholder="e.g., Salary, Freelance, Side Gig"
           placeholderTextColor={theme.textTertiary}
@@ -676,7 +679,7 @@ const IncomeSetupScreen: React.FC = () => {
       {frequency === 'CUSTOM' && (
         <View style={styles.inputGroup}>
           <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Which days of the month?</Text>
-          <TextInput
+          <BottomSheetTextInput
             style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
             placeholder="e.g., 15, 30"
             placeholderTextColor={theme.textTertiary}
@@ -754,9 +757,9 @@ const IncomeSetupScreen: React.FC = () => {
   // Don't render anything while checking, or if setup should be skipped
   if (isCheckingSetup) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]} edges={['top', 'bottom']}>
+      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={theme.primary} />
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -766,9 +769,10 @@ const IncomeSetupScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Set Up Your Income</Text>
         <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
           We'll help you track your earnings automatically
@@ -802,10 +806,13 @@ const IncomeSetupScreen: React.FC = () => {
       <BottomSheet
         ref={bottomSheetRef}
         index={-1}
-        snapPoints={['40%']}
+        snapPoints={['50%', '85%']} // Increased snap points for keyboard handling
         enablePanDownToClose={false}
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
       >
         <View style={{ flex: 1 }}>
           <BottomSheetScrollView
@@ -842,39 +849,45 @@ const IncomeSetupScreen: React.FC = () => {
                     style={[styles.nextButton, { backgroundColor: theme.primary }, elevation.sm]}
                     onPress={handleNext}
                   >
-                    <Text style={styles.nextButtonText}>Next</Text>
-                    <Icon name="arrow-right" size={20} color="#FFFFFF" />
+                    <View style={styles.buttonContent}>
+                      <Text style={styles.nextButtonText}>Next</Text>
+                      <Icon name="arrow-right" size={20} color="#FFFFFF" />
+                    </View>
                   </TouchableOpacity>
                 ) : currentStep === 3 ? (
-                  <TouchableOpacity
-                    style={[styles.nextButton, { backgroundColor: theme.primary }, elevation.sm]}
+                    <GlowButton
+                      variant="primary"
+                      glowIntensity="medium"
                     onPress={handleNext}
                     disabled={saving}
+                      style={styles.nextButton}
                   >
                     {saving ? (
                       <ActivityIndicator color="#FFFFFF" />
                     ) : (
-                      <>
+                          <View style={styles.buttonContent}>
                         <Text style={styles.nextButtonText}>Next</Text>
                         <Icon name="arrow-right" size={20} color="#FFFFFF" />
-                      </>
+                          </View>
                     )}
-                  </TouchableOpacity>
+                    </GlowButton>
                 ) : (
-                  <TouchableOpacity
-                    style={[styles.saveButton, { backgroundColor: theme.primary }, elevation.sm]}
+                      <GlowButton
+                        variant="success"
+                        glowIntensity="strong"
                     onPress={handleSave}
                     disabled={saving}
+                        style={styles.saveButton}
                   >
                     {saving ? (
                       <ActivityIndicator color="#FFFFFF" />
                     ) : (
-                      <>
+                            <View style={styles.buttonContent}>
                         <Text style={styles.saveButtonText}>Complete Setup</Text>
                         <Icon name="check" size={20} color="#FFFFFF" />
-                      </>
+                            </View>
                     )}
-                  </TouchableOpacity>
+                      </GlowButton>
                 )}
               </View>
             )}
@@ -883,19 +896,23 @@ const IncomeSetupScreen: React.FC = () => {
           {/* Action Buttons - Fixed at bottom for currency step */}
           {currentStep === 0 && (
             <View style={[styles.fixedActionButtons, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
-              <TouchableOpacity
-                style={[styles.nextButton, { backgroundColor: theme.primary }, elevation.sm]}
+              <GlowButton
+                variant="primary"
+                glowIntensity="medium"
                 onPress={handleNext}
+                style={styles.nextButton}
               >
-                <Text style={styles.nextButtonText}>Next</Text>
-                <Icon name="arrow-right" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
+                <View style={styles.buttonContent}>
+                  <Text style={styles.nextButtonText}>Next</Text>
+                  <Icon name="arrow-right" size={20} color="#FFFFFF" />
+                </View>
+              </GlowButton>
             </View>
           )}
         </View>
       </BottomSheet>
       {AlertComponent}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -1129,11 +1146,14 @@ const styles = StyleSheet.create({
   },
   nextButton: {
     flex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
+  },
+  buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.md + 4,
-    borderRadius: borderRadius.md,
     gap: spacing.sm,
   },
   nextButtonText: {
@@ -1143,12 +1163,7 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md + 4,
     borderRadius: borderRadius.md,
-    gap: spacing.sm,
   },
   saveButtonText: {
     ...typography.labelLarge,

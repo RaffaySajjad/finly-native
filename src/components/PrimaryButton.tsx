@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { Text, StyleSheet, TouchableOpacity, ActivityIndicator, View } from 'react-native';
+import ScaleButton from './ScaleButton';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -71,7 +72,7 @@ const PrimaryButton: React.FC<PrimaryButtonProps> = React.memo(({
   };
 
   return (
-    <TouchableOpacity
+    <ScaleButton
       style={[
         styles.button,
         { backgroundColor: getBackgroundColor(), paddingVertical: getPadding() },
@@ -82,6 +83,7 @@ const PrimaryButton: React.FC<PrimaryButtonProps> = React.memo(({
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.8}
+      hapticArgs="medium"
     >
       {loading ? (
         <ActivityIndicator color="#FFFFFF" />
@@ -93,7 +95,7 @@ const PrimaryButton: React.FC<PrimaryButtonProps> = React.memo(({
           </Text>
         </View>
       )}
-    </TouchableOpacity>
+    </ScaleButton>
   );
 });
 

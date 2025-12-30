@@ -16,7 +16,7 @@ import {
   Animated,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -29,6 +29,7 @@ import { useSubscription } from '../hooks/useSubscription';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useBottomSheetActions } from '../contexts/BottomSheetContext';
 import { UpgradePrompt, PremiumBadge } from '../components';
+import { GradientHeader } from '../components/GradientHeader';
 import { apiService } from '../services/api';
 import receiptService from '../services/receiptService';
 import { extractReceiptTransactions } from '../services/receiptOCRService';
@@ -346,9 +347,12 @@ const ReceiptUploadScreen: React.FC = () => {
     outputRange: [0, 300],
   });
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
+      <View style={[styles.header, { marginTop: insets.top }]}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
@@ -514,7 +518,7 @@ const ReceiptUploadScreen: React.FC = () => {
             : undefined
         }
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

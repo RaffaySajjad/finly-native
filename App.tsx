@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { Provider as ReduxProvider } from 'react-redux';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider } from './src/contexts/ThemeContext';
@@ -15,7 +16,10 @@ import { PreferencesProvider } from './src/contexts/PreferencesContext';
 import { CurrencyProvider } from './src/contexts/CurrencyContext';
 import { PricingProvider } from './src/contexts/PricingContext';
 import { BottomSheetProvider } from './src/contexts/BottomSheetContext';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { AuthProvider } from './src/contexts/AuthContext';
 import { AppFlowProvider, useAppFlow } from './src/contexts/AppFlowContext';
+import { PerformanceProvider } from './src/contexts/PerformanceContext';
 import { store, useAppDispatch, useAppSelector } from './src/store';
 import { checkAuthStatus } from './src/store/slices/authSlice';
 import { checkSubscriptionStatus } from './src/store/slices/subscriptionSlice';
@@ -324,24 +328,32 @@ const AppContent = () => {
 export default function App(): React.ReactElement {
   return (
     <ReduxProvider store={store}>
-      <ThemeProvider>
-        <PreferencesProvider>
-          <ErrorBoundary>
-            <CurrencyProvider>
-              <PricingProvider>
-                <BottomSheetProvider>
-                  <AppFlowProvider>
-                    <GestureHandlerRootView style={{ flex: 1 }}>
-                      <AppContent />
-                      <StatusBar style="auto" />
-                    </GestureHandlerRootView>
-                  </AppFlowProvider>
-                </BottomSheetProvider>
-              </PricingProvider>
-            </CurrencyProvider>
-          </ErrorBoundary>
-        </PreferencesProvider>
-      </ThemeProvider>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <ThemeProvider>
+          <PerformanceProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <BottomSheetModalProvider>
+                <PreferencesProvider>
+                  <ErrorBoundary>
+                    <CurrencyProvider>
+                      <PricingProvider>
+                        <BottomSheetProvider>
+                          <AuthProvider>
+                            <AppFlowProvider>
+                              <AppContent />
+                              <StatusBar style="auto" />
+                            </AppFlowProvider>
+                          </AuthProvider>
+                        </BottomSheetProvider>
+                      </PricingProvider>
+                    </CurrencyProvider>
+                  </ErrorBoundary>
+                </PreferencesProvider>
+              </BottomSheetModalProvider>
+            </GestureHandlerRootView>
+          </PerformanceProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
     </ReduxProvider>
   );
 }

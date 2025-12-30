@@ -29,6 +29,7 @@ import { PaymentIssueModal } from '../components/PaymentIssueModal';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { usePricing } from '../contexts/PricingContext';
 import { useAlert } from '../hooks/useAlert';
+import { GradientHeader } from '../components/GradientHeader';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -57,6 +58,8 @@ const SubscriptionScreen: React.FC = () => {
     restore,
   } = useSubscription();
 
+  console.log("SUBSCRIPTION:", subscription)
+
   const [processing, setProcessing] = useState(false);
   // Default to yearly if navigated from UpgradePrompt, otherwise monthly
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>(
@@ -71,8 +74,9 @@ const SubscriptionScreen: React.FC = () => {
   const { showSuccess, showError, showWarning, showAlert, AlertComponent } = useAlert();
 
   useEffect(() => {
-    // Only check status once on mount, not on every checkStatus change
-    checkStatus();
+    // Force refresh to clear cache and get fresh subscription from backend
+    // This ensures we get the latest source field for cross-platform detection
+    forceRefresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run on mount
 
@@ -88,6 +92,14 @@ const SubscriptionScreen: React.FC = () => {
     const lowerId = planId.toLowerCase();
     return (lowerId.includes('year') || lowerId.includes('annual')) ? 'yearly' : 'monthly';
   }, [planId]);
+
+  // Check if subscription was purchased on a different platform
+  // If true, we hide plan switch and manage buttons since user needs their original device
+  const isSubscriptionFromDifferentPlatform = React.useMemo(() => {
+    const source = subscription.source;
+    if (!source || source === 'mobile' || source === 'web') return false;
+    return source !== Platform.OS;
+  }, [subscription.source]);
 
   const handlePlanChange = async (newPlan: 'monthly' | 'yearly') => {
     setProcessing(true);
@@ -254,6 +266,7 @@ const SubscriptionScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <GradientHeader />
       <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
 
       {/* Header */}
@@ -289,6 +302,39 @@ const SubscriptionScreen: React.FC = () => {
               </Text>
               <TouchableOpacity onPress={() => setShowPaymentIssue(true)} style={{ marginTop: 8 }}>
                 <Text style={[styles.issueAction, { color: theme.primary }]}>Manage Payment</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Cross-Platform Subscription Banner - Shows when subscription was purchased on different platform */}
+        {isPremium && subscription.source && subscription.source !== Platform.OS && subscription.source !== 'mobile' && subscription.source !== 'web' && (
+          <View style={[styles.crossPlatformBanner, { backgroundColor: theme.primary + '15', borderColor: theme.primary }]}>
+            <Icon name="cellphone-link" size={24} color={theme.primary} style={{ marginTop: 2 }} />
+            <View style={styles.issueContent}>
+              <Text style={[styles.issueTitle, { color: theme.text }]}>
+                Managed by {subscription.source === 'ios' ? 'App Store' : 'Google Play'}
+              </Text>
+              <Text style={[styles.issueText, { color: theme.textSecondary }]}>
+                Your subscription was purchased on {subscription.source === 'ios' ? 'iOS' : 'Android'}.
+                To manage billing or cancel, use your {subscription.source === 'ios' ? 'iOS device' : 'Android device'}.
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  showAlert({
+                    title: 'Switch Subscription Platform',
+                    message: `To subscribe using ${Platform.OS === 'ios' ? 'App Store' : 'Google Play'} instead:\n\n` +
+                      `1. Cancel your current subscription from ${subscription.source === 'ios' ? 'App Store' : 'Google Play'}\n` +
+                      `2. Wait for your access to expire (see renewal date above)\n` +
+                      `3. Return here and subscribe again\n\n` +
+                      `Your data will remain safe during this process.`,
+                    type: 'info',
+                    buttons: [{ text: 'Got It' }],
+                  });
+                }}
+                style={{ marginTop: 8 }}
+              >
+                <Text style={[styles.issueAction, { color: theme.primary }]}>How to Switch Platforms →</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -521,7 +567,8 @@ const SubscriptionScreen: React.FC = () => {
           )}
 
           {/* Paying Premium User: Show Plan Switch & Cancel Options */}
-          {isPremium && !isTrial && !isFree && !isCanceled && (
+          {/* Hide these options if subscription is from a different platform */}
+          {isPremium && !isTrial && !isFree && !isCanceled && !isSubscriptionFromDifferentPlatform && (
             <View style={styles.premiumActions}>
               {/* Plan Switcher */}
               {!pendingPlanId && (
@@ -886,6 +933,13 @@ const styles = StyleSheet.create({
   discountSubtitle: {
     ...typography.bodySmall,
     lineHeight: 18,
+  },
+  crossPlatformBanner: {
+    flexDirection: 'row',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.md,
   },
   issueBanner: {
     flexDirection: 'row',

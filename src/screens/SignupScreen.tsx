@@ -17,7 +17,8 @@ import {
   ActivityIndicator,
   Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GradientHeader } from '../components/GradientHeader';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -29,6 +30,9 @@ import { useTheme } from '../contexts/ThemeContext';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { AuthStackParamList } from '../navigation/types';
 import { useAlert } from '../hooks/useAlert';
+import { AnimatedInput } from '../components/AnimatedInput';
+import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
+import { GlowButton } from '../components/PremiumComponents';
 
 type SignupNavigationProp = StackNavigationProp<AuthStackParamList, 'Signup'>;
 
@@ -37,6 +41,7 @@ type SignupNavigationProp = StackNavigationProp<AuthStackParamList, 'Signup'>;
  */
 const SignupScreen: React.FC = () => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const { isLoading: authLoading } = useAppSelector((state) => state.auth);
   const navigation = useNavigation<SignupNavigationProp>();
@@ -168,7 +173,8 @@ const SignupScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       <LinearGradient
         colors={[theme.primary + '20', theme.background, theme.background]}
         style={styles.gradient}
@@ -211,149 +217,88 @@ const SignupScreen: React.FC = () => {
               ]}
             >
               {/* Name Input */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: theme.textSecondary }]}>Full Name</Text>
-                <View style={[
-                  styles.inputContainer,
-                  {
-                    backgroundColor: theme.background,
-                    borderColor: nameError ? theme.expense : theme.border,
-                  }
-                ]}>
-                  <Icon name="account-outline" size={20} color={nameError ? theme.expense : theme.textSecondary} />
-                  <TextInput
-                    style={[styles.input, { color: theme.text }]}
-                    placeholder="John Doe"
-                    placeholderTextColor={theme.textTertiary}
-                    value={name}
-                    onChangeText={(text) => {
-                      setName(text);
-                      if (nameError) setNameError('');
-                      if (generalError) setGeneralError('');
-                    }}
-                    autoCapitalize="words"
-                  />
-                </View>
-                {nameError && (
-                  <Text style={[styles.errorText, { color: theme.expense }]}>{nameError}</Text>
-                )}
-              </View>
+              <AnimatedInput
+                label="Full Name"
+                icon="account-outline"
+                placeholder="John Doe"
+                value={name}
+                onChangeText={(text) => {
+                  setName(text);
+                  if (nameError) setNameError('');
+                  if (generalError) setGeneralError('');
+                }}
+                error={nameError}
+                isValid={!nameError && name.length >= 2}
+                autoCapitalize="words"
+              />
 
               {/* Email Input */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: theme.textSecondary }]}>Email</Text>
-                <View style={[
-                  styles.inputContainer,
-                  {
-                    backgroundColor: theme.background,
-                    borderColor: emailError ? theme.expense : theme.border,
-                  }
-                ]}>
-                  <Icon name="email-outline" size={20} color={emailError ? theme.expense : theme.textSecondary} />
-                  <TextInput
-                    style={[styles.input, { color: theme.text }]}
-                    placeholder="you@email.com"
-                    placeholderTextColor={theme.textTertiary}
-                    value={email}
-                    onChangeText={(text) => {
-                      setEmail(text);
-                      if (emailError) setEmailError('');
-                      if (generalError) setGeneralError('');
-                    }}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
-                {emailError && (
-                  <Text style={[styles.errorText, { color: theme.expense }]}>{emailError}</Text>
-                )}
-              </View>
+              <AnimatedInput
+                label="Email"
+                icon="email-outline"
+                placeholder="you@email.com"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (emailError) setEmailError('');
+                  if (generalError) setGeneralError('');
+                }}
+                error={emailError}
+                isValid={!emailError && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
 
               {/* Password Input */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: theme.textSecondary }]}>Password</Text>
-                <View style={[
-                  styles.inputContainer,
-                  {
-                    backgroundColor: theme.background,
-                    borderColor: passwordError ? theme.expense : theme.border,
-                  }
-                ]}>
-                  <Icon name="lock-outline" size={20} color={passwordError ? theme.expense : theme.textSecondary} />
-                  <TextInput
-                    style={[styles.input, { color: theme.text }]}
-                    placeholder="At least 8 characters, uppercase, lowercase, number"
-                    placeholderTextColor={theme.textTertiary}
-                    value={password}
-                    onChangeText={(text) => {
-                      setPassword(text);
-                      if (passwordError) setPasswordError('');
-                      if (generalError) setGeneralError('');
-                      // Also clear confirm password error if passwords match
-                      if (confirmPassword && text === confirmPassword && confirmPasswordError) {
-                        setConfirmPasswordError('');
-                      }
-                    }}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                    <Icon
-                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                      size={20}
-                      color={passwordError ? theme.expense : theme.textSecondary}
-                    />
-                  </TouchableOpacity>
-                </View>
-                {passwordError && (
-                  <Text style={[styles.errorText, { color: theme.expense }]}>{passwordError}</Text>
-                )}
+              <View>
+                <AnimatedInput
+                  label="Password"
+                  icon="lock-outline"
+                  placeholder="Create a strong password"
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (passwordError) setPasswordError('');
+                    if (generalError) setGeneralError('');
+                    if (confirmPassword && text === confirmPassword && confirmPasswordError) {
+                      setConfirmPasswordError('');
+                    }
+                  }}
+                  error={passwordError}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  rightIcon={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  onRightIconPress={() => setShowPassword(!showPassword)}
+                />
+                {/* Password Strength Indicator */}
+                <PasswordStrengthIndicator password={password} />
               </View>
 
               {/* Confirm Password Input */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: theme.textSecondary }]}>Confirm Password</Text>
-                <View style={[
-                  styles.inputContainer,
-                  {
-                    backgroundColor: theme.background,
-                    borderColor: confirmPasswordError ? theme.expense : theme.border,
+              <AnimatedInput
+                label="Confirm Password"
+                icon="lock-check-outline"
+                placeholder="Re-enter your password"
+                value={confirmPassword}
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  if (generalError) setGeneralError('');
+                  if (confirmPasswordError) {
+                    if (text === password) {
+                      setConfirmPasswordError('');
+                    } else {
+                      setConfirmPasswordError('Passwords do not match');
+                    }
                   }
-                ]}>
-                  <Icon name="lock-check-outline" size={20} color={confirmPasswordError ? theme.expense : theme.textSecondary} />
-                  <TextInput
-                    style={[styles.input, { color: theme.text }]}
-                    placeholder="Re-enter your password"
-                    placeholderTextColor={theme.textTertiary}
-                    value={confirmPassword}
-                    onChangeText={(text) => {
-                      setConfirmPassword(text);
-                      if (generalError) setGeneralError('');
-                      if (confirmPasswordError) {
-                        // Clear error if passwords match
-                        if (text === password) {
-                          setConfirmPasswordError('');
-                        } else {
-                          setConfirmPasswordError('Passwords do not match');
-                        }
-                      }
-                    }}
-                    secureTextEntry={!showConfirmPassword}
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                    <Icon
-                      name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-                      size={20}
-                      color={confirmPasswordError ? theme.expense : theme.textSecondary}
-                    />
-                  </TouchableOpacity>
-                </View>
-                {confirmPasswordError && (
-                  <Text style={[styles.errorText, { color: theme.expense }]}>{confirmPasswordError}</Text>
-                )}
-              </View>
+                }}
+                error={confirmPasswordError}
+                isValid={!confirmPasswordError && confirmPassword === password && confirmPassword.length > 0}
+                secureTextEntry={!showConfirmPassword}
+                autoCapitalize="none"
+                rightIcon={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                onRightIconPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              />
 
               {/* General Error Message */}
               {generalError && (
@@ -382,23 +327,22 @@ const SignupScreen: React.FC = () => {
               </Text>
 
               {/* Signup Button */}
-              <TouchableOpacity
+              <GlowButton
+                onPress={handleSignup}
+                variant="primary"
+                glowIntensity="medium"
+                disabled={authLoading}
                 style={[
                   styles.signupButton,
-                  { backgroundColor: theme.primary },
                   generalError && { marginTop: spacing.md },
-                  elevation.md
                 ]}
-                onPress={handleSignup}
-                disabled={authLoading}
-                activeOpacity={0.9}
               >
                 {authLoading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.signupButtonText}>Sign Up</Text>
+                    <Text style={styles.signupButtonText}>Create Account</Text>
                 )}
-              </TouchableOpacity>
+              </GlowButton>
             </Animated.View>
 
             {/* Login Link */}
@@ -416,7 +360,7 @@ const SignupScreen: React.FC = () => {
       
       {/* Alert Dialog */}
       {AlertComponent}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -433,7 +377,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: spacing.md + 44, // Account for status bar
   },
   header: {
     marginBottom: spacing.xl,

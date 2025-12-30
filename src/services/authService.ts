@@ -20,6 +20,9 @@ export interface User {
   email: string;
   emailVerified: boolean;
   createdAt: string;
+  financialGoal?: string;
+  hasCategories?: boolean;
+  hasIncome?: boolean;
 }
 
 /**
@@ -136,11 +139,8 @@ class AuthService {
         AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user)),
       ]);
 
-      // Clear onboarding flags to always show onboarding after login
-      await Promise.all([
-        AsyncStorage.removeItem('@finly_onboarding_completed'),
-        AsyncStorage.removeItem('@finly_income_setup_completed'),
-      ]);
+      // Sync onboarding flags from backend to local storage
+      await this.syncOnboardingFlags(user);
 
       return response.data!;
     } catch (error: any) {
@@ -300,12 +300,15 @@ class AuthService {
       const { user, tokens } = response.data!;
 
       // Store tokens and user data if tokens are returned
-      if (tokens) {
-        await Promise.all([
-          tokenManager.setTokens(tokens.accessToken, tokens.refreshToken),
-          AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user)),
-        ]);
-      }
+        if (tokens) {
+          await Promise.all([
+            tokenManager.setTokens(tokens.accessToken, tokens.refreshToken),
+            AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user)),
+          ]);
+
+          // Sync onboarding flags from backend to local storage
+          await this.syncOnboardingFlags(user);
+        }
 
       return response.data!;
     } catch (error: any) {
@@ -336,6 +339,9 @@ class AuthService {
 
       // Update cached user data
       await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
+
+      // Sync onboarding flags from backend to local storage
+      await this.syncOnboardingFlags(user);
 
       return user;
     } catch (error: any) {
@@ -444,6 +450,41 @@ class AuthService {
     }
 
     return new Error('An unexpected error occurred');
+  }
+
+  /**
+   * Sync onboarding and setup flags from backend user data to local AsyncStorage.
+   * This ensures returning users on new devices (or after logout) skip completed steps.
+   */
+  private async syncOnboardingFlags(user: User): Promise<void> {
+    try {
+      const updates: [string, string][] = [];
+
+      // Phase 1: Intro Slides completion
+      // We consider intro slides complete if the user has selected a financial goal
+      if (user.financialGoal) {
+        updates.push(['@finly_onboarding_completed', 'true']);
+      }
+
+      // Phase 2: Category Setup completion
+      if (user.hasCategories) {
+        updates.push(['@finly_category_setup_completed', 'true']);
+        // If categories are set up, onboarding flow (Phase 1) is definitely complete
+        updates.push(['@finly_onboarding_completed', 'true']);
+      }
+
+      // Phase 3: Income Setup completion
+      if (user.hasIncome) {
+        updates.push(['@finly_income_setup_completed', 'true']);
+      }
+
+      if (updates.length > 0) {
+        await AsyncStorage.multiSet(updates);
+        logger.debug(`[AuthService] Synced ${updates.length} onboarding flags from backend`);
+      }
+    } catch (error) {
+      logger.error('[AuthService] Error syncing onboarding flags:', error);
+    }
   }
 }
 

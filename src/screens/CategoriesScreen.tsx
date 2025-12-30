@@ -15,8 +15,10 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GradientHeader } from '../components/GradientHeader';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -24,13 +26,16 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { usePerformance } from '../contexts/PerformanceContext';
 import { useSubscription } from '../hooks/useSubscription';
-import { CategoryCard, AIAssistantFAB, UpgradePrompt } from '../components';
+import { CategoryCard, AIAssistantFAB, UpgradePrompt, EmptyState } from '../components';
+import { GlowButton } from '../components/PremiumComponents';
 import { useCreateCategoryModal } from '../contexts/CreateCategoryModalContext';
 import { apiService } from '../services/api';
 import { Category } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { springPresets } from '../theme/AnimationConfig';
 
 type CategoriesNavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -40,7 +45,9 @@ type CategoriesNavigationProp = StackNavigationProp<RootStackParamList>;
 const CategoriesScreen: React.FC = () => {
   const { theme } = useTheme();
   const { formatCurrency } = useCurrency();
+  const { shouldUseComplexAnimations, shouldUseGlowEffects } = usePerformance();
   const navigation = useNavigation<CategoriesNavigationProp>();
+  const insets = useSafeAreaInsets();
   const { isPremium, requiresUpgrade, setCategoryCount, getRemainingUsage } = useSubscription();
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -50,6 +57,17 @@ const CategoriesScreen: React.FC = () => {
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const { openCreateCategoryModal } = useCreateCategoryModal();
   const scrollViewRef = useRef<ScrollView>(null);
+
+  // Entry animation
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -163,11 +181,12 @@ const CategoriesScreen: React.FC = () => {
   // Show onboarding if setup not completed and not loading
   if (!setupCompleted && !refreshing && !loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <GradientHeader />
         <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
 
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { marginTop: insets.top }]}>
           <Text style={[styles.title, { color: theme.text }]}>Categories</Text>
         </View>
 
@@ -216,16 +235,17 @@ const CategoriesScreen: React.FC = () => {
             </View>
           </View>
         </ScrollView>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { marginTop: insets.top }]}>
         <View style={styles.headerTop}>
           <View style={styles.headerLeft}>
         <Text style={[styles.title, { color: theme.text }]}>Categories</Text>
@@ -305,12 +325,12 @@ const CategoriesScreen: React.FC = () => {
 
           {/* Show message if no categories */}
           {categories.length === 0 && !loading && (
-            <View style={styles.emptyContainer}>
-              <Icon name="folder-off-outline" size={48} color={theme.textTertiary} />
-              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                No categories found
-              </Text>
-            </View>
+            <EmptyState
+              variant="categories"
+              compact
+              actionLabel="Create Category"
+              onActionPress={handleOpenCreateModal}
+            />
           )}
         </View>
 
@@ -324,7 +344,7 @@ const CategoriesScreen: React.FC = () => {
         feature="Unlimited Categories"
         message={`You've reached the limit of ${5} custom categories. Upgrade to Premium to create unlimited categories!`}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 

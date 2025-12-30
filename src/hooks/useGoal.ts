@@ -63,6 +63,7 @@ interface UseGoalResult {
   error: string | null;
   updateGoal: (newGoal: UserGoal) => Promise<boolean>;
   refreshGoal: () => Promise<void>;
+  syncGoal: (serverGoal: UserGoal) => Promise<void>;
 }
 
 export const useGoal = (): UseGoalResult => {
@@ -111,6 +112,21 @@ export const useGoal = (): UseGoalResult => {
     };
   }, []);
 
+  // Sync goal from server (no API call)
+  const syncGoal = useCallback(async (serverGoal: UserGoal): Promise<void> => {
+    if (goal === serverGoal) return;
+    
+    try {
+      console.log('[useGoal] Syncing goal from server:', serverGoal);
+      await AsyncStorage.setItem(USER_GOAL_KEY, serverGoal);
+      setGoal(serverGoal);
+      // Emit event so other components update too
+      DeviceEventEmitter.emit(GOAL_CHANGED_EVENT, serverGoal);
+    } catch (err) {
+      console.error('[useGoal] Failed to sync goal:', err);
+    }
+  }, [goal]);
+
   // Update goal both locally and on backend
   const updateGoal = useCallback(async (newGoal: UserGoal): Promise<boolean> => {
     try {
@@ -158,6 +174,7 @@ export const useGoal = (): UseGoalResult => {
     error,
     updateGoal,
     refreshGoal,
+    syncGoal,
   };
 };
 

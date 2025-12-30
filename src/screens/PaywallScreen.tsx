@@ -8,20 +8,11 @@
  * Existing free users without PAYWALL_COMPLETE_KEY go through this flow as well.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  StatusBar,
-  Animated,
-  Dimensions,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar, Animated, Dimensions, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import { GradientHeader } from '../components';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSubscription } from '../hooks/useSubscription';
 import { useNavigation } from '@react-navigation/native';
@@ -31,6 +22,9 @@ import { typography, spacing, borderRadius, elevation } from '../theme';
 import { usePricing } from '../contexts/PricingContext';
 import { useAlert } from '../hooks/useAlert';
 import { useAppFlow } from '../contexts/AppFlowContext';
+import { useAppDispatch, useAppSelector } from '../store';
+import { logout as logoutAction } from '../store/slices/authSlice';
+import { useAuth } from '../contexts/AuthContext';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -51,10 +45,28 @@ const PREMIUM_FEATURES: PremiumFeature[] = [
   { icon: 'file-export', title: 'Export & Backup', description: 'Download your data in multiple formats' },
 ];
 
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { Easing } from 'react-native-reanimated';
+
+// ...
+
+type PaywallScreenRouteProp = RouteProp<RootStackParamList, 'Paywall'>;
+
 const PaywallScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<PaywallScreenRouteProp>();
+  const params = route.params as { reason?: string; preselectedPlan?: 'monthly' | 'yearly' } | undefined;
+  const insets = useSafeAreaInsets();
+
+  // Check if this is an expired subscription - either from route params or from Redux state
+  const { subscription } = useAppSelector((state) => state.subscription);
+  const isExpiredSubscription = params?.reason === 'expired' || subscription.status === 'EXPIRED';
+
   const { markPaywallComplete } = useAppFlow();
+  const { logout } = useAuth();
+  const { user } = useAppSelector((state) => state.auth);
+  const dispatch = useAppDispatch();
   const {
     subscribe,
     restore,
@@ -67,6 +79,7 @@ const PaywallScreen: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [processing, setProcessing] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -77,13 +90,13 @@ const PaywallScreen: React.FC = () => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 600,
+        duration: 800,
         useNativeDriver: true,
       }),
-      Animated.spring(slideAnim, {
+      Animated.timing(slideAnim, {
         toValue: 0,
-        tension: 50,
-        friction: 8,
+        duration: 800,
+        easing: Easing.out(Easing.back(1)),
         useNativeDriver: true,
       }),
     ]).start();
@@ -97,8 +110,10 @@ const PaywallScreen: React.FC = () => {
       await markPaywallComplete();
       
       showSuccess(
-        'Welcome to Finly Pro! 🎉',
-        "Your 7-day free trial has started. You'll be charged after the trial ends unless you cancel.",
+        isExpiredSubscription ? 'Welcome Back! 🎉' : 'Welcome to Finly Pro! 🎉',
+        isExpiredSubscription
+          ? "Your subscription has been renewed. All your data is intact and ready for you."
+          : "Your 7-day free trial has started. You'll be charged after the trial ends unless you cancel.",
         [{ text: 'Continue', onPress: () => {} }]
       );
     } catch (error: any) {
@@ -157,8 +172,11 @@ const PaywallScreen: React.FC = () => {
   const savingsPercent = pricing.savings.percent;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
+
+
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -179,33 +197,61 @@ const PaywallScreen: React.FC = () => {
           </View>
 
           <Text style={[styles.title, { color: theme.text }]}>
-            Unlock Finly Pro
+            {isExpiredSubscription ? 'Subscription Expired' : 'Unlock Finly Pro'}
           </Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Start your 7-day free trial and take control of your finances.
+            {isExpiredSubscription
+              ? "Renew now to continue accessing your insights."
+              : "Start your 7-day free trial and take control of your finances."}
           </Text>
         </Animated.View>
 
-        {/* Free Trial Banner */}
-        <Animated.View
-          style={[
-            styles.trialBanner,
-            { backgroundColor: theme.success + '15', borderColor: theme.success },
-            { opacity: fadeAnim },
-          ]}
-        >
-          <View style={styles.trialBannerContent}>
-            <Icon name="gift" size={28} color={theme.success} />
-            <View style={styles.trialBannerText}>
-              <Text style={[styles.trialBannerTitle, { color: theme.text }]}>
-                7 Days Free, Then {selectedPlan === 'yearly' ? pricing.yearly.monthlyEquivalent : pricing.monthly.price}/mo
-              </Text>
-              <Text style={[styles.trialBannerSubtitle, { color: theme.textSecondary }]}>
-                Cancel anytime during trial. No charges.
-              </Text>
+
+
+        {/* Banner - Different for expired vs new users */}
+        {isExpiredSubscription ? (
+          // Data Reassurance Banner for expired users
+          <Animated.View
+            style={[
+              styles.trialBanner,
+              { backgroundColor: theme.primary + '15', borderColor: theme.primary },
+              { opacity: fadeAnim },
+            ]}
+          >
+            <View style={styles.trialBannerContent}>
+              <Icon name="shield-check" size={28} color={theme.primary} />
+              <View style={styles.trialBannerText}>
+                <Text style={[styles.trialBannerTitle, { color: theme.text }]}>
+                  Your Data is Safe
+                </Text>
+                <Text style={[styles.trialBannerSubtitle, { color: theme.textSecondary }]}>
+                  All your transactions, categories, and insights are preserved. Pick up right where you left off.
+                </Text>
+              </View>
             </View>
-          </View>
-        </Animated.View>
+          </Animated.View>
+        ) : (
+          // Free Trial Banner for new users
+          <Animated.View
+            style={[
+              styles.trialBanner,
+              { backgroundColor: theme.success + '15', borderColor: theme.success },
+              { opacity: fadeAnim },
+            ]}
+          >
+            <View style={styles.trialBannerContent}>
+              <Icon name="gift" size={28} color={theme.success} />
+              <View style={styles.trialBannerText}>
+                <Text style={[styles.trialBannerTitle, { color: theme.text }]}>
+                  7 Days Free, Then {selectedPlan === 'yearly' ? pricing.yearly.monthlyEquivalent : pricing.monthly.price}/mo
+                </Text>
+                <Text style={[styles.trialBannerSubtitle, { color: theme.textSecondary }]}>
+                  Cancel anytime during trial. No charges.
+                </Text>
+              </View>
+            </View>
+          </Animated.View>
+        )}
 
         {/* Plan Selector */}
         <Animated.View
@@ -325,7 +371,11 @@ const PaywallScreen: React.FC = () => {
       </ScrollView>
 
       {/* Bottom Actions - Sticky */}
-      <View style={[styles.bottomActions, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
+      <View style={[styles.bottomActions, {
+        backgroundColor: theme.background,
+        borderTopColor: theme.border,
+        paddingBottom: insets.bottom + spacing.sm
+      }]}>
         {/* Single CTA: Start Free Trial (then charges based on plan) */}
         <TouchableOpacity
           style={[styles.subscribeButton, { backgroundColor: theme.primary }, elevation.md]}
@@ -337,10 +387,13 @@ const PaywallScreen: React.FC = () => {
           ) : (
             <>
               <Text style={styles.subscribeButtonText}>
-                Start 7-Day Free Trial
+                  {isExpiredSubscription ? 'Renew Subscription' : 'Start 7-Day Free Trial'}
               </Text>
               <Text style={styles.subscribeButtonSubtext}>
-                Then {selectedPlan === 'yearly' ? pricing.yearly.price + '/year' : pricing.monthly.price + '/month'}
+                  {isExpiredSubscription
+                    ? `${selectedPlan === 'yearly' ? pricing.yearly.price + '/year' : pricing.monthly.price + '/month'}`
+                    : `Then ${selectedPlan === 'yearly' ? pricing.yearly.price + '/year' : pricing.monthly.price + '/month'}`
+                  }
               </Text>
             </>
           )}
@@ -360,20 +413,31 @@ const PaywallScreen: React.FC = () => {
           )}
         </TouchableOpacity>
 
-        {/* Legal Links */}
-        <View style={styles.legalLinks}>
-          <TouchableOpacity onPress={() => navigation.navigate('TermsOfService' as any)}>
-            <Text style={[styles.legalLink, { color: theme.textTertiary }]}>Terms</Text>
-          </TouchableOpacity>
-          <Text style={[styles.legalDivider, { color: theme.textTertiary }]}>•</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('PrivacyPolicy' as any)}>
-            <Text style={[styles.legalLink, { color: theme.textTertiary }]}>Privacy</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Restore original Logout Button */}
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={async () => {
+            if (isLoggingOut) return;
+            setIsLoggingOut(true);
+            try {
+              await logout();
+              await dispatch(logoutAction());
+            } catch (error) {
+              console.error('Logout failed:', error);
+              showError('Logout Failed', 'Please try again.');
+              setIsLoggingOut(false);
+            }
+          }}
+          disabled={isLoggingOut}
+        >
+          <Text style={[styles.logoutButtonText, { color: theme.expense }]}>
+            {isLoggingOut ? 'Logging Out...' : 'Log Out'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {AlertComponent}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -388,6 +452,18 @@ const styles = StyleSheet.create({
   headerSection: {
     alignItems: 'center',
     marginBottom: spacing.lg,
+    paddingHorizontal: spacing.xl, // Add padding for header content
+    marginTop: spacing.xl, // Add top margin to avoid overlap with back button if present (though sticky header handles it)
+  },
+  menuButton: {
+    position: 'absolute',
+    right: spacing.lg,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100, // Increased z-index
   },
   crownContainer: {
     width: 100,
@@ -527,7 +603,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: spacing.lg,
-    paddingBottom: spacing.xl,
     borderTopWidth: 1,
   },
   subscribeButton: {
@@ -548,7 +623,7 @@ const styles = StyleSheet.create({
   },
   restoreButton: {
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    paddingTop: spacing.sm,
   },
   restoreButtonText: {
     ...typography.bodyMedium,
@@ -566,6 +641,42 @@ const styles = StyleSheet.create({
   },
   legalDivider: {
     ...typography.bodySmall,
+  },
+  logoutButton: {
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    alignItems: 'center'
+  },
+  logoutButtonText: {
+    ...typography.bodySmall,
+    fontWeight: '600',
+  },
+  menuContent: {
+    flex: 1,
+  },
+  menuTitle: {
+    ...typography.titleMedium,
+    fontWeight: '700',
+    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  menuIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  menuText: {
+    ...typography.bodyMedium,
+    fontWeight: '600',
+    flex: 1,
   },
 });
 

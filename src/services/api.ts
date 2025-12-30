@@ -1232,19 +1232,34 @@ export const apiService = {
    */
   async adjustBalance(
     balance: number,
-    description?: string
-  ): Promise<{ startingBalance: number }> {
+    description?: string,
+    originalAmount?: number,
+    originalCurrency?: string,
+    baseCurrency?: string
+  ): Promise<{ startingBalance: number; originalBalanceAmount?: number; originalBalanceCurrency?: string; baseCurrency?: string }> {
     try {
-      const response = await api.put<{ startingBalance: number }>(
+      const response = await api.put<{ 
+        startingBalance: number;
+        originalBalanceAmount: number | null;
+        originalBalanceCurrency: string | null;
+        baseCurrency: string | null;
+      }>(
         API_ENDPOINTS.AUTH.UPDATE_BALANCE,
         {
-          balance
+          balance,
+          originalBalanceAmount: originalAmount,
+          originalBalanceCurrency: originalCurrency,
+          baseCurrency
         }
       );
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to adjust balance');
       }
-      return response.data || { startingBalance: balance };
+      return {
+        startingBalance: response.data?.startingBalance ?? balance,
+        originalBalanceAmount: response.data?.originalBalanceAmount ?? undefined,
+        originalBalanceCurrency: response.data?.originalBalanceCurrency ?? undefined
+      };
     } catch (error) {
       console.error('[API] Adjust balance error:', error);
       throw error;

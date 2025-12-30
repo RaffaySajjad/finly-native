@@ -142,8 +142,10 @@ const CategoryCardComponent: React.FC<CategoryCardProps> = ({ category, onPress 
             {formattedSpent}
             {formattedBudget && (
               <Text style={{ color: theme.textTertiary }}>
-                {isRolloverCategory ? ' of ' : ' / '}{formattedBudget}
-                {isRolloverCategory && ' available'}
+                {isRolloverCategory
+                  ? (isOverBudget ? ` spent of ${formattedBudget} budget` : ` of ${formattedBudget} available`)
+                  : ` / ${formattedBudget}`
+                }
               </Text>
             )}
           </Text>

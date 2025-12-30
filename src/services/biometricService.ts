@@ -8,7 +8,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BIOMETRIC_ENABLED_KEY = '@biometric_enabled';
+const BIOMETRIC_ENABLED_KEY = '@finly_biometric_enabled';
 
 /**
  * Check if biometric hardware is available on the device

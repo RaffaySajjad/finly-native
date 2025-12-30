@@ -20,6 +20,7 @@ import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { usePerformance } from '../contexts/PerformanceContext';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
@@ -37,6 +38,7 @@ import * as Haptics from 'expo-haptics';
 import UpgradePrompt from '../components/UpgradePrompt';
 import MarkdownText from '../components/MarkdownText';
 import PremiumBadge from '../components/PremiumBadge';
+import { GradientHeader } from '../components/GradientHeader';
 import { Toast } from '../components/Toast';
 
 type AIAssistantNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -59,6 +61,7 @@ const LOADING_MESSAGES = [
 
 const AIAssistantScreen: React.FC = () => {
   const { theme } = useTheme();
+  const { shouldUseComplexAnimations, shouldUseGlowEffects } = usePerformance();
   const { formatCurrency, currencyCode } = useCurrency();
   const navigation = useNavigation<AIAssistantNavigationProp>();
   const route = useRoute<RouteProp<RootStackParamList, 'AIAssistant'>>();
@@ -371,14 +374,15 @@ const AIAssistantScreen: React.FC = () => {
   ];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { marginTop: insets.top }]}>
           <View style={styles.headerTop}>
             <View style={styles.headerLeft}>
               <Text style={[styles.title, { color: theme.text }]}>Finly AI</Text>
@@ -579,7 +583,7 @@ const AIAssistantScreen: React.FC = () => {
         onDismiss={() => setToastVisible(false)}
       />
       {AlertComponent}
-    </SafeAreaView>
+    </View>
   );
 };
 

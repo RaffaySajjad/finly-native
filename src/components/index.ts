@@ -26,7 +26,8 @@ export { default as TrialBadge } from './TrialBadge';
 export { default as AIAssistantFAB } from './AIAssistantFAB';
 
 // New reusable UI components
-export { default as Header } from './Header';
+export { default as Header } from './Header'; 
+export { default as DeleteAccountSheet } from './DeleteAccountSheet';
 export { default as SectionHeader } from './SectionHeader';
 export { default as FilterChip } from './FilterChip';
 export { default as ProgressBar } from './ProgressBar';
@@ -51,10 +52,14 @@ export type { ToastType, ToastProps } from './Toast';
 export { NotificationPermissionBanner } from './NotificationPermissionBanner';
 export { AnimatedSplashScreen } from './AnimatedSplashScreen';
 export { PaymentIssueModal } from './PaymentIssueModal';
+export { GradientHeader } from './GradientHeader';
 
 // Filter components
 export * from './filters';
 
 // Chart components
+// Chart components
 export * from './charts';
+
+export * from './FAQItem';
 

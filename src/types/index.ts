@@ -228,6 +228,8 @@ export interface MonthlyStats {
   balance: number;
   savings: number;
   savingsRate: number;
+  baseBalance?: number;
+  baseCurrency?: string;
 }
 
 export interface User {
@@ -236,6 +238,10 @@ export interface User {
   email: string;
   currency: string;
   avatar?: string;
+  startingBalance: number;
+  originalBalanceAmount?: number | null;
+  originalBalanceCurrency?: string | null;
+  baseCurrency?: string | null;
 }
 
 export type SubscriptionTier = 'FREE' | 'PREMIUM' | 'ENTERPRISE';
@@ -262,7 +268,8 @@ export interface Subscription {
   couponCode?: string | null;
   hasPendingDiscount?: boolean;
   discountPercent?: number;
-  source?: string;
+  // Subscription source platform (which device it was purchased on)
+  source?: 'ios' | 'android' | 'web' | 'mobile' | null;
 }
 
 export interface UsageLimits {

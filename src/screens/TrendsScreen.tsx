@@ -18,21 +18,25 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { SpendingChart } from '../components/charts/SpendingChart';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
 import { ForecastCard } from '../components/trends/ForecastCard';
 import { WeeklyComparisonCard } from '../components/trends/WeeklyComparisonCard';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GradientHeader } from '../components/GradientHeader';
 
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { PullToRefreshScrollView } from '../components';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { usePerformance } from '../contexts/PerformanceContext';
 import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
 import { RootStackParamList } from '../navigation/types';
 import { apiService } from '../services/api';
 import { borderRadius, elevation, spacing, typography } from '../theme';
+import { springPresets } from '../theme/AnimationConfig';
 
 const { width } = Dimensions.get('window');
 
@@ -58,6 +62,8 @@ interface ForecastData {
  */
 const TrendsScreen: React.FC = () => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { shouldUseComplexAnimations, shouldUseGlowEffects } = usePerformance();
   // We don't need formatCurrency here as it's passed to children or used inside them
   // but we might need it for top level stuff if any.
   // Actually the logic for filteredDailySpending etc moves to child or simplifies here.
@@ -153,8 +159,9 @@ const TrendsScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
+      <View style={[styles.header, { marginTop: insets.top }]}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Trends</Text>
       </View>
 
@@ -191,7 +198,7 @@ const TrendsScreen: React.FC = () => {
           <View style={{ height: Platform.OS === 'ios' ? spacing.xxxl : spacing.xxl }} />
         </Animated.View>
       </PullToRefreshScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

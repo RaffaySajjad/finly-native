@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useMemo, useRef, useCallback, ReactNode, useState } from 'react';
-import BottomSheet from '@gorhom/bottom-sheet';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { Expense, IncomeTransaction } from '../types';
 import { logger } from '../utils/logger';
 
@@ -21,7 +21,7 @@ export interface ParsedTransactionUpdate {
 interface BottomSheetActionsContextType {
   setHandler: (handler: (() => void) | null) => void;
   openBottomSheet: (editingExpense?: Expense, editingIncome?: IncomeTransaction) => void;
-  setBottomSheetRef: (ref: BottomSheet | null) => void;
+  setBottomSheetRef: (ref: BottomSheetModal | null) => void;
   onTransactionAdded: () => void;
   setOnTransactionAdded: (callback: (() => void) | null) => void;
   onParsedTransactionUpdate: ((update: ParsedTransactionUpdate) => void) | null;
@@ -40,7 +40,7 @@ const BottomSheetEditStateContext = createContext<BottomSheetEditStateContextTyp
 
 export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const handlerRef = useRef<(() => void) | null>(null);
-  const bottomSheetRefRef = useRef<BottomSheet | null>(null);
+  const bottomSheetRefRef = useRef<BottomSheetModal | null>(null);
   const onTransactionAddedRef = useRef<(() => void) | null>(null);
   const onParsedTransactionUpdateRef = useRef<((update: ParsedTransactionUpdate) => void) | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
@@ -50,7 +50,7 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
     handlerRef.current = newHandler;
   }, []);
 
-  const setBottomSheetRef = useCallback((ref: BottomSheet | null) => {
+  const setBottomSheetRef = useCallback((ref: BottomSheetModal | null) => {
     bottomSheetRefRef.current = ref;
   }, []);
 

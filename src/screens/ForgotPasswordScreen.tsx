@@ -18,14 +18,19 @@ import {
   Alert,
   Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GradientHeader } from '../components/GradientHeader';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 import { useTheme } from '../contexts/ThemeContext';
+import { usePerformance } from '../contexts/PerformanceContext';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { springPresets } from '../theme/AnimationConfig';
+import { GlowButton } from '../components/PremiumComponents';
 import { AuthStackParamList } from '../navigation/types';
 import authService from '../services/authService';
 
@@ -36,6 +41,8 @@ type ForgotPasswordNavigationProp = StackNavigationProp<AuthStackParamList, 'For
  */
 const ForgotPasswordScreen: React.FC = () => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { shouldUseComplexAnimations, shouldUseGlowEffects } = usePerformance();
   const navigation = useNavigation<ForgotPasswordNavigationProp>();
 
   const [email, setEmail] = useState('');
@@ -57,9 +64,7 @@ const ForgotPasswordScreen: React.FC = () => {
       }),
       Animated.spring(slideAnim, {
         toValue: 0,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
+        ...springPresets.smooth,
       }),
     ]).start();
   }, []);
@@ -106,7 +111,8 @@ const ForgotPasswordScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       <LinearGradient
         colors={[theme.primary + '20', theme.background, theme.background]}
         style={styles.gradient}
@@ -133,11 +139,6 @@ const ForgotPasswordScreen: React.FC = () => {
               >
                 <Icon name="arrow-left" size={24} color={theme.text} />
               </TouchableOpacity>
-              
-              <View style={[styles.iconCircle, { backgroundColor: theme.primary + '20' }]}>
-                <Icon name="lock-reset" size={48} color={theme.primary} />
-              </View>
-
               <Text style={[styles.title, { color: theme.text }]}>Forgot Password?</Text>
               <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
                 No worries! Enter your email and we'll send you reset instructions.
@@ -197,21 +198,20 @@ const ForgotPasswordScreen: React.FC = () => {
               )}
 
               {/* Reset Button */}
-              <TouchableOpacity
+              <GlowButton
+                onPress={handleResetPassword}
+                variant={emailSent ? 'success' : 'primary'}
+                disabled={loading || emailSent}
+                glowIntensity={shouldUseGlowEffects ? 'medium' : undefined}
                 style={[
                   styles.resetButton,
-                  { backgroundColor: emailSent ? theme.income : theme.primary },
                   (generalError || emailError) && { marginTop: spacing.md },
-                  elevation.md,
                 ]}
-                onPress={handleResetPassword}
-                disabled={loading || emailSent}
-                activeOpacity={0.9}
               >
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <>
+                    <View style={styles.resetButtonContent}>
                     <Icon
                       name={emailSent ? 'check-circle-outline' : 'send'}
                       size={20}
@@ -220,9 +220,9 @@ const ForgotPasswordScreen: React.FC = () => {
                     <Text style={styles.resetButtonText}>
                       {emailSent ? 'Email Sent!' : 'Send Reset Link'}
                     </Text>
-                  </>
+                    </View>
                 )}
-              </TouchableOpacity>
+              </GlowButton>
 
               {emailSent && (
                 <Text style={[styles.successText, { color: theme.income }]}>
@@ -246,7 +246,7 @@ const ForgotPasswordScreen: React.FC = () => {
           </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -262,11 +262,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
+    paddingTop: spacing.xl + 44, // Account for status bar
     padding: spacing.lg,
   },
   header: {
-    alignItems: 'center',
     marginBottom: spacing.xl,
   },
   backButton: {
@@ -274,26 +273,15 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'flex-start',
-    marginBottom: spacing.lg,
-  },
-  iconCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   title: {
     ...typography.headlineMedium,
     fontWeight: '700',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   subtitle: {
     ...typography.bodyMedium,
-    textAlign: 'center',
-    lineHeight: 22,
   },
   formCard: {
     borderRadius: borderRadius.xl,
@@ -327,11 +315,11 @@ const styles = StyleSheet.create({
     includeFontPadding: Platform.OS === 'android' ? false : undefined,
   },
   resetButton: {
+    marginTop: spacing.md,
+  },
+  resetButtonContent: {
     flexDirection: 'row',
-    paddingVertical: spacing.md + 4,
-    borderRadius: borderRadius.md,
     alignItems: 'center',
-    justifyContent: 'center',
     gap: spacing.sm,
   },
   resetButtonText: {

@@ -33,6 +33,7 @@ import {
   getBiometricName,
 } from '../services/biometricService';
 import * as Haptics from 'expo-haptics';
+import { GradientHeader } from '../components/GradientHeader';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -202,6 +203,7 @@ const PrivacySettingsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <GradientHeader />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity

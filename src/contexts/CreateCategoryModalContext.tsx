@@ -7,12 +7,17 @@ import React, { createContext, useContext, useMemo, useRef, useCallback, ReactNo
 import BottomSheet from '@gorhom/bottom-sheet';
 import { logger } from '../utils/logger';
 
+import { BudgetType } from '../types';
+
 interface CreateCategoryModalConfig {
   onCreate: (data: {
     name: string;
     icon: string;
     color: string;
     budgetLimit?: number;
+    budgetType?: BudgetType;
+    originalAmount?: number;
+    originalCurrency?: string;
   }) => Promise<void>;
   isPremium: boolean;
   existingCategoryNames?: string[];

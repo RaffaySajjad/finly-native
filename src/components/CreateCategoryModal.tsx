@@ -20,6 +20,8 @@ import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorho
 import { logger } from '../utils/logger';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { GlowButton } from './PremiumComponents';
 import { useSafeAreaInsets, SafeAreaContext } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -122,7 +124,7 @@ export const CreateCategoryModal: React.FC = () => {
 
   const [categoryName, setCategoryName] = useState('');
   const [selectedIcon, setSelectedIcon] = useState('tag');
-  const [selectedColor, setSelectedColor] = useState('#6B7280');
+  const [selectedColor, setSelectedColor] = useState('#6366F1');
   const [budgetAmount, setBudgetAmount] = useState('');
   const [selectedBudgetCurrency, setSelectedBudgetCurrency] = useState<string | undefined>(undefined);
   const [budgetType, setBudgetType] = useState<'MONTHLY' | 'ROLLOVER'>('MONTHLY');
@@ -517,28 +519,28 @@ export const CreateCategoryModal: React.FC = () => {
           >
             <Text style={[styles.modalButtonText, { color: getTextColor(theme.text) }]}>Cancel</Text>
           </TouchableOpacity>
-          <TouchableOpacity
+          <GlowButton
+            variant="primary"
             style={[
               styles.modalButton,
               styles.modalButtonPrimary,
-              { backgroundColor: theme.primary },
               (!isPremium || isCreating) && styles.modalButtonDisabled,
             ]}
-            activeOpacity={0.8}
             onPress={handleCreate}
             disabled={!isPremium || isCreating}
+            glowIntensity="medium"
           >
             {isCreating ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <>
-                <Icon name="check-circle" size={20} color="#FFFFFF" />
-                <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>
-                  Create
-                </Text>
-              </>
+                <View style={styles.buttonContent}>
+                  <Icon name="check-circle" size={20} color="#FFFFFF" />
+                  <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>
+                    Create
+                  </Text>
+                </View>
             )}
-          </TouchableOpacity>
+          </GlowButton>
         </View>
 
         {!isPremium && (
@@ -860,12 +862,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
     gap: spacing.sm,
   },
   modalButtonSecondary: {
     borderWidth: 1,
+    paddingVertical: spacing.md,
   },
   modalButtonPrimary: {
     // backgroundColor set inline
@@ -916,6 +918,11 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     marginTop: spacing.sm,
     fontStyle: 'italic',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
 });
 

@@ -18,7 +18,8 @@ import {
   Animated,
 } from 'react-native';
 import { useAlert } from '../hooks/useAlert';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GradientHeader } from '../components/GradientHeader';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -39,6 +40,7 @@ type VerificationRouteProp = RouteProp<AuthStackParamList, 'Verification'>;
  */
 const VerificationScreen: React.FC = () => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const navigation = useNavigation<VerificationNavigationProp>();
   const route = useRoute<VerificationRouteProp>();
@@ -158,7 +160,8 @@ const VerificationScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       <LinearGradient
         colors={[theme.primary + '20', theme.background, theme.background]}
         style={styles.gradient}
@@ -279,7 +282,7 @@ const VerificationScreen: React.FC = () => {
         </KeyboardAvoidingView>
       </LinearGradient>
       {AlertComponent}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -296,7 +299,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: spacing.md + 44, // Account for status bar
   },
   header: {
     alignItems: 'center',

@@ -17,19 +17,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   INCOME_SETUP_COMPLETED_KEY,
   ONBOARDING_STORAGE_KEY,
-  PAYWALL_COMPLETE_KEY
+  PAYWALL_COMPLETE_KEY,
+  CATEGORY_SETUP_COMPLETED_KEY
 } from '../constants/storageKeys';
 
 interface AppFlowContextValue {
   onboardingComplete: boolean | null;
   paywallComplete: boolean | null;
   incomeSetupComplete: boolean | null;
+  categorySetupComplete: boolean | null;
   /** True while initial flow state is being loaded from AsyncStorage */
   isFlowStateLoading: boolean;
   refreshFlowState: () => Promise<void>;
   markOnboardingComplete: () => Promise<void>;
   markPaywallComplete: () => Promise<void>;
   markIncomeSetupComplete: () => Promise<void>;
+  markCategorySetupComplete: () => Promise<void>;
+  markSubscriptionExpired: () => Promise<void>;
   resetFlowStateForTesting: () => Promise<void>;
 }
 
@@ -48,17 +52,28 @@ export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [paywallComplete, setPaywallComplete] = useState<boolean | null>(null);
   const [incomeSetupComplete, setIncomeSetupComplete] = useState<boolean | null>(null);
+  const [categorySetupComplete, setCategorySetupComplete] = useState<boolean | null>(null);
   const [isFlowStateLoading, setIsFlowStateLoading] = useState(true);
 
   const refreshFlowState = useCallback(async () => {
-    const [onboarding, paywall, income] = await Promise.all([
+    const [onboarding, paywall, income, category] = await Promise.all([
       readBooleanFlag(ONBOARDING_STORAGE_KEY),
       readBooleanFlag(PAYWALL_COMPLETE_KEY),
       readBooleanFlag(INCOME_SETUP_COMPLETED_KEY),
+      readBooleanFlag(CATEGORY_SETUP_COMPLETED_KEY),
     ]);
     setOnboardingComplete(onboarding);
     setPaywallComplete(paywall);
     setIncomeSetupComplete(income);
+    // Migration: If paywall is complete but category setup is not (new flag), 
+    // assume it's an existing user and mark as complete to avoid showing onboarding again.
+    if (paywall && !category) {
+      setCategorySetupComplete(true);
+      AsyncStorage.setItem(CATEGORY_SETUP_COMPLETED_KEY, 'true').catch(() => { });
+    } else {
+      setCategorySetupComplete(category);
+    }
+
     setIsFlowStateLoading(false);
   }, []);
 
@@ -86,7 +101,30 @@ export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       await AsyncStorage.setItem(INCOME_SETUP_COMPLETED_KEY, 'true');
     } catch {
-      // Best-effort, same reasoning as above.
+      // Best-effort
+    }
+  }, []);
+
+  const markCategorySetupComplete = useCallback(async () => {
+    setCategorySetupComplete(true);
+    try {
+      await AsyncStorage.setItem(CATEGORY_SETUP_COMPLETED_KEY, 'true');
+    } catch {
+      // Best-effort
+    }
+  }, []);
+
+  /**
+   * Called when subscription expires to un-set paywall complete flag.
+   * Forces the user back to the hard paywall.
+   */
+  const markSubscriptionExpired = useCallback(async () => {
+    setPaywallComplete(false);
+    try {
+      // We remove the key so next launch also shows paywall
+      await AsyncStorage.removeItem(PAYWALL_COMPLETE_KEY);
+    } catch {
+  // Best-effort
     }
   }, []);
 
@@ -95,10 +133,12 @@ export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ child
       AsyncStorage.removeItem(ONBOARDING_STORAGE_KEY),
       AsyncStorage.removeItem(PAYWALL_COMPLETE_KEY),
       AsyncStorage.removeItem(INCOME_SETUP_COMPLETED_KEY),
+      AsyncStorage.removeItem(CATEGORY_SETUP_COMPLETED_KEY),
     ]);
     setOnboardingComplete(false);
     setPaywallComplete(false);
     setIncomeSetupComplete(false);
+    setCategorySetupComplete(false);
   }, []);
 
   // Initial load (one-time).
@@ -123,22 +163,29 @@ export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ child
       onboardingComplete,
       paywallComplete,
       incomeSetupComplete,
+      categorySetupComplete,
       isFlowStateLoading,
       refreshFlowState,
       markOnboardingComplete,
       markPaywallComplete,
       markIncomeSetupComplete,
+      markCategorySetupComplete,
+      markSubscriptionExpired,
       resetFlowStateForTesting,
     }),
     [
       onboardingComplete,
       paywallComplete,
       incomeSetupComplete,
+      categorySetupComplete,
       isFlowStateLoading,
+
       refreshFlowState,
       markOnboardingComplete,
       markPaywallComplete,
       markIncomeSetupComplete,
+      markCategorySetupComplete,
+      markSubscriptionExpired,
       resetFlowStateForTesting,
     ]
   );

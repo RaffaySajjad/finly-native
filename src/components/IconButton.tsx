@@ -5,10 +5,11 @@
  */
 
 import React from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { borderRadius } from '../theme';
+import ScaleButton from './ScaleButton';
 
 interface IconButtonProps {
   icon: string;
@@ -39,7 +40,7 @@ const IconButton: React.FC<IconButtonProps> = React.memo(({
   const { theme } = useTheme();
 
   return (
-    <TouchableOpacity
+    <ScaleButton
       style={[
         styles.button,
         {
@@ -49,10 +50,11 @@ const IconButton: React.FC<IconButtonProps> = React.memo(({
         containerStyle,
       ]}
       onPress={onPress}
-      activeOpacity={0.6}
+      hapticFeedback="light"
+      scaleAmount={0.92}
     >
       <Icon name={icon as any} size={size} color={color || theme.text} />
-    </TouchableOpacity>
+    </ScaleButton>
   );
 });
 
@@ -70,4 +72,3 @@ const styles = StyleSheet.create({
 });
 
 export default IconButton;
-

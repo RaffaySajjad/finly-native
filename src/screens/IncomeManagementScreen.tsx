@@ -34,8 +34,9 @@ import {
 } from '../services/incomeService';
 import { syncWidgetData } from '../services/widgetSync';
 import { IncomeSource, IncomeFrequency } from '../types';
-import { BottomSheetBackground, CurrencyInput, DatePickerInput, PullToRefreshScrollView } from '../components';
+import { BottomSheetBackground, CurrencyInput, DatePickerInput, PullToRefreshScrollView, EmptyState } from '../components';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { GradientHeader } from '../components/GradientHeader';
 
 type IncomeManagementNavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -330,6 +331,7 @@ const IncomeManagementScreen: React.FC = () => {
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <GradientHeader />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
         </View>
@@ -339,6 +341,7 @@ const IncomeManagementScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <GradientHeader />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -366,13 +369,11 @@ const IncomeManagementScreen: React.FC = () => {
 
         {/* Income Sources List */}
         {incomeSources.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Icon name="wallet-outline" size={64} color={theme.textTertiary} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>No Income Sources</Text>
-            <Text style={[styles.emptyDescription, { color: theme.textSecondary }]}>
-              Add your first income source to automatically track your earnings
-            </Text>
-          </View>
+          <EmptyState
+            variant="income"
+            actionLabel="Add Income Source"
+            onActionPress={handleOpenAddSheet}
+          />
         ) : (
           <View style={styles.sourcesList}>
             {incomeSources.map((source) => (
@@ -430,13 +431,13 @@ const IncomeManagementScreen: React.FC = () => {
         )}
 
         {/* Add Button */}
-        <TouchableOpacity
+        {incomeSources.length !== 0 && <TouchableOpacity
           style={[styles.addButton, { backgroundColor: theme.primary }, elevation.md]}
           onPress={handleOpenAddSheet}
         >
           <Icon name="plus" size={24} color="#FFFFFF" />
           <Text style={styles.addButtonText}>Add Income Source</Text>
-        </TouchableOpacity>
+        </TouchableOpacity>}
 
         {/* Add Income Transaction Button */}
         {/* <TouchableOpacity
@@ -454,6 +455,7 @@ const IncomeManagementScreen: React.FC = () => {
         index={-1}
         snapPoints={['85%']}
         enablePanDownToClose
+        enableDynamicSizing={false}
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
         keyboardBehavior="interactive"
@@ -693,7 +695,7 @@ const IncomeManagementScreen: React.FC = () => {
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.saveButtonText}>
-                {editingSource ? 'Update Income Source' : 'Add Income Source'}
+                  {/* {editingSource ? 'Update Income Source' : 'Add Income Source'} */}
               </Text>
             )}
           </TouchableOpacity>

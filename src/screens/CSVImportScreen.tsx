@@ -28,6 +28,7 @@ import { startCSVImport, pollImportStatus, validateWalletCSV, ImportJobStatus } 
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAlert } from '../hooks/useAlert';
+import { GradientHeader } from '../components/GradientHeader';
 
 type CSVImportNavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -260,6 +261,7 @@ const CSVImportScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+      <GradientHeader />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}

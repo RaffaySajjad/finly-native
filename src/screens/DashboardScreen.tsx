@@ -16,16 +16,19 @@ import {
   TextInput,
   ActivityIndicator,
   Animated,
+  Easing,
   Platform,
   Modal,
   Keyboard,
   FlatList,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAlert } from '../hooks/useAlert';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { useAppSelector } from '../store';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -35,6 +38,8 @@ import { useScrollToTopOnTabPress } from '../hooks/useScrollToTopOnTabPress';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useBottomSheetActions } from '../contexts/BottomSheetContext';
 import { usePreferences } from '../contexts/PreferencesContext';
+import { useAppFlow } from '../contexts/AppFlowContext';
+import { usePerformance } from '../contexts/PerformanceContext';
 import {
   TransactionCard,
   ExpenseOptionsSheet,
@@ -53,16 +58,20 @@ import {
   PullToRefreshScrollView,
   NotificationPermissionBanner,
 } from '../components';
+import { GlowButton, AnimatedCard, ShimmerLoader } from '../components/PremiumComponents';
+import { GradientHeader } from '../components/GradientHeader';
 import { useSubscription } from '../hooks/useSubscription';
 import { apiService } from '../services/api';
 import { notificationService } from '../services/notificationService';
 import logger from '../utils/logger';
-import { Expense, MonthlyStats, Insight, Category, UnifiedTransaction } from '../types';
+import { Expense, MonthlyStats, Category, UnifiedTransaction } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { springPresets } from '../theme/AnimationConfig';
 import * as Haptics from 'expo-haptics';
 import FABQuickActions from '../components/FABQuickActions';
 import GoalFocusCard from '../components/GoalFocusCard';
+import NumberTicker from '../components/NumberTicker';
 import { useGoal } from '../hooks/useGoal';
 import * as Notifications from 'expo-notifications';
 import { convertCurrencyAmountsInText } from '../utils/currencyFormatter';
@@ -74,6 +83,7 @@ const { width } = Dimensions.get('window');
 const RECENT_TRANSACTIONS_LIMIT = 10;
 const ANIMATION_CYCLE_DURATION = 5000;
 const ANIMATION_FADE_DURATION = 800;
+const STREAK_BADGE_DISMISSED_KEY = '@finly_streak_badge_dismissed';
 
 interface GroupedTransactions {
   date: string;
@@ -125,23 +135,33 @@ type DashboardNavigationProp = StackNavigationProp<RootStackParamList, 'MainTabs
  */
 const DashboardScreen: React.FC = () => {
   const { theme, isDark } = useTheme();
-  const { formatCurrency, getCurrencySymbol, currencyCode, convertFromUSD, convertToUSD } = useCurrency();
+  const { user } = useAppSelector((state) => state.auth); // Access user for streak info
+  const { formatCurrency, getCurrencySymbol, currencyCode, convertFromUSD, convertToUSD, showDecimals } = useCurrency();
+  const { shouldUseComplexAnimations, shouldUseGlowEffects } = usePerformance();
   const navigation = useNavigation<DashboardNavigationProp>();
   const insets = useSafeAreaInsets();
   const { isPremium, getRemainingUsage } = useSubscription();
   const { openBottomSheet, setOnTransactionAdded } = useBottomSheetActions();
   const { showError, showSuccess, showInfo, AlertComponent } = useAlert();
   const optionsSheetRef = useRef<BottomSheet>(null);
-  const balanceAdjustSheetRef = useRef<BottomSheet>(null);
   const scrollViewRef = useRef<ScrollView>(null);
-  const { goal, goalInfo } = useGoal();
+  const { goal, goalInfo, syncGoal } = useGoal();
+  const { paywallComplete } = useAppFlow();
   
+  // Sync goal from user profile if not set locally
+  useEffect(() => {
+    if (user?.financialGoal && (!goal || goal !== user.financialGoal)) {
+      // @ts-ignore - user.financialGoal is string from backend but we need UserGoal type
+      syncGoal(user.financialGoal);
+    }
+  }, [user?.financialGoal, goal, syncGoal]);
+
   const [transactions, setTransactions] = useState<UnifiedTransaction[]>([]);
   const [totalTransactions, setTotalTransactions] = useState<number>(0);
   const [groupedTransactions, setGroupedTransactions] = useState<GroupedTransactions[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+
   const [stats, setStats] = useState<MonthlyStats | null>(null);
-  const [insights, setInsights] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<UnifiedTransaction | null>(null);
@@ -152,19 +172,85 @@ const DashboardScreen: React.FC = () => {
   const [showQuickActions, setShowQuickActions] = useState(false);
   const fabRef = useRef<View>(null);
   const [fabPosition, setFabPosition] = useState({ x: 0, y: 0 });
-
-  // Balance adjustment state
-  const [newBalance, setNewBalance] = useState('');
-  const [isAdjustingBalance, setIsAdjustingBalance] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   
   // Notification permission banner state
   const [showNotificationBanner, setShowNotificationBanner] = useState(false);
 
+  // Debug: Log when banner state changes
+  useEffect(() => {
+    console.log('[DashboardScreen] showNotificationBanner changed to:', showNotificationBanner);
+  }, [showNotificationBanner]);
+
+  useEffect(() => {
+    console.log('[DashboardScreen] showNotificationBanner changed to:', showNotificationBanner);
+  }, [showNotificationBanner]);
+
+  // Streak Badge Animation
+  const [showStreakBadge, setShowStreakBadge] = useState(false);
+  const badgeScale = useRef(new Animated.Value(0)).current;
+
+  // Check if streak was updated today and verify persistence
+  useEffect(() => {
+    const checkStreakVisibility = async () => {
+      if (user?.streakUpdatedAt) {
+        const lastUpdated = new Date(user.streakUpdatedAt);
+        const today = new Date();
+        const isToday = lastUpdated.getDate() === today.getDate() &&
+          lastUpdated.getMonth() === today.getMonth() &&
+          lastUpdated.getFullYear() === today.getFullYear();
+
+        if (isToday && user.streakCount && user.streakCount > 0) {
+          try {
+            // Check if dismissed today
+            const dismissedDate = await AsyncStorage.getItem(STREAK_BADGE_DISMISSED_KEY);
+            const todayStr = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+
+            if (dismissedDate !== todayStr) {
+              setShowStreakBadge(true);
+              // Animate badge in
+              Animated.spring(badgeScale, {
+                toValue: 1,
+                friction: 5,
+                tension: 40,
+                useNativeDriver: true,
+              }).start();
+
+              // Loop pulse animation
+              Animated.loop(
+                Animated.sequence([
+                  Animated.timing(badgeScale, {
+                    toValue: 1.2,
+                    duration: 1000,
+                    useNativeDriver: true,
+                  }),
+                  Animated.timing(badgeScale, {
+                    toValue: 1,
+                    duration: 1000,
+                    useNativeDriver: true,
+                  }),
+                ])
+              ).start();
+              return;
+            }
+          } catch (error) {
+            console.error('Error reading streak badge persistence:', error);
+          }
+        }
+      }
+      setShowStreakBadge(false);
+    };
+
+    checkStreakVisibility();
+  }, [user?.streakUpdatedAt, user?.streakCount]);
+
   // Animation values
   const gradientAnimation = useRef(new Animated.Value(0)).current;
-  const insightOpacity = useRef(new Animated.Value(0)).current;
   
+  // Staggered Entry Animations
+  const fadeAnim1 = useRef(new Animated.Value(0)).current; // Balance Card & Goal
+  const fadeAnim2 = useRef(new Animated.Value(0)).current; // Transactions
+
   // Scroll tracking for balance pill
   const scrollY = useRef(new Animated.Value(0)).current;
   const balanceCardY = useRef<number>(0);
@@ -172,78 +258,18 @@ const DashboardScreen: React.FC = () => {
   const pillOpacity = useRef(new Animated.Value(0)).current;
   const pillScale = useRef(new Animated.Value(0.9)).current;
 
-  // Dynamic snap points based on keyboard
-  const balanceSheetSnapPoints = useMemo(() => {
-    if (keyboardHeight > 0) {
-      // When keyboard is visible, calculate snap point to keep input visible
-      const screenHeight = Dimensions.get('window').height;
-      const sheetHeight = 300; // Approximate content height
-      const snapPoint = ((sheetHeight + keyboardHeight + 20) / screenHeight) * 100;
-      return [`${Math.min(snapPoint, 90)}%`]; // Cap at 90%
-    }
-    return ['45%']; // Default when keyboard is hidden
-  }, [keyboardHeight]);
+
 
   useEffect(() => {
     initializeApp();
-    initializeNotifications();
+    // Notifications are now handled globally by useNotificationObserver in AppNavigator
 
     return () => {
-      notificationService.removeNotificationListeners();
+      // notificationService.removeNotificationListeners();
     };
   }, []);
 
-  const initializeNotifications = async () => {
-    try {
-      // Check if permission banner has been shown before
-      const bannerShown = await notificationService.hasPermissionBannerBeenShown();
-      const permissionStatus = await notificationService.getPermissionStatus();
-      
-      // If banner not shown yet and permission not already granted, show the banner
-      if (!bannerShown && permissionStatus !== 'granted') {
-        // Small delay to let the screen load first
-        setTimeout(() => {
-          setShowNotificationBanner(true);
-        }, 1000);
-        return;
-      }
-
-      // If permission already granted, just set up notifications
-      if (permissionStatus === 'granted') {
-        await setupNotifications();
-      }
-    } catch (error) {
-      logger.error('[DashboardScreen] Failed to initialize notifications:', error);
-    }
-  };
-
-  const setupNotifications = async () => {
-    try {
-      const token = await notificationService.requestAndRegister();
-
-      if (token) {
-        notificationService.setupNotificationListeners(
-          (notification) => {
-            logger.debug('[DashboardScreen] Notification received:', notification);
-          },
-          (response) => {
-            logger.debug('[DashboardScreen] Notification response:', response);
-          }
-        );
-      }
-    } catch (error) {
-      logger.error('[DashboardScreen] Failed to setup notifications:', error);
-    }
-  };
-
-  const handleNotificationPermissionGranted = async () => {
-    logger.info('[DashboardScreen] Notification permission granted');
-    await setupNotifications();
-  };
-
-  const handleNotificationPermissionDenied = () => {
-    logger.info('[DashboardScreen] Notification permission denied by user');
-  };
+  // Notification logic moved to useNotificationObserver hook
 
   // Handle keyboard show/hide for bottom sheet
   useEffect(() => {
@@ -266,7 +292,42 @@ const DashboardScreen: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       loadData(false); // Use cache by default
-    }, [])
+
+      // Check if we should show notification permission banner
+      const checkNotificationPermission = async () => {
+        // Only show after paywall is complete to avoid timing conflicts
+        if (!paywallComplete) {
+          console.log('[DashboardScreen] Paywall not complete yet, skipping notification banner');
+          return;
+        }
+
+        // Check if banner has been shown before
+        const hasBeenShown = await notificationService.hasPermissionBannerBeenShown();
+        console.log('[DashboardScreen] Notification banner check:', { hasBeenShown, paywallComplete });
+
+        if (hasBeenShown) {
+          console.log('[DashboardScreen] Banner already shown, skipping');
+          return;
+        }
+
+        // Check current permission status
+        const permissionStatus = await notificationService.getPermissionStatus();
+        console.log('[DashboardScreen] Permission status:', permissionStatus);
+
+        // Show if permission is not granted (undetermined OR denied)
+        // This allows 'denied' users to see our educational banner and 'Open Settings' path
+        if (permissionStatus !== 'granted') {
+          console.log('[DashboardScreen] Showing notification banner in 1 second...');
+          // Small delay to let the screen settle
+          setTimeout(() => {
+            setShowNotificationBanner(true);
+            console.log('[DashboardScreen] Banner state set to true');
+          }, 1000);
+        }
+      };
+
+      checkNotificationPermission();
+    }, [paywallComplete])
   );
 
   // Scroll to top when tab is pressed while already on this screen
@@ -302,13 +363,20 @@ const DashboardScreen: React.FC = () => {
       ])
     ).start();
 
-    // Fade in insights
-    Animated.timing(insightOpacity, {
-      toValue: 1,
-      duration: 800,
-      delay: 500,
-      useNativeDriver: true,
-    }).start();
+    // Staggered Entry Sequence
+    Animated.stagger(200, [
+      Animated.timing(fadeAnim1, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.back(1)),
+      }),
+      Animated.timing(fadeAnim2, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
 
@@ -399,14 +467,13 @@ const DashboardScreen: React.FC = () => {
 
   const loadData = async (skipCache: boolean = false): Promise<void> => {
     try {
-      const [transactionsResponse, categoriesData, statsData, insightsResponse] = await Promise.all([
+      const [transactionsResponse, categoriesData, statsData] = await Promise.all([
         apiService.getUnifiedTransactions({
           limit: RECENT_TRANSACTIONS_LIMIT,
           includeTotal: true
         }),
         apiService.getCategories(skipCache),
         apiService.getMonthlyStats(skipCache),
-        apiService.getInsights({ limit: 5, forceRefresh: skipCache }), // Get first 5 insights for dashboard
       ]);
 
       // Handle paginated response with total count
@@ -420,20 +487,11 @@ const DashboardScreen: React.FC = () => {
         setTotalTransactions(transactionsArray.length);
       }
 
+
+
       setCategories(categoriesData);
       setStats(statsData);
 
-      // Handle both old cached format (array) and new paginated format
-      const insightsData = Array.isArray(insightsResponse)
-        ? insightsResponse
-        : (insightsResponse?.insights || []);
-      setInsights(insightsData);
-
-      // Trigger confetti for achievements
-      const hasAchievement = insightsData.some(insight => insight.type === 'achievement');
-      if (hasAchievement && !loading) {
-        setTimeout(() => setShowConfetti(true), 500);
-      }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -525,78 +583,7 @@ const DashboardScreen: React.FC = () => {
     }
   };
 
-  const handleAdjustBalance = async () => {
-    if (!newBalance || isNaN(parseFloat(newBalance))) {
-      showInfo('Check Amount', 'Please double-check the balance amount entered.');
-      return;
-    }
 
-    setIsAdjustingBalance(true);
-    try {
-      // Convert the entered balance from display currency to USD
-      const newBalanceInDisplayCurrency = parseFloat(newBalance);
-      const newBalanceInUSD = convertToUSD(newBalanceInDisplayCurrency);
-      const currentBalanceInUSD = stats?.balance || 0;
-      const difference = newBalanceInUSD - currentBalanceInUSD;
-
-      // If difference is negligible, just close
-      if (Math.abs(difference) < 0.01) {
-        balanceAdjustSheetRef.current?.close();
-        return;
-      }
-
-      if (difference > 0) {
-        // Income: Create income transaction
-        await apiService.createIncomeTransaction({
-          amount: difference,
-          description: 'Balance Adjustment',
-          date: new Date(),
-          originalAmount: convertFromUSD(difference),
-          originalCurrency: currencyCode,
-        });
-      } else {
-        // Expense: Create expense transaction
-        // Find a suitable category (Other, Misc, or first available)
-        const adjustmentCategory = categories.find(c =>
-          c.name.toLowerCase().includes('other') ||
-          c.name.toLowerCase().includes('misc') ||
-          c.name.toLowerCase().includes('general')
-        ) || categories[0];
-
-        if (!adjustmentCategory) {
-          throw new Error('No categories available to create adjustment expense');
-        }
-
-        await apiService.addExpense({
-          amount: Math.abs(difference),
-          categoryId: adjustmentCategory.id,
-          description: 'Balance Adjustment',
-          date: new Date(),
-          originalAmount: convertFromUSD(Math.abs(difference)),
-          originalCurrency: currencyCode,
-        });
-      }
-
-      await loadData(); // Refresh all data
-      balanceAdjustSheetRef.current?.close();
-      setNewBalance('');
-      showSuccess('Success', 'Balance updated successfully! 🎉');
-    } catch (error) {
-      showError('Error', 'Failed to adjust balance');
-      console.error(error);
-    } finally {
-      setIsAdjustingBalance(false);
-    }
-  };
-
-  const handleOpenBalanceAdjust = () => {
-    if (stats) {
-      // Convert balance from USD to display currency for editing
-      const displayBalance = convertFromUSD(stats.balance);
-      setNewBalance(displayBalance.toString());
-      balanceAdjustSheetRef.current?.expand();
-    }
-  };
 
   // Handle scroll to show/hide balance pill
   const handleScroll = Animated.event(
@@ -650,6 +637,15 @@ const DashboardScreen: React.FC = () => {
     }
   );
 
+  const handleNotificationPermissionGranted = () => {
+    setShowNotificationBanner(false);
+    showSuccess('Notifications Enabled', 'You\'ll now receive smart insights and updates!');
+  };
+
+  const handleNotificationPermissionDenied = () => {
+    setShowNotificationBanner(false);
+  };
+
   // Handle balance card layout to measure position
   const handleBalanceCardLayout = (event: any) => {
     const { y, height } = event.nativeEvent.layout;
@@ -677,11 +673,12 @@ const DashboardScreen: React.FC = () => {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <StatusBar translucent backgroundColor="transparent" barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
+        <GradientHeader />
 
         {/* Header with Trends and Settings buttons */}
-        <View style={styles.header}>
+        <View style={[styles.header, { marginTop: insets.top }]}>
           <View style={styles.headerTop}>
             <View style={styles.headerLeft}>
               <Text style={[styles.title, { color: theme.text }]}>Home</Text>
@@ -692,6 +689,7 @@ const DashboardScreen: React.FC = () => {
                 style={[
                   styles.balancePill,
                   {
+                    top: 0, // Reset top since we are inside the header view which has margin
                     opacity: Animated.multiply(pillOpacity, pillContentOpacity),
                     transform: [{ scale: pillScale }],
                   },
@@ -703,12 +701,22 @@ const DashboardScreen: React.FC = () => {
                   activeOpacity={0.8}
                   style={[
                     styles.balancePillContent,
-                    {
-                      backgroundColor: isDark ? '#1E4A6F' : theme.primary,
-                    },
-                    elevation.sm,
+                    // Background handled by LinearGradient
+                    { overflow: 'hidden', paddingHorizontal: 0, paddingVertical: 0, borderWidth: 0 } // Reset padding/border for container
                   ]}
                 >
+                  <LinearGradient
+                    colors={isDark ? ['#1A3A52', '#0D2438', '#1E4A6F'] : ['#4F46E5', '#4A90E2', '#0EA5E9']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: spacing.sm,
+                      paddingVertical: spacing.xs,
+                      gap: spacing.xs,
+                    }}
+                  >
                   <Animated.View
                     style={{
                       flexDirection: 'row',
@@ -740,6 +748,7 @@ const DashboardScreen: React.FC = () => {
                       </View>
                     )}
                   </Animated.View>
+                  </LinearGradient>
                 </TouchableOpacity>
               </Animated.View>
             )}
@@ -749,10 +758,60 @@ const DashboardScreen: React.FC = () => {
                 onPress={() => navigation.navigate('Insights')}
                 color={theme.primary}
               />}
-              <IconButton
-                icon="cog"
-                onPress={() => navigation.navigate('Settings')}
-              />
+              <View>
+                <IconButton
+                  icon="cog"
+                  onPress={async () => {
+                    navigation.navigate('Settings');
+                    if (showStreakBadge) {
+                      setShowStreakBadge(false);
+                      try {
+                        const today = new Date();
+                        const todayStr = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+                        await AsyncStorage.setItem(STREAK_BADGE_DISMISSED_KEY, todayStr);
+                      } catch (error) {
+                        console.error('Error saving streak badge persistence:', error);
+                      }
+                    }
+                  }}
+                />
+                {showStreakBadge && (
+                  <Animated.View
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -4,
+                      backgroundColor: theme.surface,
+                      borderRadius: 12,
+                      padding: 2,
+                      transform: [{ scale: badgeScale }],
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.2,
+                      shadowRadius: 1.41,
+                      elevation: 2,
+                    }}
+                  >
+                    <LinearGradient
+                      colors={['#FF4500', '#FFD700']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={{
+                        borderRadius: 10,
+                        width: 20,
+                        height: 20,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Icon name="fire" size={12} color="#FFF" />
+                        <Icon name="plus" size={8} color="#FFF" style={{ marginLeft: -2, marginTop: -4 }} />
+                      </View>
+                    </LinearGradient>
+                  </Animated.View>
+                )}
+              </View>
             </View>
           </View>
         </View>
@@ -773,38 +832,60 @@ const DashboardScreen: React.FC = () => {
             >
               <TouchableOpacity
                 activeOpacity={0.9}
-                onPress={handleOpenBalanceAdjust}
-                onLongPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   navigation.navigate('BalanceHistory');
                 }}
               >
                 <Animated.View style={[styles.balanceCard, {
-                  opacity: gradientAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.9, 1],
-                  })
+                  opacity: Animated.multiply(
+                    gradientAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.95, 1],
+                    }),
+                    fadeAnim1
+                  ),
+                  transform: [
+                    { translateY: fadeAnim1.interpolate({ inputRange: [0, 1], outputRange: [50, 0] }) },
+                    { scale: 1 }
+                  ]
                 }]}>
                   <GradientCard
-                    colors={isDark 
-                      ? ['#1E4A6F', '#0F2E4A', '#2E5F8F'] // Darker blues for dark mode
-                      : [theme.primary, theme.primaryDark, theme.primaryLight]
-                    }
+                    colors={isDark ? ['#1A3A52', '#0D2438', '#1E4A6F'] : ['#4F46E5', '#4A90E2', '#0EA5E9']}
+                    startPoint={{ x: 0, y: 0 }}
+                    endPoint={{ x: 1, y: 1 }}
                     contentStyle={styles.gradientCard}
                   >
                     <View style={styles.balanceHeader}>
                       <Text style={styles.balanceLabel}>Total Balance</Text>
-                      <Icon name="pencil" size={24} color="rgba(255, 255, 255, 0.9)" />
                     </View>
 
-                    <Text
-                      style={[styles.balanceAmount]}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.5}
-                    >
-                      {formatCurrency(stats.balance, { disableAbbreviations: true })}
-                    </Text>
+                    <NumberTicker
+                      value={(() => {
+                        // 1. Prioritize backend-calculated base balance if currency matches anchor
+                        if (stats.baseBalance !== undefined && stats.baseCurrency === currencyCode) {
+                          return stats.baseBalance;
+                        }
+
+                        // 2. Secondary: If user has preserved original balance locally, calculate native amount
+                        if (
+                          user?.originalBalanceAmount !== undefined &&
+                          user?.originalBalanceAmount !== null &&
+                          user?.originalBalanceCurrency === currencyCode &&
+                          stats
+                        ) {
+                          const incomeNative = convertFromUSD(stats.totalIncome);
+                          const expensesNative = convertFromUSD(stats.totalExpenses);
+                          return user.originalBalanceAmount + incomeNative - expensesNative;
+                        }
+
+                        // 3. Fallback: Standard conversion from USD balance
+                        return convertFromUSD(stats.balance);
+                      })()}
+                      style={styles.balanceAmount}
+                      prefix={getCurrencySymbol()}
+                      decimalPlaces={showDecimals ? 2 : 0}
+                    />
 
                     <View style={styles.balanceSummary}>
                       <View style={styles.summaryItem}>
@@ -830,41 +911,11 @@ const DashboardScreen: React.FC = () => {
                       </View>
                     </View>
 
-                    <View style={styles.viewHistoryHint}>
-                      <Text style={styles.viewHistoryText}>Tap to edit • Long press for history →</Text>
-                    </View>
+
                   </GradientCard>
                 </Animated.View>
               </TouchableOpacity>
             </View>
-          )}
-
-          {/* Smart Insight Section */}
-          {insights.length > 0 && (
-            <Animated.View style={[styles.smartInsightContainer, { opacity: insightOpacity }]}>
-              <Text style={[styles.smartInsightTitle, { color: theme.text }]}>💡 Smart Insight</Text>
-              <TouchableOpacity
-                style={[
-                  styles.smartInsightCard,
-                  { backgroundColor: theme.card, borderColor: insights[0].color + '40' },
-                  elevation.sm,
-                ]}
-                activeOpacity={0.8}
-                onPress={() => navigation.navigate('Insights')}
-              >
-                <View style={[styles.insightIconContainer, { backgroundColor: insights[0].color + '15' }]}>
-                  <Icon name={getValidIcon(insights[0].icon) as any} size={24} color={insights[0].color} />
-                </View>
-                <View style={styles.smartInsightContent}>
-                  <Text style={[styles.smartInsightCardTitle, { color: theme.text }]}>
-                    {convertCurrencyAmountsInText(insights[0].title, formatCurrency)}
-                  </Text>
-                  <Text style={[styles.smartInsightCardDescription, { color: theme.textSecondary }]}>
-                    {convertCurrencyAmountsInText(insights[0].description, formatCurrency)}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </Animated.View>
           )}
 
           {/* Goal Focus Card - shows goal-specific metrics */}
@@ -883,25 +934,40 @@ const DashboardScreen: React.FC = () => {
                   topCategory: categories.length > 0 ? categories.sort((a, b) => (b.totalSpent ?? 0) - (a.totalSpent ?? 0))[0]?.name : undefined,
                   topCategoryAmount: categories.length > 0 ? categories.sort((a, b) => (b.totalSpent ?? 0) - (a.totalSpent ?? 0))[0]?.totalSpent : undefined,
                   monthlyExpenses: stats.totalExpenses,
-                  potentialSavings: insights.find(i => i.savingsAmount)?.savingsAmount,
+                  potentialSavings: 0,
                 }}
                 formatCurrency={formatCurrency}
+                categories={categories}
               />
             </View>
           )}
 
-          {/* Spending Breakdown */}
-          <View style={styles.section}>
-            <SpendingBreakdown categories={categories} />
-          </View>
+          {/* Smart Insight Section with Staggered Animation */}
+          <Animated.View style={{
+            opacity: fadeAnim2,
+            transform: [{ translateY: fadeAnim2.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }]
+          }}>
+            {/* AI Insights & Notifications - Integrated into Dashboard flow */}
+          </Animated.View>
 
-          {/* Recent Transactions */}
-          <View style={styles.section}>
-            <SectionHeader
-              title="Recent Transactions"
-              showSeeAll
-              onSeeAllPress={() => navigation.navigate('TransactionsList')}
-            />
+          {/* Transactions Section */}
+          <Animated.View
+            style={[
+              styles.section,
+              {
+                marginBottom: insets.bottom + 80,
+                marginTop: spacing.sm,
+                opacity: fadeAnim2,
+                transform: [{ translateY: fadeAnim2.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }]
+              }
+            ]}
+          >
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent Transactions</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('TransactionsList')}>
+                <Text style={[styles.seeAll, { color: theme.primary }]}>See All</Text>
+              </TouchableOpacity>
+            </View>
 
             {loading ? (
               // Show skeleton loaders while loading
@@ -944,12 +1010,6 @@ const DashboardScreen: React.FC = () => {
                   updateCellsBatchingPeriod={50}
                   windowSize={5}
                   initialNumToRender={5}
-                  ListEmptyComponent={
-                    <EmptyState
-                      icon="receipt-text-outline"
-                      title="No transactions yet"
-                    />
-                  }
                   ListFooterComponent={
                   totalTransactions > RECENT_TRANSACTIONS_LIMIT ? (
                     <TouchableOpacity
@@ -968,10 +1028,11 @@ const DashboardScreen: React.FC = () => {
             ) : (
                   <EmptyState
                     icon="receipt-text-outline"
+                    variant="transactions"
                     title="No transactions yet"
                   />
             )}
-          </View>
+          </Animated.View>
         </PullToRefreshScrollView>
 
         {/* Expense Options Sheet */}
@@ -1002,51 +1063,7 @@ const DashboardScreen: React.FC = () => {
           onAnimationEnd={() => setShowConfetti(false)}
         /> */}
 
-        {/* Balance Adjustment Bottom Sheet */}
-        <BottomSheet
-          ref={balanceAdjustSheetRef}
-          index={-1}
-          snapPoints={balanceSheetSnapPoints}
-          enablePanDownToClose
-          backgroundComponent={BottomSheetBackground}
-          handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
-          keyboardBehavior="extend"
-          keyboardBlurBehavior="restore"
-          android_keyboardInputMode="adjustResize"
-        >
-          <BottomSheetScrollView
-            style={styles.bottomSheetContent}
-            contentContainerStyle={styles.bottomSheetContentContainer}
-          >
-            <Text style={[styles.bottomSheetTitle, { color: theme.text }]}>Adjust Balance</Text>
-            <Text style={[styles.bottomSheetSubtitle, { color: theme.textSecondary }]}>
-              Update your current balance. A transaction will be created to reflect this change.
-            </Text>
 
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>New Balance</Text>
-              <View style={[styles.amountInput, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                <CurrencyInput
-                  value={newBalance}
-                  onChangeText={setNewBalance}
-                  placeholder="0.00"
-                  placeholderTextColor={theme.textTertiary}
-                  showSymbol={true}
-                  allowDecimals={true}
-                  inputStyle={styles.currencyInputField}
-                  TextInputComponent={BottomSheetTextInput}
-                />
-              </View>
-            </View>
-
-            <PrimaryButton
-              label="Update Balance"
-              onPress={handleAdjustBalance}
-              loading={isAdjustingBalance}
-              fullWidth
-            />
-          </BottomSheetScrollView>
-        </BottomSheet>
 
         {/* iOS-only Add Transaction FAB */}
         {/* iOS-only Add Transaction FAB */}
@@ -1104,7 +1121,20 @@ const DashboardScreen: React.FC = () => {
             onLongPress={handleFABLongPress}
             activeOpacity={0.9}
           >
-            <Icon name="plus" size={28} color="#FFFFFF" />
+            <LinearGradient
+              colors={isDark ? ['#1A3A52', '#0D2438', '#1E4A6F'] : ['#4F46E5', '#4A90E2', '#0EA5E9']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: borderRadius.full,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Icon name="plus" size={28} color="#FFFFFF" />
+            </LinearGradient>
           </TouchableOpacity>
         )}
 
@@ -1123,7 +1153,7 @@ const DashboardScreen: React.FC = () => {
           onPermissionDenied={handleNotificationPermissionDenied}
         />
         {AlertComponent}
-      </SafeAreaView>
+      </View>
     </GestureHandlerRootView>
   );
 };
@@ -1150,8 +1180,6 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.xl,
   },
   balanceHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.md,
   },
@@ -1258,12 +1286,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    marginBottom: spacing.md,
   },
   sectionTitle: {
     ...typography.titleLarge,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.md,
   },
   seeAll: {
     ...typography.labelMedium,

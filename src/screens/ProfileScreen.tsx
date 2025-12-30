@@ -15,9 +15,13 @@ import {
   StatusBar,
   TextInput,
   Platform,
+  Animated,
+  Easing,
+  LayoutAnimation,
 } from 'react-native';
 import { useAlert } from '../hooks/useAlert';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GradientHeader } from '../components/GradientHeader';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
@@ -29,7 +33,9 @@ import { logout as logoutAction, updateProfile as updateProfileAction, deleteAcc
 import { toggleMockIAP, loadDevSettings } from '../store/slices/devSettingsSlice';
 import { iapService } from '../services/iap.service';
 import { useSubscription } from '../hooks/useSubscription';
-import { BottomSheetBackground, SettingItem, Header, InputGroup, PrimaryButton, SecondaryButton, CurrencySelector } from '../components';
+import { BottomSheetBackground, SettingItem, Header, InputGroup, PrimaryButton, SecondaryButton, CurrencySelector, DeleteAccountSheet, FAQItem } from '../components';
+import StreakCard from '../components/StreakCard';
+import { DeleteAccountSheetRef } from '../components/DeleteAccountSheet';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -40,11 +46,9 @@ import {
 } from '../services/currencyService';
 import {
   isBiometricAvailable,
-  authenticateForAccountDeletion,
-  getBiometricName,
+  disableBiometricLogin,
   isBiometricLoginEnabled,
   enableBiometricLogin,
-  disableBiometricLogin,
 } from '../services/biometricService';
 import { usePreferences } from '../contexts/PreferencesContext';
 import { apiService } from '../services/api';
@@ -58,6 +62,7 @@ import GoalSelectorSheet, { GoalSelectorSheetRef } from '../components/GoalSelec
 const ProfileScreen: React.FC = () => {
   const { theme, isDark, toggleTheme } = useTheme();
   const { currency: currencyState, setCurrency: setCurrencyGlobal, showDecimals, setShowDecimals } = useCurrency();
+  const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const { user, isLoading } = useAppSelector((state) => state.auth);
   const { enableMockIAP } = useAppSelector((state) => state.devSettings || { enableMockIAP: false });
@@ -68,22 +73,23 @@ const ProfileScreen: React.FC = () => {
   const { goal, goalInfo } = useGoal();
   const goalSelectorRef = useRef<GoalSelectorSheetRef>(null);
 
+
+
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [currency, setCurrency] = useState('USD');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricSupported, setBiometricSupported] = useState(false);
+  const [expandedFAQIndex, setExpandedFAQIndex] = useState<number | null>(null);
 
   const editProfileSheetRef = useRef<BottomSheet>(null);
   const currencySheetRef = useRef<BottomSheet>(null);
   const helpSheetRef = useRef<BottomSheet>(null);
   const aboutSheetRef = useRef<BottomSheet>(null);
-  const deleteAccountFeedbackSheetRef = useRef<BottomSheet>(null);
+  const deleteAccountSheetRef = useRef<DeleteAccountSheetRef>(null);
 
-  // Delete account feedback state
-  const [reasonForDeletion, setReasonForDeletion] = useState('');
-  const [feedback, setFeedback] = useState('');
+
 
   useEffect(() => {
     if (user) {
@@ -233,67 +239,11 @@ const ProfileScreen: React.FC = () => {
   const handleDeleteAccount = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-    // Reset feedback fields
-    setReasonForDeletion('');
-    setFeedback('');
-
-    // Open feedback collection bottom sheet immediately - this is the FIRST step
-    deleteAccountFeedbackSheetRef.current?.snapToIndex(0);
+    // Open delete account sheet
+    deleteAccountSheetRef.current?.open();
   };
 
-  const handleSubmitFeedbackAndDelete = async () => {
-    // Show final confirmation alert before proceeding
-    showWarning(
-      'Final Confirmation',
-      'This will permanently delete all your data including:\n\n• All transactions\n• All categories and budgets\n• All income sources\n• All receipts\n• All tags\n• All preferences\n\nThis action cannot be undone. You will be signed out immediately.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete Account',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Check if biometric authentication is available
-              const biometricAvailable = await isBiometricAvailable();
 
-              if (biometricAvailable) {
-                // Trigger biometric authentication
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-                const biometricName = await getBiometricName();
-                const authenticated = await authenticateForAccountDeletion();
-
-                if (!authenticated) {
-                  // Biometric authentication failed or was cancelled
-                  showWarning(
-                    'Authentication Required',
-                    `${biometricName} authentication is required to delete your account. Please try again.`
-                  );
-                  return;
-                }
-              }
-
-              // Close feedback sheet
-              deleteAccountFeedbackSheetRef.current?.close();
-
-              // Proceed with account deletion with feedback
-              await dispatch(deleteAccountAction({
-                reasonForDeletion: reasonForDeletion.trim() || undefined,
-                feedback: feedback.trim() || undefined,
-              })).unwrap();
-
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            } catch (error) {
-              showError('Error', 'Failed to delete account. Please try again.');
-            }
-          },
-        },
-      ]
-    );
-  };
 
   const handleToggleMockIAP = (value: boolean) => {
     dispatch(toggleMockIAP(value));
@@ -316,16 +266,30 @@ const ProfileScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       <StatusBar barStyle={theme.text === '#1A1A1A' ? 'dark-content' : 'light-content'} />
       
-      <Header
-        title="Settings"
-        showBackButton
-        onBackPress={() => navigation.goBack()}
-      />
+      <View style={{ marginTop: insets.top }}>
+        <Header
+          title="Settings"
+          showBackButton
+          onBackPress={() => navigation.goBack()}
+        />
+      </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+        {/* Streak Hero Section - Prominently displayed */}
+        {user?.streakCount !== undefined && user.streakCount > 0 && (
+          <View style={styles.streakHeroContainer}>
+            <StreakCard
+              streakCount={user.streakCount}
+              currentXP={user.currentXP}
+              level={user.level}
+            />
+          </View>
+        )}
+
         {/* User Profile Card */}
         {user && (
           <View style={styles.profileCard}>
@@ -668,6 +632,7 @@ const ProfileScreen: React.FC = () => {
         index={-1}
         snapPoints={['70%']}
         enablePanDownToClose
+        enableDynamicSizing={false}
         backgroundComponent={BottomSheetBackground}
         handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
       >
@@ -700,20 +665,51 @@ const ProfileScreen: React.FC = () => {
         >
           <Text style={[styles.sheetTitle, { color: theme.text }]}>Help & Support</Text>
 
+
           <View style={styles.helpSection}>
             <Text style={[styles.helpSectionTitle, { color: theme.text }]}>Frequently Asked Questions</Text>
-            <Text style={[styles.helpText, { color: theme.textSecondary }]}>
-              • How do I add an expense?{'\n'}
-              Tap the + button on the Dashboard and choose your preferred method.
-            </Text>
-            <Text style={[styles.helpText, { color: theme.textSecondary }]}>
-              • How do I set a budget?{'\n'}
-              Go to Categories, select a category, and set your monthly budget limit.
-            </Text>
-            <Text style={[styles.helpText, { color: theme.textSecondary }]}>
-              • Can I export my data?{'\n'}
-              Yes! Go to Privacy & Data to export your transaction history.
-            </Text>
+
+            {[
+              {
+                question: "Is my financial data secure?",
+                answer: "Yes. Your data is securely stored in our encrypted database, ensuring it's backed up and accessible across your devices. We use bank-grade encryption to protect your information."
+              },
+              {
+                question: "Who can see my transactions?",
+                answer: "Only you. While your data is stored in our secure cloud to enable sync, strictly no one else has access to your personal financial records."
+              },
+              {
+                question: "Can I export data for accounting?",
+                answer: "Yes. You can export your full transaction history securely as a CSV file from the Privacy & Data settings, making it easy to share with your accountant."
+              },
+              {
+                question: "How do I backup my data?",
+                answer: "Your data is automatically backed up to our secure cloud servers in real-time. You don't need to do anything manually; it's always safe."
+              },
+              {
+                question: "How are exchange rates calculated?",
+                answer: "We use real-time, bank-grade exchange rate data to ensure your multi-currency transactions are converted accurately for your analytics."
+              },
+              {
+                question: "Does the AI share my private data?",
+                answer: "No. All AI analysis is completely anonymized and cannot be linked back to you. We strictly process data only to provide insights and never retain personal information."
+              },
+              {
+                question: "How do I manage my subscription?",
+                answer: "Your subscription is managed directly through your Apple ID or Google Play Store account. You can view status or cancel anytime from your device settings."
+              }
+            ].map((item, index) => (
+              <FAQItem
+                key={index}
+                question={item.question}
+                answer={item.answer}
+                isExpanded={expandedFAQIndex === index}
+                onToggle={() => {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setExpandedFAQIndex(expandedFAQIndex === index ? null : index);
+                }}
+              />
+            ))}
           </View>
 
           <View style={styles.helpSection}>
@@ -753,7 +749,7 @@ const ProfileScreen: React.FC = () => {
           </View>
 
           <Text style={[styles.aboutDescription, { color: theme.textSecondary }]}>
-            Finly is your personal expense tracking companion. Track your spending, manage budgets, and gain insights into your financial habits—all while keeping your data private and secure.
+            Finly AI is your personal expense tracking companion. Track your spending, manage budgets, and gain insights into your financial habits—all while keeping your data private and secure.
           </Text>
 
           <View style={styles.aboutLinks}>
@@ -798,113 +794,11 @@ const ProfileScreen: React.FC = () => {
       />
 
       {/* Delete Account Feedback Bottom Sheet */}
-      <BottomSheet
-        ref={deleteAccountFeedbackSheetRef}
-        index={-1}
-        snapPoints={['100%']}
-        enablePanDownToClose={false}
-        backgroundComponent={BottomSheetBackground}
-        handleIndicatorStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
-        keyboardBehavior="interactive"
-        keyboardBlurBehavior="restore"
-        android_keyboardInputMode="adjustResize"
-      >
-        <BottomSheetScrollView
-          style={styles.bottomSheetContent}
-          contentContainerStyle={styles.bottomSheetContentContainer}
-        >
-          <View style={styles.deleteAccountHeader}>
-            <View style={[styles.deleteAccountIcon, { backgroundColor: theme.expense + '20' }]}>
-              <Icon name="delete-forever" size={32} color={theme.expense} />
-            </View>
-            <Text style={[styles.deleteAccountTitle, { color: theme.text }]}>We're Sorry to See You Go</Text>
-            <Text style={[styles.deleteAccountSubtitle, { color: theme.textSecondary }]}>
-              Your feedback helps us improve. This is optional, but we'd appreciate hearing from you.
-            </Text>
-          </View>
-
-          <View style={styles.feedbackSection}>
-            <Text style={[styles.feedbackLabel, { color: theme.text }]}>
-              Why are you deleting your account?
-            </Text>
-            <Text style={[styles.feedbackHint, { color: theme.textTertiary }]}>
-              Optional - Help us understand what we can improve
-            </Text>
-            <BottomSheetTextInput
-              style={[
-                styles.feedbackInput,
-                {
-                  backgroundColor: theme.background,
-                  borderColor: theme.border,
-                  color: theme.text,
-                },
-              ]}
-              placeholder="e.g., Found a better alternative, Too expensive, Privacy concerns..."
-              placeholderTextColor={theme.textTertiary}
-              value={reasonForDeletion}
-              onChangeText={setReasonForDeletion}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-          </View>
-
-          <View style={styles.feedbackSection}>
-            <Text style={[styles.feedbackLabel, { color: theme.text }]}>
-              Any additional feedback?
-            </Text>
-            <Text style={[styles.feedbackHint, { color: theme.textTertiary }]}>
-              Optional - Share anything else you'd like us to know
-            </Text>
-            <BottomSheetTextInput
-              style={[
-                styles.feedbackInput,
-                {
-                  backgroundColor: theme.background,
-                  borderColor: theme.border,
-                  color: theme.text,
-                },
-              ]}
-              placeholder="Your thoughts, suggestions, or concerns..."
-              placeholderTextColor={theme.textTertiary}
-              value={feedback}
-              onChangeText={setFeedback}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-          </View>
-
-          <View style={[styles.deleteAccountWarning, { backgroundColor: theme.expense + '10', borderColor: theme.expense + '30' }]}>
-            <Icon name="alert-circle-outline" size={20} color={theme.expense} />
-            <Text style={[styles.deleteAccountWarningText, { color: theme.textSecondary }]}>
-              This action cannot be undone. All your data will be permanently deleted.
-            </Text>
-          </View>
-
-          <View style={styles.deleteAccountActions}>
-            <SecondaryButton
-              label="Cancel"
-              onPress={() => {
-                deleteAccountFeedbackSheetRef.current?.close();
-                setReasonForDeletion('');
-                setFeedback('');
-              }}
-              fullWidth
-            />
-            <TouchableOpacity
-              style={[styles.deleteAccountButton, { backgroundColor: theme.expense }, elevation.md]}
-              onPress={handleSubmitFeedbackAndDelete}
-              activeOpacity={0.8}
-            >
-              <Icon name="delete-forever" size={20} color="#FFFFFF" />
-              <Text style={styles.deleteAccountButtonText}>Delete Account</Text>
-            </TouchableOpacity>
-          </View>
-        </BottomSheetScrollView>
-      </BottomSheet>
+      <DeleteAccountSheet
+        ref={deleteAccountSheetRef}
+      />
       {AlertComponent}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -942,6 +836,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
+  streakHeroContainer: {
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+  },
   avatar: {
     width: 80,
     height: 80,
@@ -953,6 +851,20 @@ const styles = StyleSheet.create({
   avatarText: {
     ...typography.headlineMedium,
     color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  streakContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    gap: spacing.xs,
+  },
+  streakText: {
+    ...typography.labelLarge,
     fontWeight: '700',
   },
   userName: {

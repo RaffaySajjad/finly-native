@@ -6,6 +6,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import authService, { User } from '../services/authService';
+import notificationService from '../services/notificationService';
 
 interface AuthContextType {
   user: User | null;
@@ -121,7 +122,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
    */
   const verifyEmail = useCallback(async (email: string, otp: string): Promise<void> => {
     try {
-      const response = await authService.verifyEmail({ email, otp });
+      const response = await authService.verifyEmail(email, otp);
       setUser(response.user);
       setPendingVerificationEmail(null);
     } catch (error: any) {
@@ -148,6 +149,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
    */
   const logout = useCallback(async (): Promise<void> => {
     try {
+      // Clear push notification token first
+      try {
+        const token = await notificationService.getPushToken();
+        if (token) {
+          await notificationService.removeToken(token);
+        }
+      } catch (tokenError) {
+        // Log but don't block logout if token removal fails
+        console.error('Error removing push token during logout:', tokenError);
+      }
+
       await authService.logout();
       setUser(null);
       setPendingVerificationEmail(null);

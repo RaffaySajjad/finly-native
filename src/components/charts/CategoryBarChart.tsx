@@ -332,6 +332,7 @@ const styles = StyleSheet.create({
   },
   chartWrapper: {
     marginLeft: -10,
+    overflow: 'hidden',
   },
   axisLabel: {
     fontSize: 10,

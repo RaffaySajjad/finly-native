@@ -18,14 +18,20 @@ import {
   Animated,
 } from 'react-native';
 import { useAlert } from '../hooks/useAlert';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GradientHeader } from '../components/GradientHeader';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 import { useTheme } from '../contexts/ThemeContext';
+import { usePerformance } from '../contexts/PerformanceContext';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { springPresets } from '../theme/AnimationConfig';
+import { GlowButton } from '../components/PremiumComponents';
+import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
 import { AuthStackParamList } from '../navigation/types';
 import authService from '../services/authService';
 
@@ -37,6 +43,8 @@ type ResetPasswordRouteProp = RouteProp<AuthStackParamList, 'ResetPassword'>;
  */
 const ResetPasswordScreen: React.FC = () => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { shouldUseComplexAnimations, shouldUseGlowEffects } = usePerformance();
   const navigation = useNavigation<ResetPasswordNavigationProp>();
   const route = useRoute<ResetPasswordRouteProp>();
   const { showError, showSuccess, showInfo, AlertComponent } = useAlert();
@@ -68,9 +76,7 @@ const ResetPasswordScreen: React.FC = () => {
       }),
       Animated.spring(slideAnim, {
         toValue: 0,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
+        ...springPresets.smooth,
       }),
     ]).start();
 
@@ -202,7 +208,8 @@ const ResetPasswordScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
       <LinearGradient
         colors={[theme.primary + '20', theme.background, theme.background]}
         style={styles.gradient}
@@ -229,16 +236,10 @@ const ResetPasswordScreen: React.FC = () => {
               >
                 <Icon name="arrow-left" size={24} color={theme.text} />
               </TouchableOpacity>
-              
-              <View style={[styles.iconCircle, { backgroundColor: theme.primary + '20' }]}>
-                <Icon name="lock-reset" size={48} color={theme.primary} />
-              </View>
-
               <Text style={[styles.title, { color: theme.text }]}>Reset Your Password</Text>
               <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-                Enter the 6-digit code sent to
+                Enter the 6-digit code sent to <Text style={{ color: theme.primary, fontWeight: '600' }}>{email}</Text>
               </Text>
-              <Text style={[styles.email, { color: theme.primary }]}>{email}</Text>
             </Animated.View>
 
             {/* Reset Card */}
@@ -302,6 +303,8 @@ const ResetPasswordScreen: React.FC = () => {
                     />
                   </TouchableOpacity>
                 </View>
+                {/* Password Strength Indicator - positioned after password, before confirm */}
+                <PasswordStrengthIndicator password={newPassword} />
               </View>
 
               {/* Confirm Password Input */}
@@ -328,29 +331,21 @@ const ResetPasswordScreen: React.FC = () => {
                 </View>
               </View>
 
-              {/* Password Requirements */}
-              <View style={styles.requirementsBox}>
-                <Text style={[styles.requirementsText, { color: theme.textTertiary }]}>
-                  • At least 8 characters{'\n'}
-                  • One uppercase letter{'\n'}
-                  • One lowercase letter{'\n'}
-                  • One number
-                </Text>
-              </View>
 
               {/* Reset Button */}
-              <TouchableOpacity
-                style={[styles.resetButton, { backgroundColor: theme.primary }, elevation.md]}
+              <GlowButton
                 onPress={handleResetPassword}
+                variant="primary"
                 disabled={loading}
-                activeOpacity={0.9}
+                glowIntensity={shouldUseGlowEffects ? 'medium' : undefined}
+                style={styles.resetButton}
               >
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <Text style={styles.resetButtonText}>Reset Password</Text>
                 )}
-              </TouchableOpacity>
+              </GlowButton>
 
               {/* Resend Section */}
               <View style={styles.resendSection}>
@@ -374,7 +369,7 @@ const ResetPasswordScreen: React.FC = () => {
         </KeyboardAvoidingView>
       </LinearGradient>
       {AlertComponent}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -391,10 +386,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: spacing.md + 44, // Account for status bar
   },
   header: {
-    alignItems: 'center',
     marginBottom: spacing.xl,
   },
   backButton: {
@@ -402,16 +396,7 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'flex-start',
-    marginBottom: spacing.lg,
-  },
-  iconCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   title: {
     ...typography.headlineMedium,
@@ -420,11 +405,6 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     ...typography.bodyMedium,
-    marginBottom: spacing.xs,
-  },
-  email: {
-    ...typography.bodyLarge,
-    fontWeight: '600',
   },
   resetCard: {
     borderRadius: borderRadius.xl,
@@ -471,16 +451,6 @@ const styles = StyleSheet.create({
     height: Platform.OS === 'ios' ? 45 : undefined,
     textAlignVertical: 'center',
     includeFontPadding: Platform.OS === 'android' ? false : undefined,
-  },
-  requirementsBox: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.lg,
-  },
-  requirementsText: {
-    ...typography.bodySmall,
-    lineHeight: 20,
   },
   resetButton: {
     paddingVertical: spacing.md + 4,

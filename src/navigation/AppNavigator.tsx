@@ -5,8 +5,8 @@
  */
 
 import React, { useEffect, useCallback, useMemo, useRef } from 'react';
-import { Platform, Linking, View, StyleSheet } from 'react-native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { Platform, Linking, View, StyleSheet, AppState, AppStateStatus } from 'react-native';
+import { createStackNavigator, TransitionPresets } from '@react-navigation/stack';
 import { createNativeBottomTabNavigator } from '@bottom-tabs/react-navigation';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer, NavigationContainerRef, Theme as NavigationTheme } from '@react-navigation/native';
@@ -16,7 +16,7 @@ import { useBottomSheetActions } from '../contexts/BottomSheetContext';
 import { useAppFlow } from '../contexts/AppFlowContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useAppDispatch, useAppSelector } from '../store';
-import { checkAuthStatus } from '../store/slices/authSlice';
+import { checkAuthStatus, refreshUser } from '../store/slices/authSlice';
 import { checkSubscriptionStatus } from '../store/slices/subscriptionSlice';
 import { fetchUnreadCount } from '../store/slices/insightsSlice';
 import { RootStackParamList, MainTabsParamList, AuthStackParamList } from './types';
@@ -205,6 +205,8 @@ const MainTabs: React.FC = () => {
         headerShown: false,
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.textTertiary,
+        lazy: true, // Load screens only when navigated to
+        animation: 'fade', // Smooth fade transition between tabs
       }}
       tabBar={(props) => <CustomTabBar {...props} onFabPress={handleFabPress} />}
     >
@@ -256,13 +258,49 @@ const MainTabs: React.FC = () => {
  * AppNavigator component - Root navigation structure
  * Manages authentication state and navigation flow
  */
+import { useNotificationObserver } from '../hooks/useNotificationObserver';
+
+// ... 
+
 const AppNavigator: React.FC = () => {
   const { theme, isDark } = useTheme();
   const dispatch = useAppDispatch();
   const { isAuthenticated, isRestoringAuth } = useAppSelector((state) => state.auth);
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
-  const { onboardingComplete, paywallComplete, incomeSetupComplete, refreshFlowState } = useAppFlow();
+  const { onboardingComplete, paywallComplete, incomeSetupComplete, categorySetupComplete, refreshFlowState, markPaywallComplete } = useAppFlow();
   const { reloadCurrency } = useCurrency();
+
+  // Access subscription state from Redux to sync paywall completion across platforms
+  const { subscription, isLoading: subscriptionLoading } = useAppSelector((state) => state.subscription);
+
+  // Register global notification observer
+  useNotificationObserver(navigationRef);
+
+  // Cross-platform subscription sync: If user has active Premium subscription from backend,
+  // auto-mark paywall as complete. This ensures users who subscribed on one platform (e.g., Android)
+  // can access the app on another platform (e.g., iOS) without being blocked by the paywall.
+  useEffect(() => {
+    const isPremiumActive = subscription.tier === 'PREMIUM' && subscription.isActive;
+    const shouldAutoCompletePaywall = isAuthenticated && isPremiumActive && !paywallComplete && !subscriptionLoading;
+
+    if (shouldAutoCompletePaywall) {
+      console.log('[AppNavigator] User has active Premium subscription from backend, auto-marking paywall complete');
+      markPaywallComplete();
+    }
+  }, [isAuthenticated, subscription.tier, subscription.isActive, paywallComplete, subscriptionLoading, markPaywallComplete]);
+
+  // HARD PAYWALL ENFORCEMENT: If subscription has expired (status=EXPIRED), force user back to paywall.
+  // This ensures users cannot continue using the app after their subscription expires.
+  const { markSubscriptionExpired } = useAppFlow();
+  useEffect(() => {
+    const isExpired = subscription.status === 'EXPIRED';
+    const shouldEnforcePaywall = isAuthenticated && isExpired && paywallComplete && !subscriptionLoading;
+
+    if (shouldEnforcePaywall) {
+      console.log('[AppNavigator] Subscription EXPIRED, enforcing hard paywall');
+      markSubscriptionExpired();
+    }
+  }, [isAuthenticated, subscription.status, paywallComplete, subscriptionLoading, markSubscriptionExpired]);
 
   // Auth status and subscription are now checked in App.tsx during splash screen
   // This effect only handles re-checking when auth state changes (e.g., after login/logout)
@@ -275,6 +313,7 @@ const AppNavigator: React.FC = () => {
     if (isAuthenticated && !previousAuthRef.current) {
     // User just logged in - refresh subscription and flow state
       dispatch(checkSubscriptionStatus());
+      dispatch(refreshUser()); // Refresh user profile (streaks, goals, etc.)
       refreshFlowState();
 
       // Reload currency and exchange rate to ensure correct values after login
@@ -288,11 +327,38 @@ const AppNavigator: React.FC = () => {
     previousAuthRef.current = isAuthenticated;
   }, [isAuthenticated, dispatch, refreshFlowState, reloadCurrency]);
 
+  // Initial user refresh on mount if authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      dispatch(refreshUser());
+    }
+  }, [isAuthenticated, dispatch]);
+
+  // CHECK SUBSCRIPTION ON APP FOREGROUND
+  // This ensures we catch expired subscriptions even if push notification wasn't received
+  const appStateRef = useRef(AppState.currentState);
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      // When app comes to foreground from background
+      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
+        if (isAuthenticated) {
+          console.log('[AppNavigator] App foregrounded, checking subscription and user status...');
+          dispatch(checkSubscriptionStatus());
+          dispatch(refreshUser());
+        }
+      }
+      appStateRef.current = nextAppState;
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [isAuthenticated, dispatch]);
+
   // Prefetch data when app loads with existing auth session
   // This runs once when user opens the app already logged in
   const hasPrefetchedRef = useRef(false);
   useEffect(() => {
-    const isUserReady = isAuthenticated && onboardingComplete === true && paywallComplete === true && incomeSetupComplete === true;
+    const isUserReady = isAuthenticated && onboardingComplete === true && paywallComplete === true && incomeSetupComplete === true && categorySetupComplete === true;
 
     if (isUserReady && !hasPrefetchedRef.current) {
       hasPrefetchedRef.current = true;
@@ -310,7 +376,7 @@ const AppNavigator: React.FC = () => {
   useEffect(() => {
     const handleDeepLink = (url: string) => {
       // Ensure user is ready to receive deep links
-      const isUserReady = isAuthenticated && onboardingComplete && paywallComplete && incomeSetupComplete;
+      const isUserReady = isAuthenticated && onboardingComplete && paywallComplete && incomeSetupComplete && categorySetupComplete;
 
       if (url.startsWith('finly://add-transaction')) {
         // Open SharedBottomSheet for manual transaction entry
@@ -391,7 +457,7 @@ const AppNavigator: React.FC = () => {
   // before allowing AppNavigator to render, so this check is no longer needed
 
   // Quick actions are ready when user is authenticated and all setup is complete
-  const isQuickActionsReady = isAuthenticated && onboardingComplete === true && paywallComplete === true && incomeSetupComplete === true;
+  const isQuickActionsReady = isAuthenticated && onboardingComplete === true && paywallComplete === true && incomeSetupComplete === true && categorySetupComplete === true;
 
   return (
     <NavigationContainer
@@ -418,6 +484,7 @@ const AppNavigator: React.FC = () => {
             cardStyle: {
               backgroundColor: theme.background,
             },
+            ...TransitionPresets.SlideFromRightIOS, // Apply standard iOS slide transition globally
           }}
         >
           {!isAuthenticated ? (
@@ -454,43 +521,50 @@ const AppNavigator: React.FC = () => {
                 }}
               />
               </>
-            ) : !paywallComplete ? (
-              // Paywall - shown after onboarding, MUST subscribe or restore to continue
-              <>
-                <Stack.Screen
-                  name="Paywall"
-                  component={PaywallScreen}
-                  options={{ headerShown: false, gestureEnabled: false }}
-                />
-                <Stack.Screen
-                  name="TermsOfService"
-                  component={TermsOfServiceScreen}
-                  options={{
-                    title: 'Terms of Service',
-                    presentation: 'modal',
-                    headerShown: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="PrivacyPolicy"
-                  component={PrivacyPolicyScreen}
-                  options={{
-                    title: 'Privacy Policy',
-                    presentation: 'modal',
-                    headerShown: false,
-                  }}
-                />
-              </>
             ) : !incomeSetupComplete ? (
-                  // Income Setup - shown after paywall for first-time users
+              // Income Setup - shown after onboarding for first-time users
               <Stack.Screen
                 name="IncomeSetup"
                 component={IncomeSetupScreen}
                 options={{ headerShown: false, gestureEnabled: false }}
               />
-            ) : (
-              // Main App Stack - shown when user is authenticated, onboarded, and income setup is complete
-              <>
+            ) : !categorySetupComplete ? (
+                  // Category Setup - shown after income setup for first-time users
+              <Stack.Screen
+                name="CategoryOnboarding"
+                component={CategoryOnboardingScreen}
+                options={{ headerShown: false, gestureEnabled: false }}
+                  />
+                ) : !paywallComplete ? (
+                    // Paywall - shown after setup, MUST subscribe or restore to continue
+                    <>
+                      <Stack.Screen
+                        name="Paywall"
+                        component={PaywallScreen}
+                        options={{ headerShown: false, gestureEnabled: false }}
+                      />
+                      <Stack.Screen
+                        name="TermsOfService"
+                        component={TermsOfServiceScreen}
+                        options={{
+                          title: 'Terms of Service',
+                          presentation: 'modal',
+                          headerShown: false,
+                        }}
+                      />
+                      <Stack.Screen
+                        name="PrivacyPolicy"
+                        component={PrivacyPolicyScreen}
+                        options={{
+                          title: 'Privacy Policy',
+                          presentation: 'modal',
+                          headerShown: false,
+                        }}
+                      />
+                    </>
+                  ) : (
+                      // Main App Stack - shown when user is authenticated, onboarded, setup complete, and paywall passed (or free tier)
+                      <>
               <Stack.Screen
                 name="MainTabs"
                 component={MainTabs}
@@ -626,7 +700,7 @@ const AppNavigator: React.FC = () => {
                 name="BalanceHistory"
                 component={BalanceHistoryScreen}
                 options={{
-                  title: 'Balance History',
+                  title: 'Balance Analytics',
                   presentation: 'modal',
                   headerShown: false,
                 }}
@@ -716,9 +790,11 @@ const AppNavigator: React.FC = () => {
           )}
         </Stack.Navigator>
         {/* SharedBottomSheet - rendered outside Stack to be always accessible */}
-        {isAuthenticated && onboardingComplete && paywallComplete && incomeSetupComplete && (
+        {isAuthenticated && (
           <>
-            <SharedBottomSheet />
+            {onboardingComplete && paywallComplete && incomeSetupComplete && categorySetupComplete && (
+              <SharedBottomSheet />
+            )}
             <CreateCategoryModal />
           </>
         )}

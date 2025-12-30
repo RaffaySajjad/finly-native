@@ -17,22 +17,27 @@ import {
   Modal,
 } from 'react-native';
 import { useAlert } from '../hooks/useAlert';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { CurrencyInput } from '../components';
+import { CurrencyInput, GradientHeader } from '../components';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { usePerformance } from '../contexts/PerformanceContext';
 import { logger } from '../utils/logger';
 import { apiService } from '../services/api';
 import { useGoal } from '../hooks/useGoal'; // Import useGoal for deep integration
+import { useAppFlow } from '../contexts/AppFlowContext';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import { springPresets } from '../theme/AnimationConfig';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GlowButton, CountingNumber, AnimatedCard } from '../components/PremiumComponents';
+import { useCreateCategoryModal } from '../contexts/CreateCategoryModalContext';
 
 type CategoryOnboardingNavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -67,40 +72,50 @@ const BUDGET_ALLOCATIONS = {
   gifts: { percentage: 2, icon: 'gift', color: '#F43F5E', description: 'Gifts & Donations' },
 };
 
-// Available icons for custom categories
-const AVAILABLE_ICONS = [
-  'tag', 'briefcase', 'home', 'toolbox', 'book', 'music', 'camera',
-  'gamepad', 'soccer', 'basketball', 'bike', 'wrench', 'hammer',
-  'palette', 'coffee', 'pizza', 'glass-wine', 'tree', 'leaf'
-];
-
-// Available colors for custom categories
-const AVAILABLE_COLORS = [
-  '#EF4444', '#F97316', '#F59E0B', '#EAB308', '#84CC16', '#22C55E',
-  '#10B981', '#14B8A6', '#06B6D4', '#0EA5E9', '#3B82F6', '#6366F1',
-  '#8B5CF6', '#A855F7', '#D946EF', '#EC4899', '#F43F5E', '#6B7280'
-];
+// Gone: legacy constants moved to CreateCategoryModal
 
 const CategoryOnboardingScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { formatCurrency, getCurrencySymbol, convertToUSD, currencyCode } = useCurrency();
+  const { formatCurrency, getCurrencySymbol, convertToUSD, convertFromUSD, currencyCode } = useCurrency();
+  const { shouldUseComplexAnimations, shouldUseGlowEffects } = usePerformance();
   const navigation = useNavigation<CategoryOnboardingNavigationProp>();
+  const insets = useSafeAreaInsets();
   const subscription = useSelector((state: RootState) => state.subscription);
   const isPremium = subscription.subscription.tier === 'PREMIUM';
   const { showError, showSuccess, showWarning, showInfo, AlertComponent } = useAlert();
   const { goal } = useGoal(); // Get user's financial goal
+  const { markCategorySetupComplete } = useAppFlow();
 
   const [step, setStep] = useState<'income' | 'budgets' | 'loading'>('income');
   const [monthlyIncome, setMonthlyIncome] = useState('');
   const [categories, setCategories] = useState<CategoryConfig[]>([]);
   const [isSettingUp, setIsSettingUp] = useState(false);
-  const [showCustomCategoryModal, setShowCustomCategoryModal] = useState(false);
-  const [customCategoryName, setCustomCategoryName] = useState('');
-  const [customCategoryIcon, setCustomCategoryIcon] = useState('tag');
-  const [customCategoryColor, setCustomCategoryColor] = useState('#6B7280');
-  const [customCategoryBudget, setCustomCategoryBudget] = useState('');
+  const { openCreateCategoryModal } = useCreateCategoryModal();
 
   const firstRowRef = React.useRef<Swipeable>(null);
+
+  React.useEffect(() => {
+    const prefillIncome = async () => {
+      try {
+        const incomeSources = await apiService.getIncomeSources();
+        if (Array.isArray(incomeSources) && incomeSources.length > 0) {
+          // Sum up all income sources to get total monthly income
+          // This ensures if a user has multiple sources, they are all accounted for
+          const totalMonthlyUSD = incomeSources.reduce((sum, source) => sum + (source.amount || 0), 0);
+          if (totalMonthlyUSD > 0) {
+            // Convert from USD to user's display currency
+            const convertedIncome = convertFromUSD(totalMonthlyUSD);
+            // Format to 2 decimal places for the text input
+            setMonthlyIncome(convertedIncome.toFixed(2));
+            logger.debug('[CategoryOnboarding] Pre-filled income from sources (USD -> Converted):', { totalMonthlyUSD, convertedIncome });
+          }
+        }
+      } catch (error) {
+        logger.error('[CategoryOnboarding] Error pre-filling income:', error);
+      }
+    };
+    prefillIncome();
+  }, []);
 
   React.useEffect(() => {
     // Educational animation: Swipe the first item slightly to show it's interactable
@@ -204,31 +219,31 @@ const CategoryOnboardingScreen: React.FC = () => {
     setCategories(newCategories);
   };
 
-  const handleAddCustomCategory = () => {
-    if (!customCategoryName.trim()) {
-      showInfo('Missing Name', 'Please enter a category name.');
+  const handleOpenCreateModal = () => {
+    if (!isPremium && categories.length >= 10) {
+      showInfo('Category Limit Reached', 'You\'ve mastered the essentials! Upgrade to Premium to add unlimited custom categories.');
       return;
     }
 
-    const newCategory: CategoryConfig = {
-      name: customCategoryName.trim(),
-      icon: customCategoryIcon,
-      color: customCategoryColor,
-      suggestedBudget: parseFloat(customCategoryBudget) || 0,
-      percentage: 0,
-      description: 'Custom category',
-    };
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    setCategories([...categories, newCategory]);
-    setShowCustomCategoryModal(false);
-    
-    // Reset form
-    setCustomCategoryName('');
-    setCustomCategoryIcon('tag');
-    setCustomCategoryColor('#6B7280');
-    setCustomCategoryBudget('');
+    openCreateCategoryModal({
+      isPremium,
+      existingCategoryNames: categories.map(c => c.name),
+      onCreate: async (data) => {
+        const newCategory: CategoryConfig = {
+          name: data.name,
+          icon: data.icon,
+          color: data.color,
+          suggestedBudget: data.originalAmount || 0,
+          percentage: 0,
+          description: 'Custom category',
+        };
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setCategories(prev => [...prev, newCategory]);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    });
   };
 
   const handleDeleteCategory = (index: number) => {
@@ -314,10 +329,15 @@ const CategoryOnboardingScreen: React.FC = () => {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      // Navigate back to categories screen
-      setTimeout(() => {
-        navigation.goBack();
-      }, 500);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Mark setup as complete in AppFlowContext
+      await markCategorySetupComplete();
+
+      // Navigation is now handled by AppNavigator based on flow state
+      // setTimeout(() => {
+      //   navigation.goBack();
+      // }, 500);
     } catch (error) {
       console.error('[CategoryOnboarding] Setup error:', error);
       showError('Error', 'Failed to set up categories. Please try again.');
@@ -341,7 +361,7 @@ const CategoryOnboardingScreen: React.FC = () => {
             try {
               await apiService.setupDefaultCategories();
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              setTimeout(() => navigation.goBack(), 500);
+              await markCategorySetupComplete();
             } catch (error) {
               showError('Error', 'Failed to set up categories.');
               setIsSettingUp(false);
@@ -356,8 +376,9 @@ const CategoryOnboardingScreen: React.FC = () => {
   // Step 1: Income Input
   if (step === 'income') {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <GradientHeader />
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + spacing.xl }]} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.iconContainer}>
             <View style={[styles.iconCircle, { backgroundColor: theme.primary + '15' }]}>
@@ -366,10 +387,10 @@ const CategoryOnboardingScreen: React.FC = () => {
           </View>
 
           <Text style={[styles.title, { color: theme.text }]}>
-            Let's Build Your Plan
+            Confirm Your Monthly Income
           </Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Starting with your monthly income helps us craft a personalized budget just for you.
+            We've pre-filled this based on your income sources. This total will be used to calculate your recommended budget limits.
           </Text>
 
           {/* Income Input */}
@@ -395,9 +416,9 @@ const CategoryOnboardingScreen: React.FC = () => {
               Why we ask:
             </Text>
             {[
-              { icon: 'chart-pie', text: 'Get personalized budget recommendations' },
-              { icon: 'target', text: 'Set realistic spending limits' },
-              { icon: 'shield-check', text: 'Your income stays private on your device' },
+              { icon: 'auto-fix', text: 'Tailored budget blueprints based on your data' },
+              { icon: 'bullseye-arrow', text: 'Precise limits to accelerate your savings' },
+              { icon: 'shield-lock', text: 'Bank-grade security for your financial data' },
             ].map((benefit, index) => (
               <View key={index} style={styles.benefitItem}>
                 <Icon name={benefit.icon as any} size={20} color={theme.primary} />
@@ -409,16 +430,19 @@ const CategoryOnboardingScreen: React.FC = () => {
           </View>
 
           {/* Action Buttons */}
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: theme.primary }, elevation.md]}
+          <GlowButton
+            variant="primary"
+            glowIntensity="medium"
             onPress={handleIncomeSubmit}
-            activeOpacity={0.8}
+            style={styles.primaryButton}
           >
-            <Text style={styles.buttonText}>Continue</Text>
-            <Icon name="arrow-right" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+            <View style={styles.buttonContent}>
+              <Text style={styles.buttonText}>Continue to Budgets</Text>
+              <Icon name="arrow-right" size={20} color="#FFFFFF" />
+            </View>
+          </GlowButton>
 
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={[styles.skipButton]}
             onPress={handleSkip}
             activeOpacity={0.7}
@@ -426,9 +450,9 @@ const CategoryOnboardingScreen: React.FC = () => {
             <Text style={[styles.skipButtonText, { color: theme.textSecondary }]}>
               Skip for Now
             </Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </ScrollView>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -440,8 +464,9 @@ const CategoryOnboardingScreen: React.FC = () => {
 
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={[styles.container, { backgroundColor: theme.background }]}>
+          <GradientHeader />
+          <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + spacing.lg }]} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <TouchableOpacity
             style={styles.backButton}
@@ -452,12 +477,10 @@ const CategoryOnboardingScreen: React.FC = () => {
           </TouchableOpacity>
 
           <Text style={[styles.title, { color: theme.text }]}>
-            Customize Your Budgets
+              Fine-Tune Your Budgets
           </Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {isPremium 
-              ? '✨ Premium: Adjust these budgets based on your needs. We\'ve included extra categories for you!'
-              : 'Adjust these budgets based on your needs. Tap each amount to edit.'}
+              We've suggested a balanced 50/30/20 plan based on your income. Adjust each category to match your actual spending needs.
           </Text>
 
           {/* Budget Summary */}
@@ -473,7 +496,7 @@ const CategoryOnboardingScreen: React.FC = () => {
             <View style={[styles.summaryDivider, { backgroundColor: theme.border }]} />
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: theme.text, fontWeight: '600' }]}>
-                Remaining (Savings)
+                  Unallocated (Savings)
               </Text>
               <Text style={[styles.summaryValue, { 
                 color: remaining >= 0 ? '#10B981' : '#EF4444',
@@ -536,13 +559,7 @@ const CategoryOnboardingScreen: React.FC = () => {
               {/* Add Custom Category Button (Visible for all, limited for free) */}
               <TouchableOpacity
                 style={[styles.addCategoryButton, { backgroundColor: theme.card, borderColor: theme.primary }]}
-                onPress={() => {
-                  if (!isPremium && categories.length >= 10) {
-                    showInfo('Category Limit Reached', 'You\'ve mastered the essentials! Upgrade to Premium to add unlimited custom categories.');
-                    return;
-                  }
-                  setShowCustomCategoryModal(true);
-                }}
+                onPress={handleOpenCreateModal}
                 activeOpacity={0.8}
               >
                 <Icon name="plus-circle" size={24} color={theme.primary} />
@@ -552,25 +569,28 @@ const CategoryOnboardingScreen: React.FC = () => {
               </TouchableOpacity>
           </View>
 
-          {isPremium && (
+            {/* {isPremium && (
             <View style={[styles.premiumBadge, { backgroundColor: '#F59E0B15', borderColor: '#F59E0B' }]}>
               <Icon name="crown" size={16} color="#F59E0B" />
               <Text style={[styles.premiumText, { color: '#F59E0B' }]}>
                 Premium: {categories.length} categories available
               </Text>
             </View>
-          )}
+          )} */}
 
           {/* Action Buttons */}
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: theme.primary }, elevation.md]}
-            onPress={handleSetupComplete}
-            activeOpacity={0.8}
+            <GlowButton
+              variant="success"
+              glowIntensity="medium"
+              onPress={handleSetupComplete}
             disabled={isSettingUp}
+              style={styles.primaryButton}
           >
-            <Icon name="check-circle" size={20} color="#FFFFFF" />
-            <Text style={styles.buttonText}>Complete Setup</Text>
-          </TouchableOpacity>
+              <View style={styles.buttonContent}>
+                <Icon name="check-circle" size={20} color="#FFFFFF" />
+                <Text style={styles.buttonText}>Finish Setup & Start Saving</Text>
+              </View>
+            </GlowButton>
 
           <TouchableOpacity
             style={styles.skipButton}
@@ -581,155 +601,8 @@ const CategoryOnboardingScreen: React.FC = () => {
               Go Back
             </Text>
           </TouchableOpacity>
-        </ScrollView>
-      </SafeAreaView>
-        {/* Custom Category Modal */}
-      <Modal
-        visible={showCustomCategoryModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowCustomCategoryModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>
-                Create Custom Category
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowCustomCategoryModal(false)}
-                activeOpacity={0.7}
-              >
-                <Icon name="close" size={24} color={theme.text} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Category Name */}
-              <View style={styles.formSection}>
-                <Text style={[styles.formLabel, { color: theme.textSecondary }]}>
-                  Category Name *
-                </Text>
-                <TextInput
-                  style={[styles.formInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
-                  value={customCategoryName}
-                  onChangeText={setCustomCategoryName}
-                  placeholder="e.g., Hobbies, Subscriptions"
-                  placeholderTextColor={theme.textTertiary}
-                  maxLength={30}
-                />
-              </View>
-
-              {/* Icon Picker */}
-              <View style={styles.formSection}>
-                <Text style={[styles.formLabel, { color: theme.textSecondary }]}>
-                  Choose Icon
-                </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.iconPicker}>
-                  {AVAILABLE_ICONS.map((iconName) => (
-                    <TouchableOpacity
-                      key={iconName}
-                      style={[
-                        styles.iconOption,
-                        { backgroundColor: theme.card, borderColor: customCategoryIcon === iconName ? theme.primary : theme.border },
-                        customCategoryIcon === iconName && styles.iconOptionSelected,
-                      ]}
-                      onPress={() => {
-                        setCustomCategoryIcon(iconName);
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Icon name={iconName as any} size={24} color={customCategoryIcon === iconName ? theme.primary : theme.text} />
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              {/* Color Picker */}
-              <View style={styles.formSection}>
-                <Text style={[styles.formLabel, { color: theme.textSecondary }]}>
-                  Choose Color
-                </Text>
-                <View style={styles.colorPicker}>
-                  {AVAILABLE_COLORS.map((colorValue) => (
-                    <TouchableOpacity
-                      key={colorValue}
-                      style={[
-                        styles.colorOption,
-                        { backgroundColor: colorValue },
-                        customCategoryColor === colorValue && styles.colorOptionSelected,
-                      ]}
-                      onPress={() => {
-                        setCustomCategoryColor(colorValue);
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      {customCategoryColor === colorValue && (
-                        <Icon name="check" size={16} color="#FFFFFF" />
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Budget Input */}
-              <View style={styles.formSection}>
-                <Text style={[styles.formLabel, { color: theme.textSecondary }]}>
-                  Monthly Budget (Optional)
-                </Text>
-                <View style={[styles.formInput, { backgroundColor: theme.card, borderColor: theme.border, flexDirection: 'row', alignItems: 'center' }]}>
-                  <Text style={[styles.budgetCurrency, { color: theme.textSecondary }]}>
-                    {getCurrencySymbol()}
-                  </Text>
-                  <TextInput
-                    style={[styles.budgetInput, { color: theme.text, flex: 1 }]}
-                    value={customCategoryBudget}
-                    onChangeText={setCustomCategoryBudget}
-                    keyboardType="decimal-pad"
-                    placeholder="0"
-                    placeholderTextColor={theme.textTertiary}
-                  />
-                </View>
-              </View>
-
-              {/* Preview */}
-              <View style={styles.formSection}>
-                <Text style={[styles.formLabel, { color: theme.textSecondary }]}>
-                  Preview
-                </Text>
-                <View style={[styles.previewCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <View style={[styles.categoryIcon, { backgroundColor: customCategoryColor + '15' }]}>
-                    <Icon name={customCategoryIcon as any} size={24} color={customCategoryColor} />
-                  </View>
-                  <Text style={[styles.categoryName, { color: theme.text }]}>
-                    {customCategoryName || 'Category Name'}
-                  </Text>
-                </View>
-              </View>
-            </ScrollView>
-
-            {/* Action Buttons */}
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSecondary, { borderColor: theme.border }]}
-                onPress={() => setShowCustomCategoryModal(false)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.modalButtonText, { color: theme.text }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonPrimary, { backgroundColor: theme.primary }, elevation.sm]}
-                onPress={handleAddCustomCategory}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>Add Category</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </ScrollView>
         </View>
-      </Modal>
       </GestureHandlerRootView>
     );
   }
@@ -737,7 +610,8 @@ const CategoryOnboardingScreen: React.FC = () => {
   // Step 3: Loading
   if (step === 'loading') {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <GradientHeader />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={[styles.loadingText, { color: theme.text }]}>
@@ -748,7 +622,7 @@ const CategoryOnboardingScreen: React.FC = () => {
           </Text>
         </View>
         {AlertComponent}
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -984,107 +858,14 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     gap: spacing.sm,
   },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
   addCategoryText: {
     ...typography.labelMedium,
-    fontWeight: '600',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
-    padding: spacing.lg,
-    maxHeight: '90%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.lg,
-  },
-  modalTitle: {
-    ...typography.titleLarge,
-    fontWeight: '700',
-  },
-  formSection: {
-    marginBottom: spacing.lg,
-  },
-  formLabel: {
-    ...typography.labelMedium,
-    fontWeight: '600',
-    marginBottom: spacing.sm,
-  },
-  formInput: {
-    ...typography.bodyMedium,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-  },
-  iconPicker: {
-    marginTop: spacing.sm,
-  },
-  iconOption: {
-    width: 56,
-    height: 56,
-    borderRadius: borderRadius.md,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
-  iconOptionSelected: {
-    borderWidth: 3,
-  },
-  colorPicker: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  colorOption: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  colorOptionSelected: {
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-  },
-  previewCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.md,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalButtonSecondary: {
-    borderWidth: 2,
-  },
-  modalButtonPrimary: {
-    // backgroundColor set inline
-  },
-  modalButtonText: {
-    ...typography.labelLarge,
     fontWeight: '600',
   },
   deleteActionContainer: {

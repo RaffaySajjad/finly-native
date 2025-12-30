@@ -27,6 +27,7 @@ import { apiService } from '../services/api';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { useAlert } from '../hooks/useAlert';
 import { UnifiedTransaction } from '../types';
+import { GradientHeader } from '../components/GradientHeader';
 
 type ExportTransactionsNavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -214,6 +215,7 @@ const ExportTransactionsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+      <GradientHeader />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}

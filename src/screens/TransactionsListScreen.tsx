@@ -19,7 +19,8 @@ import {
   SectionList,
 } from 'react-native';
 import { useAlert } from '../hooks/useAlert';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GradientHeader } from '../components/GradientHeader';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -27,7 +28,7 @@ import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '../contexts/ThemeContext';
 import { useBottomSheetActions } from '../contexts/BottomSheetContext';
-import { TransactionCard, ExpenseOptionsSheet } from '../components';
+import { TransactionCard, ExpenseOptionsSheet, EmptyState } from '../components';
 import { logger } from '../utils/logger';
 import { formatDateLabel } from '../utils/dateFormatter';
 import { apiService } from '../services/api';
@@ -116,6 +117,7 @@ const groupTransactionsByDate = (
  */
 const TransactionsListScreen: React.FC = () => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<TransactionsListNavigationProp>();
   const { openBottomSheet } = useBottomSheetActions();
   const { showError, showSuccess, AlertComponent } = useAlert();
@@ -558,30 +560,25 @@ const TransactionsListScreen: React.FC = () => {
   const keyExtractor = useCallback((item: UnifiedTransaction) => item.id, []);
 
   const renderEmptyState = useCallback(() => (
-    <View style={styles.emptyState}>
-      <Icon name="receipt-text-outline" size={64} color={theme.textTertiary} />
-      <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
-        {hasActiveFilters ? 'No matches found. Try adjusting your filters.' : 'Quiet day! No transactions logged yet.'}
-      </Text>
-      {hasActiveFilters && (
-        <TouchableOpacity
-          style={[styles.clearFiltersButton, { backgroundColor: theme.primary }]}
-          onPress={clearFilters}
-        >
-          <Text style={styles.clearFiltersText}>Clear Filters</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  ), [hasActiveFilters, theme]);
+    <EmptyState
+      variant={hasActiveFilters ? 'search' : 'transactions'}
+      title={hasActiveFilters ? 'No matches found' : 'No transactions yet'}
+      subtitle={hasActiveFilters ? 'Try adjusting your filters to find what you\'re looking for.' : 'Tap + to record your first expense or income. Your financial journey starts here!'}
+      actionLabel={hasActiveFilters ? 'Clear Filters' : undefined}
+      onActionPress={hasActiveFilters ? clearFilters : undefined}
+    />
+  ), [hasActiveFilters, clearFilters]);
 
   const renderListFooter = useCallback(() => (
     <View style={{ height: spacing.xl }} />
   ), []);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <GradientHeader />
+
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { marginTop: insets.top }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -1145,7 +1142,7 @@ const TransactionsListScreen: React.FC = () => {
             </View>
           </Modal>
       {AlertComponent}
-        </SafeAreaView>
+    </View>
   );
 };
 
@@ -1159,7 +1156,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
   },
   backButton: {
     width: 40,

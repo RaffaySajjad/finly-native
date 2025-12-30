@@ -331,8 +331,10 @@ const CategoryOnboardingScreen: React.FC = () => {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+      logger.debug('[CategoryOnboarding] Categories setup complete, marking as complete in flow state');
       // Mark setup as complete in AppFlowContext
       await markCategorySetupComplete();
+      logger.debug('[CategoryOnboarding] Flow state updated, navigation should occur');
 
       // Navigation is now handled by AppNavigator based on flow state
       // setTimeout(() => {

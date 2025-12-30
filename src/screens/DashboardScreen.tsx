@@ -646,6 +646,33 @@ const DashboardScreen: React.FC = () => {
     setShowNotificationBanner(false);
   };
 
+  /**
+   * getSmartBalance - Calculates the currently displayed balance to ensure precision
+   * Priority: Backend Base Balance -> Local Original Balance -> Fallback USD conversion
+   */
+  const getSmartBalance = useCallback(() => {
+    if (!stats) return 0;
+
+    // 1. Prioritize backend-calculated base balance if currency matches anchor
+    if (stats.baseBalance !== undefined && stats.baseCurrency === currencyCode) {
+      return stats.baseBalance;
+    }
+
+    // 2. Secondary: If user has preserved original balance locally, calculate native amount
+    if (
+      user?.originalBalanceAmount !== undefined &&
+      user?.originalBalanceAmount !== null &&
+      user?.originalBalanceCurrency === currencyCode
+    ) {
+      const incomeNative = convertFromUSD(stats.totalIncome);
+      const expensesNative = convertFromUSD(stats.totalExpenses);
+      return user.originalBalanceAmount + incomeNative - expensesNative;
+    }
+
+    // 3. Fallback: Standard conversion from USD balance
+    return convertFromUSD(stats.balance);
+  }, [stats, currencyCode, user, convertFromUSD]);
+
   // Handle balance card layout to measure position
   const handleBalanceCardLayout = (event: any) => {
     const { y, height } = event.nativeEvent.layout;
@@ -858,30 +885,13 @@ const DashboardScreen: React.FC = () => {
                   >
                     <View style={styles.balanceHeader}>
                       <Text style={styles.balanceLabel}>Total Balance</Text>
+                      <View style={styles.clickableIconContainer}>
+                        <Icon name="chevron-right" size={20} color="rgba(255, 255, 255, 0.7)" />
+                      </View>
                     </View>
 
                     <NumberTicker
-                      value={(() => {
-                        // 1. Prioritize backend-calculated base balance if currency matches anchor
-                        if (stats.baseBalance !== undefined && stats.baseCurrency === currencyCode) {
-                          return stats.baseBalance;
-                        }
-
-                        // 2. Secondary: If user has preserved original balance locally, calculate native amount
-                        if (
-                          user?.originalBalanceAmount !== undefined &&
-                          user?.originalBalanceAmount !== null &&
-                          user?.originalBalanceCurrency === currencyCode &&
-                          stats
-                        ) {
-                          const incomeNative = convertFromUSD(stats.totalIncome);
-                          const expensesNative = convertFromUSD(stats.totalExpenses);
-                          return user.originalBalanceAmount + incomeNative - expensesNative;
-                        }
-
-                        // 3. Fallback: Standard conversion from USD balance
-                        return convertFromUSD(stats.balance);
-                      })()}
+                      value={getSmartBalance()}
                       style={styles.balanceAmount}
                       prefix={getCurrencySymbol()}
                       decimalPlaces={showDecimals ? 2 : 0}
@@ -1180,8 +1190,16 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.xl,
   },
   balanceHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
     marginBottom: spacing.md,
+    width: '100%',
+  },
+  clickableIconContainer: {
+    position: 'absolute',
+    right: 0,
   },
   balanceLabel: {
     ...typography.bodyMedium,

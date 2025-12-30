@@ -642,6 +642,32 @@ export const apiService = {
       throw error;
     }
   },
+  
+  /**
+   * Adjust balance by creating an income or expense transaction on the backend
+   * @param data - Adjustment data (amount, currency, amountInUSD)
+   */
+  async adjustBalanceByTransaction(data: {
+    amount: number;
+    currency: string;
+    amountInUSD: number;
+  }): Promise<any> {
+    try {
+      const response = await api.post<any>(
+        API_ENDPOINTS.ANALYTICS.ADJUST_BALANCE,
+        data
+      );
+      if (!response.success) {
+        throw new Error(
+          response.error?.message || 'Failed to adjust balance'
+        );
+      }
+      return response.data;
+    } catch (error) {
+      console.error('[API] Adjust balance error:', error);
+      throw error;
+    }
+  },
 
   /**
    * Get comprehensive spending trends data for Trends screen
@@ -1359,7 +1385,7 @@ export const apiService = {
           remaining: number;
           resetAt: number;
         };
-      }>(API_ENDPOINTS.ANALYTICS.FORECAST, params);
+      }>(API_ENDPOINTS.ANALYTICS.FORECAST, { params, skipCache: forceRefresh });
 
       if (!response.success) {
         throw new Error(

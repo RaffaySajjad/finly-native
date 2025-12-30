@@ -108,7 +108,8 @@ export const API_ENDPOINTS = {
     TREND: '/analytics/trend',
     BUDGET_STATUS: '/analytics/budget-status',
     TRANSACTIONS: '/analytics/transactions',
-    FORECAST: '/analytics/forecast'
+    FORECAST: '/analytics/forecast',
+    ADJUST_BALANCE: '/analytics/adjust-balance'
   },
 
   // Subscriptions

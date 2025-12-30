@@ -211,7 +211,7 @@ const CategoriesScreen: React.FC = () => {
             {/* Setup Button */}
             <TouchableOpacity
               style={[styles.setupButton, { backgroundColor: theme.primary }, elevation.md]}
-              onPress={() => navigation.navigate('CategoryOnboarding')}
+              onPress={() => navigation.navigate('CategorySetup')}
               activeOpacity={0.8}
             >
               <Icon name="rocket-launch" size={20} color="#FFFFFF" />

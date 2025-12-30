@@ -160,7 +160,6 @@ const BalanceHistoryScreen: React.FC = () => {
   const { theme, isDark } = useTheme();
   const { user } = useAppSelector((state) => state.auth);
   const { formatCurrency, getCurrencySymbol, exchangeRate, convertFromUSD, convertToUSD, currencyCode, showDecimals } = useCurrency();
-  const [categories, setCategories] = useState<Category[]>([]);
   const { showError, showInfo, showSuccess } = useAlert();
   const { shouldUseComplexAnimations, shouldUseGlowEffects } = usePerformance();
   
@@ -195,18 +194,38 @@ const BalanceHistoryScreen: React.FC = () => {
     periodPreset: '30d',
   }));
 
-  // Fetch categories for adjustment
-  useEffect(() => {
-    apiService.getCategories()
-      .then(setCategories)
-      .catch(err => console.error('Failed to load categories for adjustment', err));
-  }, []);
-
   // Balance adjustment state
   const [newBalance, setNewBalance] = useState('');
   const [isAdjustingBalance, setIsAdjustingBalance] = useState(false);
   const balanceAdjustSheetRef = useRef<BottomSheet>(null);
   const balanceSheetSnapPoints = useMemo(() => ['45%', '65%'], []);
+
+  /**
+   * getSmartBalance - Calculates the currently displayed balance to ensure precision
+   * Matches logic used in Dashboard for consistency
+   */
+  const getSmartBalance = useCallback(() => {
+    if (!stats) return 0;
+
+    // 1. Prioritize backend-calculated base balance if currency matches anchor
+    if (stats.baseBalance !== undefined && stats.baseCurrency === currencyCode) {
+      return stats.baseBalance;
+    }
+
+    // 2. Secondary: If user has preserved original balance locally, calculate native amount
+    if (
+      user?.originalBalanceAmount !== undefined &&
+      user?.originalBalanceAmount !== null &&
+      user?.originalBalanceCurrency === currencyCode
+    ) {
+      const incomeNative = convertFromUSD(stats.totalIncome);
+      const expensesNative = convertFromUSD(stats.totalExpenses);
+      return user.originalBalanceAmount + incomeNative - expensesNative;
+    }
+
+    // 3. Fallback: Standard conversion from USD balance (stats.balance is in USD)
+    return convertFromUSD(stats.balance);
+  }, [stats, currencyCode, user, convertFromUSD]);
 
   const handleAdjustBalance = async () => {
     if (!newBalance || isNaN(parseFloat(newBalance))) {
@@ -216,51 +235,30 @@ const BalanceHistoryScreen: React.FC = () => {
 
     setIsAdjustingBalance(true);
     try {
-      // Convert the entered balance from display currency to USD
-      const newBalanceInDisplayCurrency = parseFloat(newBalance);
-      const newBalanceInUSD = convertToUSD(newBalanceInDisplayCurrency);
-      const currentBalanceInUSD = stats?.balance || 0;
-      const difference = newBalanceInUSD - currentBalanceInUSD;
+      // Calculate current balance exactly as displayed
+      const currentBalanceInDisplayCurrency = getSmartBalance();
+      const newDisplayBalance = parseFloat(newBalance);
 
-      // If difference is negligible, just close
-      if (Math.abs(difference) < 0.01) {
+      // Calculate difference directly in display currency to avoid floating point noise
+      const differenceInDisplayCurrency = newDisplayBalance - currentBalanceInDisplayCurrency;
+
+      // Convert difference to USD for backend storage
+      const differenceInUSD = convertToUSD(differenceInDisplayCurrency);
+
+      // If difference is negligible in display currency (less than 0.01), just close
+      if (Math.abs(differenceInDisplayCurrency) < 0.01) {
         balanceAdjustSheetRef.current?.close();
         return;
       }
 
-      if (difference > 0) {
-        // Income: Create income transaction
-        await apiService.createIncomeTransaction({
-          amount: difference,
-          description: 'Balance Adjustment',
-          date: new Date(),
-          originalAmount: convertFromUSD(difference),
-          originalCurrency: currencyCode,
-        });
-      } else {
-        // Expense: Create expense transaction
-        // Find a suitable category (Other, Misc, or first available)
-        const adjustmentCategory = categories.find((c: Category) =>
-          c.name.toLowerCase().includes('other') ||
-          c.name.toLowerCase().includes('misc') ||
-          c.name.toLowerCase().includes('general')
-        ) || categories[0];
+      // Call backend to adjust balance via transaction
+      await apiService.adjustBalanceByTransaction({
+        amount: differenceInDisplayCurrency,
+        currency: currencyCode,
+        amountInUSD: differenceInUSD,
+      });
 
-        if (!adjustmentCategory) {
-          throw new Error('No categories available to create adjustment expense');
-        }
-
-        await apiService.addExpense({
-          amount: Math.abs(difference),
-          categoryId: adjustmentCategory.id,
-          description: 'Balance Adjustment',
-          date: new Date(),
-          originalAmount: convertFromUSD(Math.abs(difference)),
-          originalCurrency: currencyCode,
-        });
-      }
-
-      await forceRefresh(); // Refresh data using the hook's refresh method
+      await forceRefresh();
       balanceAdjustSheetRef.current?.close();
       setNewBalance('');
       showSuccess('Success', 'Balance updated successfully! 🎉');
@@ -274,9 +272,10 @@ const BalanceHistoryScreen: React.FC = () => {
 
   const handleOpenBalanceAdjust = () => {
     if (stats) {
-      // Convert balance from USD to display currency for editing
-      const displayBalance = convertFromUSD(stats.balance);
-      setNewBalance(displayBalance.toString());
+      // Use getSmartBalance to ensure pre-fill matches display exactly
+      const displayBalance = getSmartBalance();
+      // Format to 2 decimal places to ensure string parity with the input
+      setNewBalance(displayBalance.toFixed(2));
       balanceAdjustSheetRef.current?.expand();
     }
   };
@@ -285,6 +284,8 @@ const BalanceHistoryScreen: React.FC = () => {
   const triggerHaptic = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, []);
+
+
 
   useFocusEffect(
     useCallback(() => {
@@ -513,28 +514,7 @@ const BalanceHistoryScreen: React.FC = () => {
                 <View style={styles.balanceMain}>
                   <Text style={styles.balanceLabel}>Current Balance</Text>
                   <NumberTicker
-                    value={(() => {
-                      // 1. Prioritize backend-calculated base balance if currency matches anchor
-                      if (stats.baseBalance !== undefined && stats.baseCurrency === currencyCode) {
-                        return stats.baseBalance;
-                      }
-
-                      // 2. Secondary: If user has preserved original balance locally, calculate native amount
-                      if (
-                        user?.originalBalanceAmount !== undefined &&
-                        user?.originalBalanceAmount !== null &&
-                        user?.originalBalanceCurrency === currencyCode &&
-                        stats
-                      ) {
-                        const incomeNative = convertFromUSD(stats.totalIncome);
-                        const expensesNative = convertFromUSD(stats.totalExpenses);
-                        return user.originalBalanceAmount + incomeNative - expensesNative;
-                      }
-
-                      // 3. Fallback: Standard conversion from USD balance (stats.balance is in USD)
-                      // No double conversion here as convertFromUSD handles it correctly.
-                      return convertFromUSD(stats.balance);
-                    })()}
+                    value={getSmartBalance()}
                     style={styles.balanceAmount}
                     prefix={getCurrencySymbol()}
                     decimalPlaces={showDecimals ? 2 : 0}

@@ -715,7 +715,7 @@ const AppNavigator: React.FC = () => {
                 }}
               />
               <Stack.Screen
-                name="CategoryOnboarding"
+                          name="CategorySetup"
                 component={CategoryOnboardingScreen}
                 options={{
                   title: 'Set Up Categories',

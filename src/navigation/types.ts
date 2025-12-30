@@ -37,6 +37,7 @@ export type RootStackParamList = {
   BalanceHistory: undefined;
   TransactionsList: undefined;
   CategoryOnboarding: undefined;
+  CategorySetup: undefined;
   IncomeManagement: undefined;
   CSVImport: { firstTime?: boolean } | undefined;
   ExportTransactions: undefined;

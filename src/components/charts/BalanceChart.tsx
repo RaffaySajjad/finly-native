@@ -306,6 +306,7 @@ export const BalanceChart: React.FC<BalanceChartProps> = ({
 const styles = StyleSheet.create({
   container: {
     padding: spacing.md,
+    marginHorizontal: spacing.md,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     overflow: 'hidden',

@@ -4,6 +4,7 @@ import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useCurrency } from '../../contexts/CurrencyContext';
 import { typography, spacing, borderRadius } from '../../theme';
+import ChartEmptyState from '../charts/ChartEmptyState';
 
 interface ForecastData {
   predictedAmount: number;
@@ -33,6 +34,7 @@ export const ForecastCard: React.FC<ForecastCardProps> = ({ data }) => {
   };
 
   const confidenceColor = getConfidenceColor(data.confidence);
+  const isLowConfidence = data.confidence === 'low';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -43,21 +45,32 @@ export const ForecastCard: React.FC<ForecastCardProps> = ({ data }) => {
         </View>
       </View>
 
-      <View style={styles.badgeRow}>
-        <View style={[styles.badge, { backgroundColor: confidenceColor + '20' }]}>
-            <Text style={[styles.badgeText, { color: confidenceColor }]}>
+      {isLowConfidence ? (
+        <ChartEmptyState
+          variant="forecast"
+          title="Building your forecast..."
+          subtitle="Keep logging expenses and we'll have a personalized prediction for you soon!"
+          compact
+        />
+      ) : (
+        <>
+            <View style={styles.badgeRow}>
+              <View style={[styles.badge, { backgroundColor: confidenceColor + '20' }]}>
+                <Text style={[styles.badgeText, { color: confidenceColor }]}>
                 {data.confidence.toUpperCase()} CONFIDENCE
-            </Text>
-        </View>
-      </View>
+                </Text>
+              </View>
+            </View>
 
-      <Text style={[styles.amount, { color: theme.text }]}>
-          ~{formatCurrency(data.predictedAmount)}
-      </Text>
-      
-      <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Predicted spending based on your recent habits
-      </Text>
+            <Text style={[styles.amount, { color: theme.text }]}>
+              ~{formatCurrency(data.predictedAmount)}
+            </Text>
+
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+              Predicted spending based on your recent habits
+            </Text>
+        </>
+      )}
     </View>
   );
 };
@@ -104,5 +117,20 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     ...typography.bodySmall,
-  }
+  },
+  lowConfidenceContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
+  },
+  lowConfidenceTitle: {
+    ...typography.titleSmall,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  lowConfidenceText: {
+    ...typography.bodySmall,
+    textAlign: 'center',
+    paddingHorizontal: spacing.md,
+  },
 });

@@ -3,15 +3,15 @@
  * Purpose: Comprehensive first-time user onboarding flow  
  * 
  * 3-Phase Structure:
- * Phase 1: Value Proposition (slides 0-3)
- * Phase 2: Personalization (slides 4-6)
- * Phase 3: Call to Action (slide 7)
+ * Phase 1: Value Proposition (slides 0-4)
+ * Phase 2: Personalization (slides 5-7) - Currency, Persona/AI
+ * Phase 3: Call to Action (slide 8)
  * 
  * After completing onboarding, users are directed to PaywallScreen.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated, StatusBar, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated, StatusBar, TextInput, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { GradientHeader } from '../components';
@@ -32,31 +32,25 @@ import {
 } from '../services/currencyService';
 import { useAppFlow } from '../contexts/AppFlowContext';
 import { usePerformance } from '../contexts/PerformanceContext';
-import { IMPORT_SHOWN_KEY, USER_GOAL_KEY } from '../constants/storageKeys';
+import { IMPORT_SHOWN_KEY } from '../constants/storageKeys';
 import AIIntroSlide from '../components/onboarding/AIIntroSlide';
+import PersonaSelectionSlide, { Persona } from '../components/onboarding/PersonaSelectionSlide';
+import AICategoryChat from '../components/onboarding/AICategoryChat';
 import { GlowButton } from '../components/PremiumComponents';
 import * as Haptics from 'expo-haptics';
+import { IncomeFrequency } from '../types';
+import { createIncomeSource } from '../services/incomeService';
+import CurrencyInput from '../components/CurrencyInput';
+
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
 const { width, height } = Dimensions.get('window');
 
-// User goals for personalization
-type UserGoal = 'budget' | 'save' | 'track' | 'debt';
-
-interface GoalOption {
-  id: UserGoal;
-  icon: string;
-  title: string;
-  description: string;
-  color: string;
-}
-
-const GOALS: GoalOption[] = [
-  { id: 'budget', icon: 'chart-pie', title: 'Budget Better', description: 'Control monthly spending', color: '#6366F1' },
-  { id: 'save', icon: 'piggy-bank', title: 'Save More', description: 'Build an emergency fund', color: '#10B981' },
-  { id: 'track', icon: 'magnify', title: 'Track Everything', description: 'Know where money goes', color: '#F59E0B' },
-  { id: 'debt', icon: 'credit-card-off', title: 'Pay Off Debt', description: 'Become debt-free', color: '#EF4444' },
+const FREQUENCY_OPTIONS: Array<{ value: IncomeFrequency; label: string; icon: string; description: string }> = [
+  { value: 'WEEKLY', label: 'Weekly', icon: 'calendar-week', description: 'Every week' },
+  { value: 'BIWEEKLY', label: 'Bi-weekly', icon: 'calendar-range', description: 'Every 2 weeks' },
+  { value: 'MONTHLY', label: 'Monthly', icon: 'calendar-month', description: 'Once a month' },
 ];
 
 interface OnboardingSlide {
@@ -66,13 +60,13 @@ interface OnboardingSlide {
   title: string;
   description: string;
   color: string;
-  type?: 'standard' | 'features' | 'goal' | 'currency' | 'import' | 'cta' | 'ai-demo';
+  type?: 'standard' | 'features' | 'currency' | 'import' | 'cta' | 'ai-demo' | 'persona' | 'ai-chat' | 'income-name' | 'income-amount' | 'income-frequency' | 'starting-balance';
   features?: Array<{ icon: string; text: string }>;
 }
 
 const OnboardingScreen: React.FC = () => {
-  const { getCurrencySymbol } = useCurrency();
-  const { markOnboardingComplete } = useAppFlow();
+  const { getCurrencySymbol, convertToUSD, currencyCode } = useCurrency();
+  const { markOnboardingComplete, markIncomeSetupComplete, markCategorySetupComplete } = useAppFlow();
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const scrollViewRef = useRef<ScrollView>(null);
@@ -81,8 +75,12 @@ const OnboardingScreen: React.FC = () => {
   const { shouldUseGlowEffects } = usePerformance();
   const insets = useSafeAreaInsets();
 
-  // Personalization state
-  const [selectedGoal, setSelectedGoal] = useState<UserGoal | null>(null);
+  // Persona-based category state
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
+  const [isAIChatMode, setIsAIChatMode] = useState(false);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [categorySetupComplete, setCategorySetupComplete] = useState(false);
 
   // Currency state
   const [currency, setCurrency] = useState('USD');
@@ -96,6 +94,16 @@ const OnboardingScreen: React.FC = () => {
   const [shouldShowImportSlide, setShouldShowImportSlide] = useState(true);
   const [hasTransactions, setHasTransactions] = useState<boolean | null>(null);
 
+  // Income & Balance state
+  const [incomeName, setIncomeName] = useState('');
+  const [incomeAmount, setIncomeAmount] = useState('');
+  const [incomeFrequency, setIncomeFrequency] = useState<IncomeFrequency>('MONTHLY');
+  const [incomeDayOfMonth, setIncomeDayOfMonth] = useState<number>(15);
+  const [incomeDayOfWeek, setIncomeDayOfWeek] = useState<number>(1);
+  const [startingBalance, setStartingBalanceValue] = useState('');
+  const [isSavingIncome, setIsSavingIncome] = useState(false);
+  const [incomeSetupLocalComplete, setIncomeSetupLocalComplete] = useState(false);
+
   // AI Demo state - track if user has interacted with AI demo
   const [hasInteractedWithAI, setHasInteractedWithAI] = useState(false);
 
@@ -103,42 +111,42 @@ const OnboardingScreen: React.FC = () => {
   const featureAnim = useRef(new Animated.Value(0)).current;
 
   const onboardingSlides: OnboardingSlide[] = [
-    // Phase 1: Value Proposition
+    // Phase 1: Value Proposition (ordered to match WelcomeScreen: Voice/Receipt → AI)
     {
       id: 'welcome',
       phase: 'value',
       icon: 'hand-wave',
       title: 'Welcome to Finly',
-      description: 'Your path to financial clarity, without the spreadsheets, without the stress.',
+      description: 'Financial clarity. Effortlessly. No spreadsheets, no stress.',
       color: '#6366F1',
       type: 'standard',
-    },
-    {
-      id: 'ai-power',
-      phase: 'value',
-      icon: 'brain',
-      title: 'AI That Gets You',
-      description: 'Ask questions in plain English. Get answers, not data dumps. Finly understands your habits and helps you make smarter decisions.',
-      color: '#8B5CF6',
-      type: 'features',
-      features: [
-        { icon: 'chat-processing', text: 'Ask anything about your money' },
-        { icon: 'lightbulb', text: 'Insights that actually help' },
-        { icon: 'shield-lock', text: 'Private. Always.' }
-      ],
     },
     {
       id: 'effortless',
       phase: 'value',
       icon: 'lightning-bolt',
-      title: 'Effortless. Really.',
-      description: 'Multiple ways to log expenses in seconds. No bank connection needed. Your data stays private.',
+      title: 'Log in Seconds',
+      description: 'Multiple ways to track expenses instantly. No bank linking required.',
       color: '#10B981',
       type: 'features',
       features: [
-        { icon: 'microphone', text: `"Coffee for ${getCurrencySymbol()}5, Fast food for 20". Done!` },
-        { icon: 'camera', text: 'Snap a receipt' },
+        { icon: 'microphone', text: 'Speak it. Logged.' },
+        { icon: 'camera', text: 'Snap receipts. Done.' },
         { icon: 'keyboard', text: 'Quick manual entry' },
+      ],
+    },
+    {
+      id: 'ai-power',
+      phase: 'value',
+      icon: 'brain',
+      title: 'AI That Actually Helps',
+      description: 'Ask questions in plain English. Get answers, not data dumps.',
+      color: '#8B5CF6',
+      type: 'features',
+      features: [
+        { icon: 'chat-processing', text: 'Ask anything about your money' },
+        { icon: 'lightbulb', text: 'Insights you can act on' },
+        { icon: 'shield-lock', text: 'Private by design' }
       ],
     },
     // AI Demo - Let users try the AI before committing
@@ -156,7 +164,7 @@ const OnboardingScreen: React.FC = () => {
       phase: 'value',
       icon: 'chart-box',
       title: 'Clarity at a Glance',
-      description: 'Beautiful charts and trends. Understand your spending patterns. Make informed decisions.',
+      description: 'Beautiful charts. Smart trends. Decisions made easy.',
       color: '#F59E0B',
       type: 'features',
       features: [
@@ -167,29 +175,74 @@ const OnboardingScreen: React.FC = () => {
     },
     // Phase 2: Personalization
     {
-      id: 'goal',
-      phase: 'personalization',
-      icon: 'target',
-      title: "What's Your Goal?",
-      description: 'Help us personalize your experience. Pick your primary focus.',
-      color: '#EC4899',
-      type: 'goal',
-    },
-    {
       id: 'currency',
       phase: 'personalization',
       icon: 'currency-usd',
       title: 'Select Currency',
-      description: 'Choose your primary currency for tracking expenses and income.',
+      description: 'Choose your primary currency for tracking.',
       color: '#10B981',
       type: 'currency',
+    },
+    {
+      id: 'income-name',
+      phase: 'personalization',
+      icon: 'tag-outline',
+      title: 'Monthly Income',
+      description: "What's this income called?",
+      color: '#10B981',
+      type: 'income-name',
+    },
+    {
+      id: 'income-amount',
+      phase: 'personalization',
+      icon: 'cash',
+      title: 'How much?',
+      description: 'Enter your typical monthly income after tax.',
+      color: '#10B981',
+      type: 'income-amount',
+    },
+    {
+      id: 'income-frequency',
+      phase: 'personalization',
+      icon: 'calendar-month',
+      title: 'How often?',
+      description: 'Select how frequently you receive this income. You can edit this schedule anytime from Settings.',
+      color: '#10B981',
+      type: 'income-frequency',
+    },
+    {
+      id: 'starting-balance',
+      phase: 'personalization',
+      icon: 'wallet',
+      title: 'Current Balance',
+      description: 'How much money do you have in your accounts right now?',
+      color: '#10B981',
+      type: 'starting-balance',
+    },
+    {
+      id: 'persona',
+      phase: 'personalization',
+      icon: 'account-group',
+      title: 'Who Are You?',
+      description: 'Pick your lifestyle for personalized categories with smart budgets.',
+      color: '#8B5CF6',
+      type: 'persona',
+    },
+    {
+      id: 'ai-chat',
+      phase: 'personalization',
+      icon: 'robot-happy',
+      title: 'Tell Me More',
+      description: 'Describe your lifestyle for custom AI-generated categories.',
+      color: '#8B5CF6',
+      type: 'ai-chat',
     },
     {
       id: 'import',
       phase: 'personalization',
       icon: 'file-import',
       title: 'Switching Apps?',
-      description: 'Bring your transaction history from another app. Your financial journey continues seamlessly.',
+      description: 'Bring your transaction history from another app.',
       color: '#6366F1',
       type: 'import',
     },
@@ -199,7 +252,7 @@ const OnboardingScreen: React.FC = () => {
       phase: 'action',
       icon: 'rocket-launch',
       title: "You're All Set!",
-      description: "Let's unlock the full power of Finly and start your journey to financial clarity.",
+      description: "Your personalized categories are ready. Let's start your journey to financial clarity.",
       color: '#10B981',
       type: 'cta',
     },
@@ -226,8 +279,19 @@ const OnboardingScreen: React.FC = () => {
       }
     };
 
+    const loadPersonas = async () => {
+      try {
+        const personaList = await apiService.getPersonas();
+        setPersonas(personaList);
+      } catch (error) {
+        console.error('[Onboarding] Error loading personas:', error);
+        // Use empty array - will show AI chat option only
+      }
+    };
+
     checkExistingTransactions();
     loadCurrencies();
+    loadPersonas();
   }, []);
 
   // Animate features when on feature slides
@@ -266,25 +330,135 @@ const OnboardingScreen: React.FC = () => {
     setCurrency(curr);
     await saveUserCurrency(curr);
     await setGlobalCurrency(curr);
-  };
 
-  const handleGoalSelect = async (goal: UserGoal) => {
-    setSelectedGoal(goal);
-    await AsyncStorage.setItem(USER_GOAL_KEY, goal);
-
-    // Sync goal with backend for personalized insights
+    // Save as base currency for precise financial calculations
     try {
-      await apiService.updateGoal(goal);
+      await apiService.updateBaseCurrency(curr);
     } catch (error) {
-      // Silent fail - goal is saved locally, will sync on next app load
-      console.warn('[Onboarding] Failed to sync goal with backend:', error);
+      console.warn('[Onboarding] Failed to save base currency:', error);
+      // Non-blocking - continue even if this fails
     }
   };
 
-  // Filter slides based on import preference
+  /**
+   * Handle persona selection and setup categories
+   */
+  const handlePersonaSelect = async (personaId: string) => {
+    setSelectedPersonaId(personaId);
+    setIsLoadingCategories(true);
+
+    try {
+      // Setup categories from persona
+      await apiService.setupCategoriesFromPersona(personaId, 0); // Income will be set later in IncomeSetupScreen
+      setCategorySetupComplete(true);
+
+      // Auto-advance to next slide after categories are set up
+      setTimeout(() => {
+        setIsLoadingCategories(false);
+        handleNext();
+      }, 500);
+    } catch (error) {
+      console.error('[Onboarding] Failed to setup categories from persona:', error);
+      Alert.alert('Error', 'Failed to set up categories. Please try again.');
+      setIsLoadingCategories(false);
+    }
+  };
+
+  /**
+   * Switch to AI chat mode
+   */
+  const handleChatWithAI = () => {
+    setIsAIChatMode(true);
+
+    // Calculate index with isAIChatMode = true (state hasn't updated yet)
+    const slidesWithAIChat = onboardingSlides.filter((slide) => {
+      if (slide.type === 'import' && (!shouldShowImportSlide || hasTransactions)) {
+        return false;
+      }
+      // Include AI chat slide since we're switching to that mode
+      return true;
+    });
+
+    const aiChatIndex = slidesWithAIChat.findIndex(s => s.type === 'ai-chat');
+    if (aiChatIndex >= 0) {
+      scrollViewRef.current?.scrollTo({
+        x: aiChatIndex * width,
+        animated: true,
+      });
+      setCurrentIndex(aiChatIndex);
+    }
+  };
+
+  /**
+   * Handle AI category generation
+   */
+  const handleAICategorySubmit = async (description: string) => {
+    setIsLoadingCategories(true);
+
+    try {
+      // Calculate monthly value for budgeting
+      const amountNum = parseFloat(incomeAmount);
+      let monthlyValue = convertToUSD(amountNum);
+
+      if (incomeFrequency === 'WEEKLY') {
+        monthlyValue = monthlyValue * 4.33;
+      } else if (incomeFrequency === 'BIWEEKLY') {
+        monthlyValue = monthlyValue * 2.16;
+      }
+
+      // Generate categories using AI
+      const generatedCategories = await apiService.generateCategoriesFromAI(
+        description,
+        monthlyValue,
+        currencyCode
+      );
+
+      // Setup categories from AI response
+      await apiService.setupCategoriesFromAI(generatedCategories, monthlyValue);
+      setCategorySetupComplete(true);
+
+      // Skip to import or CTA slide
+      setIsLoadingCategories(false);
+      handleNext();
+    } catch (error) {
+      console.error('[Onboarding] Failed to generate AI categories:', error);
+      Alert.alert('Error', 'Failed to generate categories. Please try again or choose a profile.');
+      setIsLoadingCategories(false);
+    }
+  };
+
+  /**
+   * Go back from AI chat to persona selection
+   */
+  const handleBackFromAIChat = () => {
+    setIsAIChatMode(false);
+    const personaIndex = filteredSlides.findIndex(s => s.type === 'persona');
+    if (personaIndex >= 0) {
+      scrollViewRef.current?.scrollTo({
+        x: personaIndex * width,
+        animated: true,
+      });
+      setCurrentIndex(personaIndex);
+    }
+  };
+
+  // Filter slides based on preferences and state
   const filteredSlides = onboardingSlides.filter((slide) => {
+    // Hide import slide if user has transactions
     if (slide.type === 'import' && (!shouldShowImportSlide || hasTransactions)) {
       return false;
+    }
+    // Hide AI chat slide unless user explicitly chose it
+    if (slide.type === 'ai-chat' && !isAIChatMode) {
+      return false;
+    }
+    // Hide income & balance slides if user already has transactions (existing user)
+    // Also hide currency and persona selection - they've already set these up
+    if (hasTransactions) {
+      const skipForExistingUsers = ['income-name', 'income-amount', 'income-frequency', 'starting-balance', 'currency', 'persona'];
+      if (skipForExistingUsers.includes(slide.type || '')) {
+        return false;
+      }
     }
     return true;
   });
@@ -300,14 +474,76 @@ const OnboardingScreen: React.FC = () => {
     }
   };
 
+  /**
+   * PERSISTENCE: Save Income & Balance
+   */
+  const handleSaveIncomeAndBalance = async () => {
+    if (isSavingIncome) return;
+    setIsSavingIncome(true);
+
+    try {
+      // 1. Save Income Source
+      const amountNum = parseFloat(incomeAmount);
+      const amountInUSD = convertToUSD(amountNum);
+
+      await createIncomeSource({
+        name: incomeName,
+        amount: amountInUSD,
+        originalAmount: amountNum,
+        originalCurrency: currencyCode,
+        frequency: incomeFrequency,
+        startDate: new Date().toISOString(),
+        autoAdd: true,
+        dayOfMonth: incomeFrequency === 'MONTHLY' ? incomeDayOfMonth : undefined,
+        dayOfWeek: incomeFrequency === 'WEEKLY' ? incomeDayOfWeek : undefined,
+      });
+
+      // 2. Save Starting Balance via transaction (same approach as Adjust Balance modal)
+      const balanceNum = parseFloat(startingBalance) || 0;
+
+      // Only create adjustment transaction if user specified a balance
+      if (balanceNum > 0) {
+        const balanceInUSD = convertToUSD(balanceNum);
+        await apiService.adjustBalanceByTransaction({
+          amount: balanceNum,
+          currency: currencyCode,
+          amountInUSD: balanceInUSD,
+        });
+      }
+      await markIncomeSetupComplete();
+
+      setIncomeSetupLocalComplete(true);
+
+      // Auto-advance to persona selection
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      const nextIdx = currentIndex + 1;
+      if (nextIdx < filteredSlides.length) {
+        scrollViewRef.current?.scrollTo({ x: nextIdx * width, animated: true });
+        setCurrentIndex(nextIdx);
+      }
+    } catch (error) {
+      console.error('[Onboarding] Failed to save income/balance:', error);
+      Alert.alert('Setup Error', 'We couldn\'t save your financial info. Please try again.');
+    } finally {
+      setIsSavingIncome(false);
+    }
+  };
+
   const handleNext = () => {
     const currentSlide = filteredSlides[currentIndex];
 
     if (!currentSlide) return;
 
-    // Validate goal selection
-    if (currentSlide.type === 'goal' && !selectedGoal) {
-      return; // Must select a goal
+    // Custom flow for starting-balance (persistence trigger)
+    if (currentSlide.type === 'starting-balance') {
+      handleSaveIncomeAndBalance();
+      return;
+    }
+
+    // Skip persona slide validation if already complete
+    if (currentSlide.type === 'persona' && !categorySetupComplete) {
+      return; // Must select a persona
     }
 
     // Handle import slide
@@ -339,8 +575,31 @@ const OnboardingScreen: React.FC = () => {
   };
 
   const handleComplete = async () => {
-    await markOnboardingComplete();
-    // Navigation to Paywall is handled by AppNavigator based on flow state
+    setIsSavingIncome(true);
+    try {
+      try {
+        // Sync timezone one last time before completing
+        const deviceTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (deviceTimezone) {
+          await apiService.updateTimezone(deviceTimezone);
+        }
+      } catch (error) {
+        console.error('[Onboarding] Final timezone sync failed:', error);
+      }
+
+      await markOnboardingComplete();
+      // Also mark income setup complete since it was done within onboarding slides
+      await markIncomeSetupComplete();
+
+      // If user has transactions (existing user), they don't need category setup
+      if (hasTransactions) {
+        await markCategorySetupComplete();
+      }
+
+      // Navigation to Paywall or CategoryOnboarding is handled by AppNavigator based on flow state
+    } finally {
+      setIsSavingIncome(false);
+    }
   };
 
   const handleScroll = Animated.event(
@@ -501,7 +760,7 @@ const OnboardingScreen: React.FC = () => {
     );
   };
 
-  const renderGoalSlide = (slide: OnboardingSlide, index: number) => {
+  const renderPersonaSlide = (slide: OnboardingSlide, index: number) => {
     const inputRange = [
       (index - 1) * width,
       index * width,
@@ -523,45 +782,45 @@ const OnboardingScreen: React.FC = () => {
     return (
       <Animated.View
         key={slide.id}
-        style={[styles.slide, { opacity, transform: [{ scale }] }]}
+        style={[styles.slide, { width, opacity, transform: [{ scale }] }]}
       >
-        <View style={[styles.iconContainer, { backgroundColor: slide.color + '20' }]}>
-          <Icon name={slide.icon as any} size={80} color={slide.color} />
-        </View>
-        <Text style={[styles.title, { color: theme.text }]}>{slide.title}</Text>
-        <Text style={[styles.description, { color: theme.textSecondary }]}>
-          {slide.description}
-        </Text>
+        <PersonaSelectionSlide
+          personas={personas}
+          selectedPersonaId={selectedPersonaId}
+          onSelectPersona={handlePersonaSelect}
+          onChatWithAI={handleChatWithAI}
+          isLoading={isLoadingCategories}
+        />
+      </Animated.View>
+    );
+  };
 
-        <View style={styles.goalsGrid}>
-          {GOALS.map((goal) => (
-            <TouchableOpacity
-              key={goal.id}
-              style={[
-                styles.goalCard,
-                {
-                  backgroundColor: selectedGoal === goal.id ? goal.color + '20' : theme.card,
-                  borderColor: selectedGoal === goal.id ? goal.color : theme.border,
-                },
-              ]}
-              onPress={() => handleGoalSelect(goal.id)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.goalIconContainer, { backgroundColor: goal.color + '20' }]}>
-                <Icon name={goal.icon as any} size={28} color={goal.color} />
-              </View>
-              <Text style={[styles.goalTitle, { color: theme.text }]}>{goal.title}</Text>
-              <Text style={[styles.goalDescription, { color: theme.textSecondary }]}>
-                {goal.description}
-              </Text>
-              {selectedGoal === goal.id && (
-                <View style={[styles.goalCheck, { backgroundColor: goal.color }]}>
-                  <Icon name="check" size={16} color="#FFFFFF" />
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
+  /**
+   * Render AI Chat Slide - Custom category generation
+   */
+  const renderAIChatSlide = (slide: OnboardingSlide, index: number) => {
+    const inputRange = [
+      (index - 1) * width,
+      index * width,
+      (index + 1) * width,
+    ];
+
+    const opacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0, 1, 0],
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <Animated.View
+        key={slide.id}
+        style={[styles.slide, { width, opacity }]}
+      >
+        <AICategoryChat
+          onSubmit={handleAICategorySubmit}
+          onBack={handleBackFromAIChat}
+          isLoading={isLoadingCategories}
+        />
       </Animated.View>
     );
   };
@@ -722,6 +981,148 @@ const OnboardingScreen: React.FC = () => {
     );
   };
 
+  /**
+   * Render Income Name Slide
+   */
+  const renderIncomeNameSlide = (slide: OnboardingSlide, index: number) => {
+    const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
+    const opacity = scrollX.interpolate({ inputRange, outputRange: [0.3, 1, 0.3], extrapolate: 'clamp' });
+    const scale = scrollX.interpolate({ inputRange, outputRange: [0.8, 1, 0.8], extrapolate: 'clamp' });
+
+    return (
+      <Animated.View key={slide.id} style={[styles.slide, { opacity, transform: [{ scale }] }]}>
+        <View style={[styles.iconContainer, { backgroundColor: slide.color + '20' }]}>
+          <Icon name={slide.icon as any} size={80} color={slide.color} />
+        </View>
+        <Text style={[styles.title, { color: theme.text }]}>{slide.title}</Text>
+        <Text style={[styles.description, { color: theme.textSecondary }]}>{slide.description}</Text>
+
+        <View style={styles.inputSlideContainer}>
+          <TextInput
+            style={[styles.onboardingInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            placeholder="e.g. Salary, Side Gig"
+            placeholderTextColor={theme.textTertiary}
+            value={incomeName}
+            onChangeText={setIncomeName}
+            autoFocus={currentIndex === index}
+          />
+        </View>
+      </Animated.View>
+    );
+  };
+
+  /**
+   * Render Income Amount Slide
+   */
+  const renderIncomeAmountSlide = (slide: OnboardingSlide, index: number) => {
+    const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
+    const opacity = scrollX.interpolate({ inputRange, outputRange: [0.3, 1, 0.3], extrapolate: 'clamp' });
+    const scale = scrollX.interpolate({ inputRange, outputRange: [0.8, 1, 0.8], extrapolate: 'clamp' });
+
+    return (
+      <Animated.View key={slide.id} style={[styles.slide, { opacity, transform: [{ scale }] }]}>
+        <View style={[styles.iconContainer, { backgroundColor: slide.color + '20' }]}>
+          <Icon name={slide.icon as any} size={80} color={slide.color} />
+        </View>
+        <Text style={[styles.title, { color: theme.text }]}>{slide.title}</Text>
+        <Text style={[styles.description, { color: theme.textSecondary }]}>{slide.description}</Text>
+
+        <View style={styles.inputSlideContainer}>
+          <View style={[styles.amountInputWrapper, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <CurrencyInput
+              value={incomeAmount}
+              onChangeText={setIncomeAmount}
+              placeholder="0.00"
+              placeholderTextColor={theme.textTertiary}
+              large
+              showSymbol={true}
+              inputStyle={[styles.amountInput, { color: theme.text }]}
+            />
+          </View>
+        </View>
+      </Animated.View>
+    );
+  };
+
+  /**
+   * Render Income Frequency Slide
+   */
+  const renderIncomeFrequencySlide = (slide: OnboardingSlide, index: number) => {
+    const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
+    const opacity = scrollX.interpolate({ inputRange, outputRange: [0.3, 1, 0.3], extrapolate: 'clamp' });
+
+    return (
+      <Animated.View key={slide.id} style={[styles.slide, { opacity }]}>
+        <View style={[styles.iconContainer, { backgroundColor: slide.color + '20' }]}>
+          <Icon name={slide.icon as any} size={80} color={slide.color} />
+        </View>
+        <Text style={[styles.title, { color: theme.text }]}>{slide.title}</Text>
+        <Text style={[styles.description, { color: theme.textSecondary }]}>{slide.description}</Text>
+
+        <View style={styles.frequencySelectionContainer}>
+          {FREQUENCY_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.freqOption,
+                {
+                  backgroundColor: incomeFrequency === option.value ? theme.primary + '20' : theme.card,
+                  borderColor: incomeFrequency === option.value ? theme.primary : theme.border,
+                },
+              ]}
+              onPress={() => {
+                setIncomeFrequency(option.value);
+                Haptics.selectionAsync();
+              }}
+            >
+              <View style={styles.freqOptionContent}>
+                <Icon name={option.icon as any} size={28} color={incomeFrequency === option.value ? theme.primary : theme.textSecondary} />
+                <View>
+                  <Text style={[styles.freqLabel, { color: theme.text }]}>{option.label}</Text>
+                  <Text style={[styles.freqDesc, { color: theme.textTertiary }]}>{option.description}</Text>
+                </View>
+              </View>
+              {incomeFrequency === option.value && <Icon name="check-circle" size={24} color={theme.primary} />}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Animated.View>
+    );
+  };
+
+  /**
+   * Render Starting Balance Slide
+   */
+  const renderStartingBalanceSlide = (slide: OnboardingSlide, index: number) => {
+    const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
+    const opacity = scrollX.interpolate({ inputRange, outputRange: [0.3, 1, 0.3], extrapolate: 'clamp' });
+    const scale = scrollX.interpolate({ inputRange, outputRange: [0.8, 1, 0.8], extrapolate: 'clamp' });
+
+    return (
+      <Animated.View key={slide.id} style={[styles.slide, { opacity, transform: [{ scale }] }]}>
+        <View style={[styles.iconContainer, { backgroundColor: slide.color + '20' }]}>
+          <Icon name={slide.icon as any} size={80} color={slide.color} />
+        </View>
+        <Text style={[styles.title, { color: theme.text }]}>{slide.title}</Text>
+        <Text style={[styles.description, { color: theme.textSecondary }]}>{slide.description}</Text>
+
+        <View style={styles.inputSlideContainer}>
+          <View style={[styles.amountInputWrapper, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <CurrencyInput
+              value={startingBalance}
+              onChangeText={setStartingBalanceValue}
+              placeholder="0.00"
+              placeholderTextColor={theme.textTertiary}
+              large
+              showSymbol={true}
+              inputStyle={[styles.amountInput, { color: theme.text }]}
+            />
+          </View>
+        </View>
+      </Animated.View>
+    );
+  };
+
   const renderCtaSlide = (slide: OnboardingSlide, index: number) => {
     const inputRange = [
       (index - 1) * width,
@@ -810,10 +1211,20 @@ const OnboardingScreen: React.FC = () => {
     switch (slide.type) {
       case 'features':
         return renderFeaturesSlide(slide, index);
-      case 'goal':
-        return renderGoalSlide(slide, index);
+      case 'persona':
+        return renderPersonaSlide(slide, index);
+      case 'ai-chat':
+        return renderAIChatSlide(slide, index);
       case 'currency':
         return renderCurrencySlide(index);
+      case 'income-name':
+        return renderIncomeNameSlide(slide, index);
+      case 'income-amount':
+        return renderIncomeAmountSlide(slide, index);
+      case 'income-frequency':
+        return renderIncomeFrequencySlide(slide, index);
+      case 'starting-balance':
+        return renderStartingBalanceSlide(slide, index);
       case 'import':
         return renderImportSlide(slide, index);
       case 'cta':
@@ -829,7 +1240,15 @@ const OnboardingScreen: React.FC = () => {
     const currentSlide = filteredSlides[currentIndex];
     if (!currentSlide) return false;
 
-    if (currentSlide.type === 'goal' && !selectedGoal) return false;
+    // Persona slide requires selection (handled via auto-advance)
+    if (currentSlide.type === 'persona' && !categorySetupComplete && !isLoadingCategories) return true; // Can scroll but Next button advances
+    if (currentSlide.type === 'ai-chat') return false; // Submit button advances, not Next
+
+    // Income validation
+    if (currentSlide.type === 'income-name' && !incomeName.trim()) return false;
+    if (currentSlide.type === 'income-amount' && (!incomeAmount || parseFloat(incomeAmount) <= 0)) return false;
+    if (currentSlide.type === 'starting-balance' && !startingBalance) return false;
+
     if (currentSlide.type === 'import' && wantsToImport === null) return false;
     if (currentSlide.type === 'ai-demo' && !hasInteractedWithAI) return false;
 
@@ -841,6 +1260,8 @@ const OnboardingScreen: React.FC = () => {
     const currentSlide = filteredSlides[currentIndex];
     if (currentIndex === filteredSlides.length - 1) return 'Continue';
     if (currentSlide?.type === 'ai-demo') return "I'm Impressed! Continue";
+    if (currentSlide?.type === 'persona') return categorySetupComplete ? 'Next' : 'Select a Profile';
+    if (currentSlide?.type === 'starting-balance') return isSavingIncome ? 'Saving...' : 'Set & Continue';
     return 'Next';
   };
 
@@ -954,9 +1375,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxxl,
+    paddingTop: spacing.xxl + 20,
+    minHeight: 50,
   },
   phaseItem: {
     flexDirection: 'row',
@@ -970,6 +1392,8 @@ const styles = StyleSheet.create({
   },
   phaseLabel: {
     ...typography.labelSmall,
+    width: 70, // Fixed width to prevent shifting
+    textAlign: 'left',
   },
   phaseLine: {
     width: 30,
@@ -981,27 +1405,28 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg, // Reduced for more breathing room
   },
   iconContainer: {
-    width: 140,
-    height: 140,
-    borderRadius: borderRadius.full,
+    width: 100, // Reduced from 140
+    height: 100,
+    borderRadius: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   title: {
-    ...typography.headlineLarge,
-    fontWeight: '700',
+    ...typography.headlineMedium,
+    fontWeight: '800',
     textAlign: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   description: {
-    ...typography.bodyLarge,
+    ...typography.bodyMedium,
     textAlign: 'center',
-    lineHeight: 24,
-    paddingHorizontal: spacing.md,
+    lineHeight: 20,
+    paddingHorizontal: spacing.lg,
+    opacity: 0.8,
   },
   featuresList: {
     width: '100%',
@@ -1171,16 +1596,65 @@ const styles = StyleSheet.create({
     ...typography.bodyMedium,
     fontWeight: '500',
   },
+  inputSlideContainer: {
+    width: '100%',
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.md,
+  },
+  onboardingInput: {
+    ...typography.titleLarge,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1.5,
+    textAlign: 'center',
+  },
+  amountInputWrapper: {
+    borderRadius: borderRadius.lg,
+    borderWidth: 1.5,
+    paddingVertical: spacing.md,
+  },
+  amountInput: {
+    ...typography.headlineSmall,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  frequencySelectionContainer: {
+    width: '100%',
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  freqOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+  },
+  freqOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  freqLabel: {
+    ...typography.bodyLarge,
+    fontWeight: '600',
+  },
+  freqDesc: {
+    ...typography.bodySmall,
+  },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
   },
   dot: {
-    height: 8,
-    borderRadius: 4,
+    height: 6,
+    borderRadius: 3,
   },
   actions: {
     flexDirection: 'row',

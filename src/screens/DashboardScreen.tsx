@@ -141,7 +141,7 @@ const DashboardScreen: React.FC = () => {
   const navigation = useNavigation<DashboardNavigationProp>();
   const insets = useSafeAreaInsets();
   const { isPremium, getRemainingUsage } = useSubscription();
-  const { openBottomSheet, setOnTransactionAdded } = useBottomSheetActions();
+  const { openBottomSheet, subscribeToTransactionChanges } = useBottomSheetActions();
   const { showError, showSuccess, showInfo, AlertComponent } = useAlert();
   const optionsSheetRef = useRef<BottomSheet>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -327,7 +327,20 @@ const DashboardScreen: React.FC = () => {
       };
 
       checkNotificationPermission();
-    }, [paywallComplete])
+
+      // Sync timezone if it has changed from what's in the user profile
+      const syncTimezone = async () => {
+        try {
+          const deviceTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          if (deviceTimezone && deviceTimezone !== user?.timezone) {
+            await apiService.updateTimezone(deviceTimezone);
+          }
+        } catch (error) {
+          console.error('[DashboardScreen] Timezone sync failed:', error);
+        }
+      };
+      syncTimezone();
+    }, [paywallComplete, user?.timezone])
   );
 
   // Scroll to top when tab is pressed while already on this screen
@@ -335,16 +348,14 @@ const DashboardScreen: React.FC = () => {
 
   // Register callback to refresh when transaction is added
   useEffect(() => {
-    setOnTransactionAdded(() => {
-      logger.debug('[DashboardScreen] Transaction added, refreshing data...');
-        loadData(true); // Skip cache when transaction is added to show latest data
-      });
+    const unsubscribe = subscribeToTransactionChanges(() => {
+      logger.debug('[DashboardScreen] Transaction changed, refreshing data...');
+      loadData(true); // Skip cache when transaction changes to show latest data
+    });
 
     // Cleanup on unmount
-    return () => {
-      setOnTransactionAdded(null);
-    };
-  }, [setOnTransactionAdded]);
+    return unsubscribe;
+  }, [subscribeToTransactionChanges]);
 
   useEffect(() => {
     // Start gradient animation

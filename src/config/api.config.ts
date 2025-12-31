@@ -67,7 +67,8 @@ export const API_ENDPOINTS = {
     ME: '/auth/me',
     DELETE_ACCOUNT: '/auth/account',
     DELETE_ALL_DATA: '/auth/delete-all-data',
-    UPDATE_BALANCE: '/auth/balance'
+    UPDATE_BALANCE: '/auth/balance',
+    UPDATE_BASE_CURRENCY: '/auth/base-currency'
   },
 
   // Expenses
@@ -87,7 +88,10 @@ export const API_ENDPOINTS = {
     DETAIL: '/categories/:id',
     ROLLOVER: '/categories/:id/rollover', // Get rollover summary for sinking fund categories
     IMPORT: '/categories/import',
-    IMPORT_BATCH: '/categories/import/batch'
+    IMPORT_BATCH: '/categories/import/batch',
+    PERSONAS: '/categories/personas',
+    SETUP_FROM_PERSONA: '/categories/setup-from-persona',
+    SETUP_FROM_AI: '/categories/setup-from-ai',
   },
 
   // Income
@@ -149,7 +153,8 @@ export const API_ENDPOINTS = {
     THREADS: '/ai/threads',
     TRANSCRIBE_AUDIO: '/ai/transcribe-audio',
     PARSE_TRANSACTIONS: '/ai/parse-transactions',
-    EXTRACT_RECEIPT: '/ai/extract-receipt'
+    EXTRACT_RECEIPT: '/ai/extract-receipt',
+    GENERATE_CATEGORIES: '/ai/generate-categories',
   }
 } as const;
 

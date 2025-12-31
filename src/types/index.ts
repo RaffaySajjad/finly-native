@@ -242,6 +242,8 @@ export interface User {
   originalBalanceAmount?: number | null;
   originalBalanceCurrency?: string | null;
   baseCurrency?: string | null;
+  timezone?: string;
+  financialGoal?: string;
 }
 
 export type SubscriptionTier = 'FREE' | 'PREMIUM' | 'ENTERPRISE';

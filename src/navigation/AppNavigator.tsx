@@ -267,7 +267,15 @@ const AppNavigator: React.FC = () => {
   const dispatch = useAppDispatch();
   const { isAuthenticated, isRestoringAuth } = useAppSelector((state) => state.auth);
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
-  const { onboardingComplete, paywallComplete, incomeSetupComplete, categorySetupComplete, refreshFlowState, markPaywallComplete } = useAppFlow();
+  const {
+    onboardingComplete,
+    paywallComplete,
+    incomeSetupComplete,
+    categorySetupComplete,
+    refreshFlowState,
+    markPaywallComplete,
+    isFlowStateLoading
+  } = useAppFlow();
   const { reloadCurrency } = useCurrency();
 
   // Access subscription state from Redux to sync paywall completion across platforms
@@ -313,12 +321,27 @@ const AppNavigator: React.FC = () => {
     if (isAuthenticated && !previousAuthRef.current) {
     // User just logged in - refresh subscription and flow state
       dispatch(checkSubscriptionStatus());
-      dispatch(refreshUser()); // Refresh user profile (streaks, goals, etc.)
-      refreshFlowState();
+      dispatch(refreshUser())
+        .unwrap()
+        .then(() => {
+          console.log('[CURRENCY_DEBUG] AppNavigator refreshUser SUCCESS. Calling reloadCurrency...');
+          // Reload currency AFTER user profile sync to ensure baseCurrency is picked up
+          // This fixes the bug where currency reverts to USD if login response lacked baseCurrency
+          reloadCurrency();
+          // Also refresh flow state again to ensure all flags are up to date
+          refreshFlowState();
+        })
+        .catch((err) => {
+          console.log('[CURRENCY_DEBUG] AppNavigator refreshUser FAILED:', err);
+          console.error('[AppNavigator] Failed to refresh user on login:', err);
+          // Fallback: reload currency anyway in case login response WAS sufficient
+          reloadCurrency();
+          refreshFlowState();
+        });
 
       // Reload currency and exchange rate to ensure correct values after login
       // This fixes the bug where currency symbol is correct but value shows in USD
-      reloadCurrency();
+      // reloadCurrency(); -> Moved to inside then() block
 
       // Prefetch data for frequently visited screens in the background
       // This improves perceived performance when navigating to these screens
@@ -458,6 +481,12 @@ const AppNavigator: React.FC = () => {
 
   // Quick actions are ready when user is authenticated and all setup is complete
   const isQuickActionsReady = isAuthenticated && onboardingComplete === true && paywallComplete === true && incomeSetupComplete === true && categorySetupComplete === true;
+
+  // Bail out early if flow state is loading or flags are unresolved
+  // This prevents the split-second 'Welcome' screen flash for returning users
+  if (isFlowStateLoading || (isAuthenticated && onboardingComplete === null)) {
+    return null;
+  }
 
   return (
     <NavigationContainer

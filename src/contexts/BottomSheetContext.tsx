@@ -23,7 +23,8 @@ interface BottomSheetActionsContextType {
   openBottomSheet: (editingExpense?: Expense, editingIncome?: IncomeTransaction) => void;
   setBottomSheetRef: (ref: BottomSheetModal | null) => void;
   onTransactionAdded: () => void;
-  setOnTransactionAdded: (callback: (() => void) | null) => void;
+  /** Subscribe to transaction changes. Returns unsubscribe function. */
+  subscribeToTransactionChanges: (callback: () => void) => () => void;
   onParsedTransactionUpdate: ((update: ParsedTransactionUpdate) => void) | null;
   setOnParsedTransactionUpdate: (callback: ((update: ParsedTransactionUpdate) => void) | null) => void;
 }
@@ -41,7 +42,6 @@ const BottomSheetEditStateContext = createContext<BottomSheetEditStateContextTyp
 export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const handlerRef = useRef<(() => void) | null>(null);
   const bottomSheetRefRef = useRef<BottomSheetModal | null>(null);
-  const onTransactionAddedRef = useRef<(() => void) | null>(null);
   const onParsedTransactionUpdateRef = useRef<((update: ParsedTransactionUpdate) => void) | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editingIncome, setEditingIncome] = useState<IncomeTransaction | null>(null);
@@ -55,13 +55,36 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
   }, []);
 
   const setOnTransactionAdded = useCallback((callback: (() => void) | null) => {
-    onTransactionAddedRef.current = callback;
+    // DEPRECATED: Kept for backward compatibility, use subscribeToTransactionChanges instead
+    // This will be the 'primary' callback for existing code
+    if (callback) {
+      transactionSubscribersRef.current.add(callback);
+    }
+  }, []);
+
+  // New subscriber pattern - returns unsubscribe function
+  const transactionSubscribersRef = useRef<Set<() => void>>(new Set());
+
+  const subscribeToTransactionChanges = useCallback((callback: () => void) => {
+    transactionSubscribersRef.current.add(callback);
+    logger.debug(`[BottomSheetContext] Subscriber added, total: ${transactionSubscribersRef.current.size}`);
+
+    // Return unsubscribe function
+    return () => {
+      transactionSubscribersRef.current.delete(callback);
+      logger.debug(`[BottomSheetContext] Subscriber removed, total: ${transactionSubscribersRef.current.size}`);
+    };
   }, []);
 
   const onTransactionAdded = useCallback(() => {
-    if (onTransactionAddedRef.current) {
-      onTransactionAddedRef.current();
-    }
+    logger.debug(`[BottomSheetContext] Notifying ${transactionSubscribersRef.current.size} subscribers`);
+    transactionSubscribersRef.current.forEach(callback => {
+      try {
+        callback();
+      } catch (error) {
+        logger.error('[BottomSheetContext] Subscriber callback error:', error);
+      }
+    });
   }, []);
 
   const setOnParsedTransactionUpdate = useCallback((callback: ((update: ParsedTransactionUpdate) => void) | null) => {
@@ -115,7 +138,7 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
       openBottomSheet,
       setBottomSheetRef,
       onTransactionAdded,
-      setOnTransactionAdded,
+      subscribeToTransactionChanges,
       onParsedTransactionUpdate,
       setOnParsedTransactionUpdate,
     }),
@@ -124,7 +147,7 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
       openBottomSheet,
       setBottomSheetRef,
       onTransactionAdded,
-      setOnTransactionAdded,
+      subscribeToTransactionChanges,
       onParsedTransactionUpdate,
       setOnParsedTransactionUpdate,
     ]

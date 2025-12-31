@@ -42,6 +42,7 @@ import { Expense, IncomeTransaction, Category } from '../types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { useAppSelector } from '../store';
 import { getValidIcon } from '../utils/iconUtils';
+import { reviewService } from '../services/reviewService';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -369,6 +370,12 @@ const VoiceTransactionScreen: React.FC = () => {
           },
         ]
       );
+
+      // Track voice entry as valuable action, plus transactions for review prompts
+      reviewService.trackValuableAction('voice_transaction');
+      for (let i = 0; i < selectedTransactions.length; i++) {
+        reviewService.trackTransaction();
+      }
     } catch (error) {
       showError('Error', 'Failed to save transactions');
       console.error(error);

@@ -14,6 +14,7 @@ import { useCurrency } from '../../contexts/CurrencyContext';
 import { typography, spacing, borderRadius, elevation } from '../../theme';
 import { CHART_CONFIG } from './constants';
 import { formatYAxisLabel } from './utils';
+import ChartEmptyState from './ChartEmptyState';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -108,12 +109,12 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
     return (
       <View style={[styles.container, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
-        <View style={styles.emptyState}>
-          <Icon name="chart-bar" size={48} color={theme.textTertiary} />
-          <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-            No spending data yet
-          </Text>
-        </View>
+        <ChartEmptyState
+          variant="bar"
+          title="No spending data yet"
+          subtitle="Add expenses to see your category breakdown"
+          compact
+        />
       </View>
     );
   }

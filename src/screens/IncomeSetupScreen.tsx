@@ -397,9 +397,9 @@ const IncomeSetupScreen: React.FC = () => {
         balanceInUSD,
         'Initial balance setup',
         balance, // Original Amount
-      currencyCode, // Original Currency
-      currencyCode // This first selection becomes the 'Base Currency' anchor
-    );
+        selectedCurrency, // Original Currency
+        selectedCurrency // This first selection becomes the 'Base Currency' anchor
+      );
       // Also save locally for setup checks (save the USD value to be consistent)
       await setStartingBalance(balanceInUSD);
 
@@ -411,6 +411,16 @@ const IncomeSetupScreen: React.FC = () => {
       
       // Mark income setup as complete
       await markIncomeSetupComplete();
+
+      // Sync timezone as well
+      try {
+        const deviceTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (deviceTimezone) {
+          await apiService.updateTimezone(deviceTimezone);
+        }
+      } catch (error) {
+        console.error('[IncomeSetupScreen] Timezone sync failed:', error);
+      }
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       

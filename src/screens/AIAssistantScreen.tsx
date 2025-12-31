@@ -40,6 +40,7 @@ import MarkdownText from '../components/MarkdownText';
 import PremiumBadge from '../components/PremiumBadge';
 import { GradientHeader } from '../components/GradientHeader';
 import { Toast } from '../components/Toast';
+import { reviewService } from '../services/reviewService';
 
 type AIAssistantNavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -279,6 +280,9 @@ const AIAssistantScreen: React.FC = () => {
       setQueryLimits(updatedLimits);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Track AI chat usage as valuable action for review prompts
+      reviewService.trackValuableAction('ai_chat_used');
     } catch (error: any) {
       // Note: Placeholder message is only created after successful API response,
       // so no need to remove it on error

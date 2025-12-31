@@ -281,6 +281,7 @@ export const saveLastUsedCurrency = async (currencyCode: string): Promise<void> 
 export const getUserCurrency = async (): Promise<string> => {
   try {
     const savedCurrency = await AsyncStorage.getItem(CURRENCY_STORAGE_KEY);
+    console.log(`[CURRENCY_DEBUG] getUserCurrency read from storage: ${savedCurrency}`);
     return savedCurrency || 'USD'; // Default to USD
   } catch (error) {
     console.error('Error getting user currency:', error);
@@ -293,6 +294,7 @@ export const getUserCurrency = async (): Promise<string> => {
  */
 export const saveUserCurrency = async (currencyCode: string): Promise<void> => {
   try {
+    console.log(`[CURRENCY_DEBUG] saveUserCurrency writing to storage: ${currencyCode}`);
     await AsyncStorage.setItem(CURRENCY_STORAGE_KEY, currencyCode);
     await saveLastUsedCurrency(currencyCode);
   } catch (error) {

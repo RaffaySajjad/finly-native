@@ -36,6 +36,7 @@ import { extractReceiptTransactions } from '../services/receiptOCRService';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
 import { Category } from '../types';
+import { reviewService } from '../services/reviewService';
 
 type ReceiptUploadNavigationProp = StackNavigationProp<RootStackParamList, 'ReceiptUpload'>;
 
@@ -293,6 +294,9 @@ const ReceiptUploadScreen: React.FC = () => {
 
         // Open SharedBottomSheet with pre-filled expense data
         openBottomSheet(prefillExpense);
+
+        // Track receipt scan as valuable action for review prompts
+        reviewService.trackValuableAction('receipt_scan');
       }
 
       if (incomeTransactions.length > 0) {

@@ -34,53 +34,188 @@ interface DemoMessage {
 }
 
 // Scripted conversation showcasing 3 key AI capabilities
-const DEMO_CONVERSATION: DemoMessage[] = [
-  // Greeting
-  {
-    id: 'greeting',
-    type: 'assistant',
-    content: "Hey! I'm Finly AI. Let me show you what I can do...",
-    delay: 500,
-  },
-  // 1. Natural Language Queries
-  {
-    id: 'q1',
-    type: 'user',
-    content: "How much did I spend on coffee this month?",
-    delay: 1500,
-  },
-  {
-    id: 'a1',
-    type: 'assistant',
-    content: "☕ You've spent $47.50 on coffee this month. That's 12 purchases, averaging $3.96 per coffee. Want me to track this as a category?",
-    delay: 1800,
-  },
-  // 2. Pattern Detection & Insights
-  {
-    id: 'q2',
-    type: 'user',
-    content: "Any spending patterns I should know about?",
-    delay: 2200,
-  },
-  {
-    id: 'a2',
-    type: 'assistant',
-    content: "📊 I noticed you spend 40% more on weekends, and your subscription costs jumped $15 since last month. Also, you tend to overspend in the last week before payday. Want tips to fix that?",
-    delay: 2000,
-  },
-  // 3. Personalized Actionable Advice
-  {
-    id: 'q3',
-    type: 'user',
-    content: "Help me save $200 this month",
-    delay: 2200,
-  },
-  {
-    id: 'a3',
-    type: 'assistant',
-    content: "💡 Based on your habits:\n• Cut 2 coffee runs/week → Save $32\n• Skip one weekend dinner out → Save $45\n• Cancel unused gym subscription → Save $29\n• Pack lunch 3x/week → Save $60\n\nThat's $166! Add one more coffee skip and you're there. I can remind you!",
-    delay: 2500,
-  },
+// Scripted conversations showcasing key AI capabilities
+const DEMO_CONVERSATIONS: DemoMessage[][] = [
+  // Scenario 1: Daily Spending (Original)
+  [
+    {
+      id: 'greeting',
+      type: 'assistant',
+      content: "Hey! I'm Finly AI. Let me show you what I can do...",
+      delay: 500,
+    },
+    {
+      id: 'q1',
+      type: 'user',
+      content: "How much did I spend on coffee this month?",
+      delay: 1500,
+    },
+    {
+      id: 'a1',
+      type: 'assistant',
+      content: "☕ You've spent $47.50 on coffee this month. That's 12 purchases, averaging $3.96 per coffee. Want me to track this as a category?",
+      delay: 1800,
+    },
+    {
+      id: 'q2',
+      type: 'user',
+      content: "Any spending patterns I should know about?",
+      delay: 2200,
+    },
+    {
+      id: 'a2',
+      type: 'assistant',
+      content: "📊 I noticed you spend 40% more on weekends, and your subscription costs jumped $15 since last month. Also, you tend to overspend in the last week before payday. Want tips to fix that?",
+      delay: 2000,
+    },
+    {
+      id: 'q3',
+      type: 'user',
+      content: "Help me save $200 this month",
+      delay: 2200,
+    },
+    {
+      id: 'a3',
+      type: 'assistant',
+      content: "💡 Based on your habits:\n• Cut 2 coffee runs/week → Save $32\n• Skip one weekend dinner out → Save $45\n• Cancel unused gym subscription → Save $29\n• Pack lunch 3x/week → Save $60\n\nThat's $166! Add one more coffee skip and you're there. I can remind you!",
+      delay: 2500,
+    },
+  ],
+  // Scenario 2: Subscriptions & Recurring Bills (EUR)
+  [
+    {
+      id: 'greeting_sub',
+      type: 'assistant',
+      content: "Hi! I'm Finly AI. I can help you find hidden costs...",
+      delay: 500,
+    },
+    {
+      id: 'q1_sub',
+      type: 'user',
+      content: "How much am I spending on subscriptions?",
+      delay: 1500,
+    },
+    {
+      id: 'a1_sub',
+      type: 'assistant',
+      content: "📅 You have 8 active subscriptions totaling €135/month. The biggest ones are Netflix (€18), Gym (€45), and Spotify (€15).",
+      delay: 1800,
+    },
+    {
+      id: 'q2_sub',
+      type: 'user',
+      content: "Can I cut costs anywhere?",
+      delay: 2000,
+    },
+    {
+      id: 'a2_sub',
+      type: 'assistant',
+      content: "✂️ You haven't visited the gym in 2 months. Canceling that saves €45/mo immediately. Also, you have two cloud storage plans—want me to compare them?",
+      delay: 2000,
+    },
+    {
+      id: 'q3_sub',
+      type: 'user',
+      content: "Yes, help me cancel that gym membership.",
+      delay: 2000,
+    },
+    {
+      id: 'a3_sub',
+      type: 'assistant',
+      content: "✅ I've generated a cancellation email for 'City Gym'. Just hit send, and I'll track the refund for you. That's an easy €540 saved per year!",
+      delay: 2200,
+    },
+  ],
+  // Scenario 3: Travel Goal (GBP)
+  [
+    {
+      id: 'greeting_travel',
+      type: 'assistant',
+      content: "Hello! I'm Finly AI. I turn your financial goals into reality...",
+      delay: 500,
+    },
+    {
+      id: 'q1_travel',
+      type: 'user',
+      content: "I want to save for a trip to Japan in 6 months.",
+      delay: 1500,
+    },
+    {
+      id: 'a1_travel',
+      type: 'assistant',
+      content: "🇯🇵 Awesome! A week in Japan typically costs ~£2,100. To hit that, you need to save ~£350/month. Ready to set this up?",
+      delay: 1800,
+    },
+    {
+      id: 'q2_travel',
+      type: 'user',
+      content: "That sounds high. Can I afford it?",
+      delay: 2200,
+    },
+    {
+      id: 'a2_travel',
+      type: 'assistant',
+      content: "💰 It's a stretch, but possible. If you limit 'Dining Out' to £150/mo (saving £100) and pause your 'Gadgets' fund (saving £80), you're over halfway there.",
+      delay: 2200,
+    },
+    {
+      id: 'q3_travel',
+      type: 'user',
+      content: "Okay, show me a savings plan.",
+      delay: 2000,
+    },
+    {
+      id: 'a3_travel',
+      type: 'assistant',
+      content: "📉 Here's your 'Japan 2024' plan:\n• Auto-save £90/week\n• Alert when Dining > £40/week\n• Move £300 from Rainy Day fund\n\nYou'll be eating sushi in Tokyo by November! 🍣",
+      delay: 2500,
+    },
+  ],
+  // Scenario 4: Food/Dining Budget
+  [
+    {
+      id: 'greeting_food',
+      type: 'assistant',
+      content: "Hey there! I'm Finly AI. I keep your budget on track...",
+      delay: 500,
+    },
+    {
+      id: 'q1_food',
+      type: 'user',
+      content: "Why is my balance so low this month?",
+      delay: 1500,
+    },
+    {
+      id: 'a1_food',
+      type: 'assistant',
+      content: "🍔 Food spending is high! You've spent $650 on dining out—$400 of that was UberEats. That's 3x your normal average.",
+      delay: 2000,
+    },
+    {
+      id: 'q2_food',
+      type: 'user',
+      content: "Ouch. Which places are the worst offenders?",
+      delay: 2000,
+    },
+    {
+      id: 'a2_food',
+      type: 'assistant',
+      content: "🍕 'Pizza Palace' ($120) and 'Sushi Spot' ($95) appear 6 times this month. You strictly ordered late at night on Fridays.",
+      delay: 2000,
+    },
+    {
+      id: 'q3_food',
+      type: 'user',
+      content: "Set a strict food budget for me.",
+      delay: 2000,
+    },
+    {
+      id: 'a3_food',
+      type: 'assistant',
+      content: "🛡️ Done. I've set a 'Dining Out' limit of $300/mo. I'll alert you when you hit 50%, 80%, and 100%. Cook more next week to get back on track! 🍳",
+      delay: 2500,
+    },
+  ],
 ];
 
 const AIIntroSlide: React.FC<AIIntroSlideProps> = ({ slideColor, onDemoComplete }) => {
@@ -90,6 +225,13 @@ const AIIntroSlide: React.FC<AIIntroSlideProps> = ({ slideColor, onDemoComplete 
   const [isTyping, setIsTyping] = useState(false);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [demoComplete, setDemoComplete] = useState(false);
+
+  // Randomly select one conversation on mount
+  const [currentConversation] = useState(() => {
+    const randomIndex = Math.floor(Math.random() * DEMO_CONVERSATIONS.length);
+    return DEMO_CONVERSATIONS[randomIndex];
+  });
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
   const messageAnimations = useRef<{ [key: string]: Animated.Value }>({});
@@ -105,14 +247,14 @@ const AIIntroSlide: React.FC<AIIntroSlideProps> = ({ slideColor, onDemoComplete 
 
   // Play the demo conversation automatically
   useEffect(() => {
-    if (currentMessageIndex >= DEMO_CONVERSATION.length) {
+    if (currentMessageIndex >= currentConversation.length) {
       setIsTyping(false);
       setDemoComplete(true);
       onDemoComplete();
       return;
     }
 
-    const message = DEMO_CONVERSATION[currentMessageIndex];
+    const message = currentConversation[currentMessageIndex];
     
     // Show typing indicator for assistant messages
     if (message.type === 'assistant' && currentMessageIndex > 0) {
@@ -146,7 +288,7 @@ const AIIntroSlide: React.FC<AIIntroSlideProps> = ({ slideColor, onDemoComplete 
     }, message.delay);
 
     return () => clearTimeout(timer);
-  }, [currentMessageIndex, onDemoComplete]);
+  }, [currentMessageIndex, onDemoComplete, currentConversation]);
 
   const getMessageAnimation = (id: string) => {
     if (!messageAnimations.current[id]) {

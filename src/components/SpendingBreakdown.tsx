@@ -24,6 +24,7 @@ import { useCurrency } from '../contexts/CurrencyContext';
 import { Category } from '../types';
 import { RootStackParamList } from '../navigation/types';
 import { typography, spacing, borderRadius, elevation } from '../theme';
+import ChartEmptyState from './charts/ChartEmptyState';
 
 const SORTED_CATEGORIES_LIMIT = 5;
 
@@ -171,13 +172,11 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
   if (sortedCategories.length === 0) {
     return (
       <View style={[styles.emptyContainer, { backgroundColor: theme.card, borderColor: theme.border }, elevation.sm]}>
-        <Icon name="chart-pie" size={48} color={theme.textTertiary} />
-        <Text style={[styles.emptyTitle, { color: theme.textSecondary }]}>
-          No spending data yet
-        </Text>
-        <Text style={[styles.emptySubtitle, { color: theme.textTertiary }]}>
-          Add expenses to see your breakdown
-        </Text>
+        <ChartEmptyState
+          variant="pie"
+          title="No spending data yet"
+          subtitle="Add expenses to see your breakdown"
+        />
       </View>
     );
   }

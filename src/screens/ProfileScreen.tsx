@@ -33,7 +33,7 @@ import { logout as logoutAction, updateProfile as updateProfileAction, deleteAcc
 import { toggleMockIAP, loadDevSettings } from '../store/slices/devSettingsSlice';
 import { iapService } from '../services/iap.service';
 import { useSubscription } from '../hooks/useSubscription';
-import { BottomSheetBackground, SettingItem, Header, InputGroup, PrimaryButton, SecondaryButton, CurrencySelector, DeleteAccountSheet, FAQItem } from '../components';
+import { BottomSheetBackground, SettingItem, Header, InputGroup, PrimaryButton, SecondaryButton, CurrencySelector, DeleteAccountSheet, FAQItem, LoadingOverlay } from '../components';
 import StreakCard from '../components/StreakCard';
 import { DeleteAccountSheetRef } from '../components/DeleteAccountSheet';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -55,6 +55,7 @@ import { apiService } from '../services/api';
 import { notificationService } from '../services/notificationService';
 import { useGoal, GOAL_INFO } from '../hooks/useGoal';
 import GoalSelectorSheet, { GoalSelectorSheetRef } from '../components/GoalSelectorSheet';
+import { reviewService } from '../services/reviewService';
 
 /**
  * ProfileScreen - User settings and preferences
@@ -78,6 +79,7 @@ const ProfileScreen: React.FC = () => {
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [currency, setCurrency] = useState('USD');
+  const [isCurrencyLoading, setIsCurrencyLoading] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricSupported, setBiometricSupported] = useState(false);
@@ -188,11 +190,25 @@ const ProfileScreen: React.FC = () => {
   };
 
   const handleCurrencySelect = async (curr: string) => {
-    setCurrency(curr);
-    await saveUserCurrency(curr); // This already calls saveLastUsedCurrency
-    await setCurrencyGlobal(curr); // Update global currency context
-    Haptics.selectionAsync();
-    currencySheetRef.current?.close();
+    // Show loading to prevent race conditions from closing the modal early
+    setIsCurrencyLoading(true);
+
+    try {
+      setCurrency(curr);
+      await saveUserCurrency(curr); // This already calls saveLastUsedCurrency
+      await setCurrencyGlobal(curr); // Update global currency context
+
+      // Sync baseCurrency to backend so calculations stay anchored
+      await apiService.updateBaseCurrency(curr);
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Failed to update currency:', error);
+      showError('Error', 'Failed to update currency. Please try again.');
+    } finally {
+      setIsCurrencyLoading(false);
+      currencySheetRef.current?.close();
+    }
   };
 
   const handleOpenCurrencySheet = () => {
@@ -545,6 +561,25 @@ const ProfileScreen: React.FC = () => {
               subtitle="Send a test push notification to this device"
               onPress={handleSendTestNotification}
             />
+            <SettingItem
+              icon="star-outline"
+              title="Test Review Prompt"
+              subtitle="Force show the 'Enjoying Finly?' prompt"
+              onPress={async () => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                await reviewService.forcePrompt();
+              }}
+            />
+            <SettingItem
+              icon="refresh"
+              title="Reset Review State"
+              subtitle={`Transactions: ${reviewService.getState()?.transactionCount || 0}, Actions: ${reviewService.getState()?.valuableActions?.length || 0}`}
+              onPress={async () => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                await reviewService.reset();
+                showSuccess('Reset', 'Review tracking state has been reset');
+              }}
+            />
           </View>
         )}
 
@@ -797,6 +832,15 @@ const ProfileScreen: React.FC = () => {
       <DeleteAccountSheet
         ref={deleteAccountSheetRef}
       />
+
+      {/* Currency Loading Overlay */}
+      <LoadingOverlay
+        visible={isCurrencyLoading}
+        message="Updating currency..."
+        subtitle="Please wait while we sync your preferences"
+        fullScreen
+      />
+
       {AlertComponent}
     </View>
   );

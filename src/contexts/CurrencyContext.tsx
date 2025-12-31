@@ -142,12 +142,15 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
 
   const loadCurrency = async () => {
     try {
+      console.log('[CURRENCY_DEBUG] CurrencyContext loadCurrency START');
       const code = await getUserCurrency();
+      console.log(`[CURRENCY_DEBUG] CurrencyContext loadCurrency loading code: ${code}`);
       const currencyData = getCurrencyByCode(code) || DEFAULT_CURRENCY;
       setCurrencyState(currencyData);
       setCurrencyCode(code);
       // Load exchange rate for the initial currency
       await loadExchangeRate(code);
+      console.log('[CURRENCY_DEBUG] CurrencyContext loadCurrency FINISH');
     } catch (error) {
       console.error('Error loading currency:', error);
     }

@@ -53,6 +53,7 @@ export { NotificationPermissionBanner } from './NotificationPermissionBanner';
 export { AnimatedSplashScreen } from './AnimatedSplashScreen';
 export { PaymentIssueModal } from './PaymentIssueModal';
 export { GradientHeader } from './GradientHeader';
+export { default as LoadingOverlay } from './LoadingOverlay';
 
 // Filter components
 export * from './filters';

@@ -38,14 +38,15 @@ interface FeatureItem {
   icon: string;
   title: string;
   delay: number;
+  isSubtle?: boolean; // For the privacy line - styled differently
 }
 
+// 3 Hero Features + 1 Privacy Trust Line (Wilmer's ASO strategy)
 const features: FeatureItem[] = [
-  { icon: 'lightning-bolt', title: 'Know where your money goes', delay: 400 },
-  { icon: 'receipt-text-outline', title: 'Snap any receipt. Done!', delay: 550 },
-  { icon: 'microphone', title: 'Just say it, we\'ll log it', delay: 700 },
-  { icon: 'chart-line', title: 'AI insights that matter', delay: 850 },
-  { icon: 'shield-check-outline', title: 'Your data stays yours', delay: 1000 },
+  { icon: 'microphone', title: 'Speak it. Logged.', delay: 400 },
+  { icon: 'camera', title: 'Snap receipts. Done.', delay: 550 },
+  { icon: 'robot', title: 'AI that actually helps', delay: 700 },
+  { icon: 'shield-lock', title: 'Private by design. No bank linking.', delay: 850, isSubtle: true },
 ];
 
 /**
@@ -272,7 +273,7 @@ const WelcomeScreen: React.FC = () => {
             <Animated.View
               key={feature.title}
               style={[
-                styles.featureItem,
+                feature.isSubtle ? styles.subtleFeatureItem : styles.featureItem,
                 {
                   opacity: featureAnimations[index].opacity,
                   transform: [
@@ -284,16 +285,22 @@ const WelcomeScreen: React.FC = () => {
             >
               <Animated.View
                 style={[
-                  styles.featureIcon,
-                  shouldUseGlowEffects && {
+                  feature.isSubtle ? styles.subtleFeatureIcon : styles.featureIcon,
+                  !feature.isSubtle && shouldUseGlowEffects && {
                     ...glowEffects.subtle,
                     shadowColor: '#22D3EE',
                   },
                 ]}
               >
-                <Icon name={feature.icon as any} size={20} color="#22D3EE" />
+                <Icon
+                  name={feature.icon as any}
+                  size={feature.isSubtle ? 16 : 20}
+                  color={feature.isSubtle ? 'rgba(255, 255, 255, 0.6)' : '#22D3EE'}
+                />
               </Animated.View>
-              <Text style={styles.featureText}>{feature.title}</Text>
+              <Text style={feature.isSubtle ? styles.subtleFeatureText : styles.featureText}>
+                {feature.title}
+              </Text>
             </Animated.View>
           ))}
         </View>
@@ -468,6 +475,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     letterSpacing: 0.2,
+  },
+  // Subtle privacy/trust line - smaller, muted styling
+  subtleFeatureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+    opacity: 0.85,
+  },
+  subtleFeatureIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subtleFeatureText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.7)',
+    letterSpacing: 0.1,
   },
   // Actions Section
   actionsSection: {

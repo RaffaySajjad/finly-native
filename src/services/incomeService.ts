@@ -26,10 +26,8 @@ export const getIncomeSources = async (): Promise<IncomeSource[]> => {
  */
 export const createIncomeSource = async (source: Omit<IncomeSource, 'id' | 'createdAt' | 'updatedAt' | 'isActive'>): Promise<IncomeSource> => {
   try {
-    // Convert startDate to ISO string if it's a Date object
-    const startDate = source.startDate instanceof Date 
-      ? source.startDate.toISOString() 
-      : source.startDate;
+    // Start date is already a string in the input type
+    const startDate = source.startDate;
     
     const newSource = await apiService.createIncomeSource({
       name: source.name,
@@ -55,10 +53,8 @@ export const createIncomeSource = async (source: Omit<IncomeSource, 'id' | 'crea
  */
 export const updateIncomeSource = async (sourceId: string, updates: Partial<Omit<IncomeSource, 'id' | 'createdAt'>>): Promise<IncomeSource> => {
   try {
-    // Convert startDate to ISO string if it's a Date object
-    const startDate = updates.startDate instanceof Date 
-      ? updates.startDate.toISOString() 
-      : updates.startDate;
+    // Start date is already a string in the input type
+    const startDate = updates.startDate;
     
     const updateData: any = {};
     if (updates.name !== undefined) updateData.name = updates.name;
@@ -115,12 +111,10 @@ export const getIncomeTransactions = async (options?: {
 /**
  * Add a manual income transaction
  */
-export const addIncomeTransaction = async (transaction: Omit<IncomeTransaction, 'id'>): Promise<IncomeTransaction> => {
+export const addIncomeTransaction = async (transaction: Omit<IncomeTransaction, 'id' | 'createdAt' | 'userId'>): Promise<IncomeTransaction> => {
   try {
-    // Convert date to ISO string if it's a Date object
-    const date = transaction.date instanceof Date 
-      ? transaction.date.toISOString() 
-      : transaction.date;
+    // Date is already a string in the input type
+    const date = transaction.date;
     
     const newTransaction = await apiService.createIncomeTransaction({
       amount: transaction.amount,

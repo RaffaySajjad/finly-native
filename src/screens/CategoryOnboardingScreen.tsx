@@ -84,9 +84,9 @@ const CategoryOnboardingScreen: React.FC = () => {
   const isPremium = subscription.subscription.tier === 'PREMIUM';
   const { showError, showSuccess, showWarning, showInfo, AlertComponent } = useAlert();
   const { goal } = useGoal(); // Get user's financial goal
-  const { markCategorySetupComplete } = useAppFlow();
+  const { markCategorySetupComplete, incomeSetupComplete } = useAppFlow();
 
-  const [step, setStep] = useState<'income' | 'budgets' | 'loading'>('income');
+  const [step, setStep] = useState<'income' | 'budgets' | 'loading'>('budgets');
   const [monthlyIncome, setMonthlyIncome] = useState('');
   const [categories, setCategories] = useState<CategoryConfig[]>([]);
   const [isSettingUp, setIsSettingUp] = useState(false);
@@ -95,27 +95,63 @@ const CategoryOnboardingScreen: React.FC = () => {
   const firstRowRef = React.useRef<Swipeable>(null);
 
   React.useEffect(() => {
-    const prefillIncome = async () => {
+    const prefillData = async () => {
       try {
+        // 0. CHECK FOR EXISTING TRANSACTIONS (Existing User Check)
+        // If user already has transactions, they shouldn't be in this flow.
+        // This covers the case where an existing user logs out and logs back in.
+        const transactionCheck = await apiService.getUnifiedTransactionsPaginated({ limit: 1 }).catch(() => ({ transactions: [] }));
+        if (transactionCheck.transactions.length > 0) {
+          logger.debug('[CategoryOnboarding] User has transactions, skipping category setup');
+          await markCategorySetupComplete();
+          // Navigation handled by AppNavigator
+          return;
+        }
+
+        // 1. Fetch Income Sources to pre-fill income input (as fallback)
+        let incomeFound = false;
         const incomeSources = await apiService.getIncomeSources();
         if (Array.isArray(incomeSources) && incomeSources.length > 0) {
-          // Sum up all income sources to get total monthly income
-          // This ensures if a user has multiple sources, they are all accounted for
           const totalMonthlyUSD = incomeSources.reduce((sum, source) => sum + (source.amount || 0), 0);
           if (totalMonthlyUSD > 0) {
-            // Convert from USD to user's display currency
             const convertedIncome = convertFromUSD(totalMonthlyUSD);
-            // Format to 2 decimal places for the text input
             setMonthlyIncome(convertedIncome.toFixed(2));
-            logger.debug('[CategoryOnboarding] Pre-filled income from sources (USD -> Converted):', { totalMonthlyUSD, convertedIncome });
+            incomeFound = true;
+            logger.debug('[CategoryOnboarding] Pre-filled income from sources:', { totalMonthlyUSD, convertedIncome });
           }
         }
+
+        const incomeValue = parseFloat(monthlyIncome);
+        const hasIncome = incomeFound || (incomeValue > 0);
+
+        // 2. Fetch Existing Categories (Persona or AI generated)
+        const existingCategories = await apiService.getCategories();
+        if (Array.isArray(existingCategories) && existingCategories.length > 0) {
+          // If we already have categories, map them and skip to budgeting step
+          const mappedCategories: CategoryConfig[] = existingCategories.map(cat => ({
+            name: cat.name,
+            icon: cat.icon,
+            color: cat.color,
+            suggestedBudget: cat.originalAmount || (cat.budgetLimit ? convertFromUSD(cat.budgetLimit) : 0),
+            percentage: 0, // Not needed for existing categories
+            description: cat.isSystemCategory ? 'System category' : 'Personal category'
+          }));
+
+          setCategories(mappedCategories);
+          setStep('budgets');
+          logger.debug('[CategoryOnboarding] Found existing categories, skipping income step:', existingCategories.length);
+        } else if (incomeSetupComplete && hasIncome) {
+          // If income is already setup (from main onboarding) and we have the value,
+          // skip the confirmation and go straight to suggestion generation
+          logger.debug('[CategoryOnboarding] Income already setup, auto-generating suggestions');
+          setStep('budgets');
+        }
       } catch (error) {
-        logger.error('[CategoryOnboarding] Error pre-filling income:', error);
+        logger.error('[CategoryOnboarding] Error pre-filling data:', error);
       }
     };
-    prefillIncome();
-  }, []);
+    prefillData();
+  }, [incomeSetupComplete, monthlyIncome, convertFromUSD]);
 
   React.useEffect(() => {
     // Educational animation: Swipe the first item slightly to show it's interactable
@@ -472,7 +508,19 @@ const CategoryOnboardingScreen: React.FC = () => {
           {/* Header */}
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => setStep('income')}
+              onPress={() => {
+                if (incomeSetupComplete) {
+                  // Check if we can go back - if not, just complete the setup
+                  if (navigation.canGoBack()) {
+                    navigation.goBack();
+                  } else {
+                    // No screen to go back to - mark as complete to proceed
+                    handleSetupComplete();
+                  }
+                } else {
+                  setStep('income');
+                }
+              }}
             activeOpacity={0.7}
           >
             <Icon name="arrow-left" size={24} color={theme.text} />
@@ -797,7 +845,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    minWidth: 100,
+    minWidth: 140, // Increased for visibility of large numbers
   },
   budgetCurrency: {
     ...typography.bodyMedium,

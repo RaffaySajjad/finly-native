@@ -10,6 +10,7 @@ import { API_ENDPOINTS, STORAGE_KEYS } from '../config/api.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import logger from '../utils/logger';
 import { apiCacheService } from './apiCacheService';
+import { saveUserCurrency } from './currencyService';
 
 /**
  * User interface
@@ -23,6 +24,8 @@ export interface User {
   financialGoal?: string;
   hasCategories?: boolean;
   hasIncome?: boolean;
+  baseCurrency?: string;
+  currency?: string;
 }
 
 /**
@@ -467,10 +470,19 @@ class AuthService {
       }
 
       // Phase 2: Category Setup completion
+      // We DO NOT auto-mark category setup as complete just because categories exist.
+      // We want users to see the "Fine-Tune Budgets" screen to adjust their budgets.
+      // For existing users with transactions, CategoryOnboardingScreen will detect transactions and auto-skip.
+      /*
       if (user.hasCategories) {
         updates.push(['@finly_category_setup_completed', 'true']);
         // If categories are set up, onboarding flow (Phase 1) is definitely complete
         updates.push(['@finly_onboarding_completed', 'true']);
+      }
+      */
+      // However, if hasCategories is true, Onboarding (Phase 1) typically IS complete.
+      if (user.hasCategories) {
+         updates.push(['@finly_onboarding_completed', 'true']);
       }
 
       // Phase 3: Income Setup completion
@@ -481,6 +493,22 @@ class AuthService {
       if (updates.length > 0) {
         await AsyncStorage.multiSet(updates);
         logger.debug(`[AuthService] Synced ${updates.length} onboarding flags from backend`);
+      }
+      
+      // Sync Base Currency if present
+      // Check camelCase (baseCurrency), snake_case (base_currency), and legacy/mapped name (currency)
+      const currencyToSync = user.baseCurrency || (user as any).base_currency || user.currency;
+      
+      console.log('[CURRENCY_DEBUG] Auth syncOnboardingFlags - User keys:', Object.keys(user));
+      console.log('[CURRENCY_DEBUG] Auth syncOnboardingFlags - currencyToSync found:', currencyToSync);
+
+      if (currencyToSync) {
+        console.log(`[CURRENCY_DEBUG] Auth Calling saveUserCurrency with: ${currencyToSync}`);
+        await saveUserCurrency(currencyToSync);
+        logger.debug(`[AuthService] Synced base currency: ${currencyToSync}`);
+      } else {
+        console.log('[CURRENCY_DEBUG] Auth NO base currency found in user profile');
+        logger.debug('[AuthService] No base currency found in user profile. Keys:', Object.keys(user));
       }
     } catch (error) {
       logger.error('[AuthService] Error syncing onboarding flags:', error);

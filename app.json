@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Finly AI",
+    "name": "Expense Tracker - Finly AI",
     "slug": "Finly",
     "version": "1.0.0",
     "jsEngine": "hermes",
@@ -22,6 +22,7 @@
     "ios": {
       "bundleIdentifier": "com.raffay.finly",
       "infoPlist": {
+        "CFBundleDisplayName": "Finly AI",
         "NSCameraUsageDescription": "Finly needs access to your camera to scan receipts and capture expense photos.",
         "NSPhotoLibraryUsageDescription": "Finly needs access to your photo library to select receipt images.",
         "NSPhotoLibraryAddUsageDescription": "Finly needs permission to save receipt photos to your library."

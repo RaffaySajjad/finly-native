@@ -4,6 +4,7 @@ import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useCurrency } from '../../contexts/CurrencyContext';
 import { typography, spacing, borderRadius } from '../../theme';
+import AnimatedPercentage from '../AnimatedPercentage';
 
 interface WeeklyComparisonData {
   thisWeek: number;
@@ -29,12 +30,13 @@ export const WeeklyComparisonCard: React.FC<WeeklyComparisonCardProps> = ({ data
     <View style={[styles.container, { backgroundColor: theme.card, borderColor: theme.border }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Weekly Comparison</Text>
-        <View style={[styles.badge, { backgroundColor: trendColor + '20' }]}>
-            <Icon name={trendIcon} size={16} color={trendColor} />
-            <Text style={[styles.badgeText, { color: trendColor }]}>
-                {Math.abs(data.percentChange)}%
-            </Text>
-        </View>
+        <AnimatedPercentage
+          value={data.percentChange}
+          inverted={true}
+          size="md"
+          badge={true}
+          delay={300}
+        />
       </View>
 
       <View style={styles.comparisonContainer}>

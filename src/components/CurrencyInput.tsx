@@ -143,7 +143,7 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
             </TouchableOpacity>
           ) : (
               <Text style={[symbolTextStyle, { color: theme.text }, symbolStyle]}>
-                {displaySymbol}
+                {"  "}{displaySymbol}
               </Text>
             )
         )}

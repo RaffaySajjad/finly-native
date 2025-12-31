@@ -39,7 +39,8 @@ const InputGroup: React.FC<InputGroupProps> = React.memo(({
   required = false,
   containerStyle,
   TextInputComponent = TextInput,
-  ...inputProps
+  style: customStyle, // Destructure style separately to merge it properly
+  ...restInputProps
 }) => {
   const { theme } = useTheme();
 
@@ -57,9 +58,10 @@ const InputGroup: React.FC<InputGroupProps> = React.memo(({
             borderColor: error ? theme.expense : theme.border,
             color: theme.text,
           },
+          customStyle, // Merge custom style last so it can adjust dimensions without losing colors
         ]}
         placeholderTextColor={theme.textTertiary}
-        {...inputProps}
+        {...restInputProps}
       />
       {error && (
         <Text style={[styles.errorText, { color: theme.expense }]}>{error}</Text>

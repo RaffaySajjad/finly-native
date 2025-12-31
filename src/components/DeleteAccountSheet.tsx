@@ -27,7 +27,7 @@ interface DeleteAccountSheetProps {
 const DeleteAccountSheet = forwardRef<DeleteAccountSheetRef, DeleteAccountSheetProps>(({ onSuccess }, ref) => {
   const { theme } = useTheme();
   const dispatch = useAppDispatch();
-  const { showError, showWarning } = useAlert();
+  const { showError, showWarning, AlertComponent } = useAlert();
   const bottomSheetRef = useRef<BottomSheetModal>(null);
 
   const [reasonForDeletion, setReasonForDeletion] = useState('');
@@ -84,14 +84,14 @@ const DeleteAccountSheet = forwardRef<DeleteAccountSheetRef, DeleteAccountSheetP
                 }
               }
 
-              // Close feedback sheet
-              bottomSheetRef.current?.dismiss();
-
               // Proceed with account deletion with feedback
               await dispatch(deleteAccountAction({
                 reasonForDeletion: reasonForDeletion.trim() || undefined,
                 feedback: feedback.trim() || undefined,
               })).unwrap();
+
+              // Close feedback sheet after success
+              bottomSheetRef.current?.dismiss();
 
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
               
@@ -162,7 +162,7 @@ const DeleteAccountSheet = forwardRef<DeleteAccountSheetRef, DeleteAccountSheetP
         </View>
 
         <PrimaryButton
-          label="Permanently Delete Account"
+          label={isLoading ? "Deleting Account..." : "Permanently Delete Account"}
           onPress={handleDelete}
           loading={isLoading}
           backgroundColor={theme.expense}
@@ -176,6 +176,7 @@ const DeleteAccountSheet = forwardRef<DeleteAccountSheetRef, DeleteAccountSheetP
           <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>Cancel</Text>
         </TouchableOpacity>
       </BottomSheetScrollView>
+      {AlertComponent}
     </BottomSheetModal>
   );
 });

@@ -41,6 +41,7 @@ import { useAppSelector } from '../store';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { usePerformance } from '../contexts/PerformanceContext';
+import { useBottomSheetActions } from '../contexts/BottomSheetContext';
 import { PullToRefreshScrollView } from '../components';
 import { CountingNumber, GlassCard } from '../components/PremiumComponents';
 import { typography, spacing, borderRadius, elevation } from '../theme';
@@ -61,6 +62,7 @@ import {
   BottomSheetBackground,
   IconButton
 } from '../components';
+import AnimatedPercentage from '../components/AnimatedPercentage';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -74,8 +76,8 @@ const COLLAPSED_HEIGHT = 80;
 const EXPANDED_HEIGHT = 220;
 
 /**
- * ChangeIndicator - Compact percentage change display
- * Caps display at 999% to prevent layout overflow
+ * ChangeIndicator - Animated percentage change display
+ * Uses AnimatedPercentage component for entrance animations
  */
 interface ChangeIndicatorProps {
   value: number;
@@ -84,27 +86,14 @@ interface ChangeIndicatorProps {
 }
 
 const ChangeIndicator: React.FC<ChangeIndicatorProps> = ({ value, inverted = false, size = 'sm' }) => {
-  const { theme } = useTheme();
-  
-  const isPositive = inverted ? value < 0 : value > 0;
-  const isNeutral = Math.abs(value) < 0.5;
-  
-  const color = isNeutral ? theme.textTertiary : isPositive ? theme.success : theme.expense;
-  const iconName = isNeutral ? 'minus' : value > 0 ? 'trending-up' : 'trending-down';
-  const iconSize = size === 'md' ? 12 : 10;
-  const fontSize = size === 'md' ? 11 : 10;
-
-  // Cap display value for readability
-  const absValue = Math.abs(value);
-  const displayValue = absValue > 999 ? '999+' : absValue.toFixed(2);
-
   return (
-    <View style={[styles.changeIndicator, { backgroundColor: color + '15' }]}>
-      <Icon name={iconName} size={iconSize} color={color} />
-      <Text style={[styles.changeText, { color, fontSize }]}>
-        {displayValue}%
-      </Text>
-    </View>
+    <AnimatedPercentage
+      value={value}
+      inverted={inverted}
+      size={size}
+      badge={true}
+      delay={200}
+    />
   );
 };
 
@@ -292,6 +281,15 @@ const BalanceHistoryScreen: React.FC = () => {
       loadBalanceHistory();
     }, [loadBalanceHistory])
   );
+
+  // Subscribe to transaction changes to refresh balance data
+  const { subscribeToTransactionChanges } = useBottomSheetActions();
+  useEffect(() => {
+    const unsubscribe = subscribeToTransactionChanges(() => {
+      forceRefresh();
+    });
+    return unsubscribe;
+  }, [subscribeToTransactionChanges, forceRefresh]);
 
   // Handle filter change
   const handleFilterChange = useCallback((newRange: DateRange) => {

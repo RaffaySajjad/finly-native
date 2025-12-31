@@ -1,0 +1,366 @@
+node_modules/@expo/vector-icons/build/createIconSet.d.ts(1,8): error TS1259: Module '"/Users/raffaysajjad/Documents/Finly/finly-native/node_modules/@types/react/index"' can only be default-imported using the 'esModuleInterop' flag
+node_modules/@expo/vector-icons/build/createIconSet.d.ts(25,18): error TS2320: Interface 'IconButtonProps<GLYPHS>' cannot simultaneously extend types 'IconProps<GLYPHS>' and 'TouchableHighlightProps'.
+  Named property 'pressRetentionOffset' of types 'IconProps<GLYPHS>' and 'TouchableHighlightProps' are not identical.
+node_modules/@react-navigation/core/lib/typescript/src/StaticNavigation.d.ts(35,27): error TS2315: Type 'StaticParamList' is not generic.
+node_modules/@react-navigation/core/lib/typescript/src/StaticNavigation.d.ts(35,137): error TS2315: Type 'StaticParamList' is not generic.
+node_modules/@react-navigation/core/lib/typescript/src/StaticNavigation.d.ts(130,13): error TS2456: Type alias 'StaticParamList' circularly references itself.
+node_modules/@react-navigation/core/lib/typescript/src/useNavigationBuilder.d.ts(86,136): error TS2344: Type 'Omit<{ dispatch(action: Readonly<{ type: string; payload?: object; source?: string; target?: string; }> | ((state: Readonly<State>) => Readonly<{ type: string; payload?: object; source?: string; target?: string; }>)): void; ... 9 more ...; getState(): State; } & PrivateValueStore<...>, "getParent"> & ... 4 more ... ...' does not satisfy the constraint 'NavigationProp<any, any, any, any, any, any>'.
+  Type 'Omit<{ dispatch(action: Readonly<{ type: string; payload?: object; source?: string; target?: string; }> | ((state: Readonly<State>) => Readonly<{ type: string; payload?: object; source?: string; target?: string; }>)): void; ... 9 more ...; getState(): State; } & PrivateValueStore<...>, "getParent"> & ... 4 more ... ...' is not assignable to type 'Omit<NavigationHelpersCommon<any, any>, "getParent">'.
+    Types of property 'preload' are incompatible.
+      Type '<RouteName extends string>(...args: RouteName extends unknown ? [screen: RouteName, params?: object] : never) => void' is not assignable to type '<RouteName extends string | number | symbol>(...args: RouteName extends unknown ? [screen: RouteName, params?: any] : never) => void'.
+        Types of parameters 'screen' and 'args' are incompatible.
+          Type 'RouteName extends unknown ? [screen: RouteName, params?: any] : never' is not assignable to type '[screen: string, params?: object]'.
+            Type '[screen: string, params?: any] | [screen: number, params?: any] | [screen: symbol, params?: any]' is not assignable to type '[screen: string, params?: object]'.
+              Type '[screen: number, params?: any]' is not assignable to type '[screen: string, params?: object]'.
+                Type at position 0 in source is not compatible with type at position 0 in target.
+                  Type 'number' is not assignable to type 'string'.
+node_modules/@react-navigation/core/lib/typescript/src/useNavigationBuilder.d.ts(138,77): error TS2344: Type 'Omit<{ dispatch(action: Readonly<{ type: string; payload?: object; source?: string; target?: string; }> | ((state: Readonly<State>) => Readonly<{ type: string; payload?: object; source?: string; target?: string; }>)): void; ... 9 more ...; getState(): State; } & PrivateValueStore<...>, "getParent"> & ... 4 more ... ...' does not satisfy the constraint 'NavigationProp<any, any, any, any, any, any>'.
+  Type 'Omit<{ dispatch(action: Readonly<{ type: string; payload?: object; source?: string; target?: string; }> | ((state: Readonly<State>) => Readonly<{ type: string; payload?: object; source?: string; target?: string; }>)): void; ... 9 more ...; getState(): State; } & PrivateValueStore<...>, "getParent"> & ... 4 more ... ...' is not assignable to type 'Omit<NavigationHelpersCommon<any, any>, "getParent">'.
+    Types of property 'preload' are incompatible.
+      Type '<RouteName extends string>(...args: RouteName extends unknown ? [screen: RouteName, params?: object] : never) => void' is not assignable to type '<RouteName extends string | number | symbol>(...args: RouteName extends unknown ? [screen: RouteName, params?: any] : never) => void'.
+        Types of parameters 'screen' and 'args' are incompatible.
+          Type 'RouteName extends unknown ? [screen: RouteName, params?: any] : never' is not assignable to type '[screen: string, params?: object]'.
+            Type '[screen: string, params?: any] | [screen: number, params?: any] | [screen: symbol, params?: any]' is not assignable to type '[screen: string, params?: object]'.
+              Type '[screen: number, params?: any]' is not assignable to type '[screen: string, params?: object]'.
+                Type at position 0 in source is not compatible with type at position 0 in target.
+                  Type 'number' is not assignable to type 'string'.
+node_modules/@types/node/module.d.ts(804,13): error TS2403: Subsequent variable declarations must have the same type.  Variable 'require' must be of type 'NodeRequire', but here has type 'Require'.
+node_modules/@types/react-native-vector-icons/Icon.d.ts(4,5): error TS2724: '"react-native"' has no exported member named 'TabBarIOSItemProps'. Did you mean 'TabBarIOSItemProperties'?
+node_modules/@types/react-native-vector-icons/Icon.d.ts(34,18): error TS2320: Interface 'IconButtonProps' cannot simultaneously extend types 'IconProps' and 'TouchableHighlightProps'.
+  Named property 'pressRetentionOffset' of types 'IconProps' and 'TouchableHighlightProps' are not identical.
+node_modules/@types/react-native-vector-icons/Icon.d.ts(34,18): error TS2320: Interface 'IconButtonProps' cannot simultaneously extend types 'IconProps' and 'TouchableNativeFeedbackProps'.
+  Named property 'pressRetentionOffset' of types 'IconProps' and 'TouchableNativeFeedbackProps' are not identical.
+node_modules/@types/react-native/BatchedBridge.d.ts(8,15): error TS2300: Duplicate identifier 'MessageQueue'.
+node_modules/@types/react-native/BatchedBridge.d.ts(18,20): error TS2300: Duplicate identifier 'BatchedBridge'.
+node_modules/@types/react-native/BatchedBridge.d.ts(22,20): error TS2300: Duplicate identifier 'MessageQueue'.
+node_modules/@types/react-native/Codegen.d.ts(1,1): error TS6200: Definitions of the following identifiers conflict with those in another file: codegenNativeCommands, NativeComponentType, codegenNativeComponent, BubblingEventHandler, DirectEventHandler, Double, Float, Int32, UnsafeObject, DefaultTypes, WithDefault
+node_modules/@types/react-native/Devtools.d.ts(2,17): error TS2300: Duplicate identifier 'StackFrame'.
+node_modules/@types/react-native/globals.d.ts(10,1): error TS6200: Definitions of the following identifiers conflict with those in another file: FormDataValue, FormDataPart, BodyInit_, HeadersInit_, RequestCredentials_, RequestMode_, ResponseType_, WebsocketMessageEventListener, WebsocketErrorEventListener, WebsocketOpenEventListener, WebsocketCloseEventListener, WebsocketEventListener
+node_modules/@types/react-native/globals.d.ts(58,13): error TS2403: Subsequent variable declarations must have the same type.  Variable 'Blob' must be of type '{ new (blobParts?: BlobPart[], options?: BlobPropertyBag): Blob; prototype: Blob; }', but here has type '{ new (blobParts?: (string | Blob)[], options?: BlobOptions): Blob; prototype: Blob; }'.
+node_modules/@types/react-native/globals.d.ts(77,15): error TS2300: Duplicate identifier 'FormData'.
+node_modules/@types/react-native/globals.d.ts(101,13): error TS2403: Subsequent variable declarations must have the same type.  Variable 'Headers' must be of type '{ new (init?: HeadersInit): Headers; prototype: Headers; }', but here has type '{ new (init?: HeadersInit_): Headers; prototype: Headers; }'.
+node_modules/@types/react-native/globals.d.ts(113,5): error TS2374: Duplicate index signature for type 'string'.
+node_modules/@types/react-native/globals.d.ts(135,5): error TS2717: Subsequent property declarations must have the same type.  Property 'body' must be of type 'BodyInit', but here has type 'BodyInit_'.
+node_modules/@types/react-native/globals.d.ts(137,5): error TS2717: Subsequent property declarations must have the same type.  Property 'headers' must be of type 'HeadersInit', but here has type 'HeadersInit_'.
+node_modules/@types/react-native/globals.d.ts(143,5): error TS2717: Subsequent property declarations must have the same type.  Property 'window' must be of type 'null', but here has type 'any'.
+node_modules/@types/react-native/globals.d.ts(157,13): error TS2403: Subsequent variable declarations must have the same type.  Variable 'Request' must be of type '{ new (input: RequestInfo | URL, init?: RequestInit): Request; prototype: Request; }', but here has type '{ new (input: string | Request, init?: RequestInit): Request; prototype: Request; }'.
+node_modules/@types/react-native/globals.d.ts(162,14): error TS2300: Duplicate identifier 'RequestInfo'.
+node_modules/@types/react-native/globals.d.ts(165,5): error TS2717: Subsequent property declarations must have the same type.  Property 'headers' must be of type 'HeadersInit', but here has type 'HeadersInit_'.
+node_modules/@types/react-native/globals.d.ts(181,13): error TS2403: Subsequent variable declarations must have the same type.  Variable 'Response' must be of type '{ new (body?: BodyInit, init?: ResponseInit): Response; prototype: Response; error(): Response; json(data: any, init?: ResponseInit): Response; redirect(url: string | URL, status?: number): Response; }', but here has type '{ new (body?: BodyInit_, init?: ResponseInit): Response; prototype: Response; error: () => Response; redirect: (url: string, status?: number) => Response; }'.
+node_modules/@types/react-native/globals.d.ts(258,5): error TS2717: Subsequent property declarations must have the same type.  Property 'abort' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/@types/react-native/globals.d.ts(259,5): error TS2717: Subsequent property declarations must have the same type.  Property 'error' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/@types/react-native/globals.d.ts(260,5): error TS2717: Subsequent property declarations must have the same type.  Property 'load' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/@types/react-native/globals.d.ts(261,5): error TS2717: Subsequent property declarations must have the same type.  Property 'loadend' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/@types/react-native/globals.d.ts(262,5): error TS2717: Subsequent property declarations must have the same type.  Property 'loadstart' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/@types/react-native/globals.d.ts(263,5): error TS2717: Subsequent property declarations must have the same type.  Property 'progress' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/@types/react-native/globals.d.ts(264,5): error TS2717: Subsequent property declarations must have the same type.  Property 'timeout' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/@types/react-native/globals.d.ts(305,14): error TS2300: Duplicate identifier 'XMLHttpRequestResponseType'.
+node_modules/@types/react-native/globals.d.ts(312,15): error TS2300: Duplicate identifier 'URL'.
+node_modules/@types/react-native/globals.d.ts(337,15): error TS2300: Duplicate identifier 'URLSearchParams'.
+node_modules/@types/react-native/globals.d.ts(382,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onopen' must be of type '(this: WebSocket, ev: Event) => any', but here has type '() => void'.
+node_modules/@types/react-native/globals.d.ts(383,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onmessage' must be of type '(this: WebSocket, ev: MessageEvent<any>) => any', but here has type '(event: WebSocketMessageEvent) => void'.
+node_modules/@types/react-native/globals.d.ts(384,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onerror' must be of type '(this: WebSocket, ev: Event) => any', but here has type '(event: WebSocketErrorEvent) => void'.
+node_modules/@types/react-native/globals.d.ts(385,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onclose' must be of type '(this: WebSocket, ev: CloseEvent) => any', but here has type '(event: WebSocketCloseEvent) => void'.
+node_modules/@types/react-native/globals.d.ts(386,5): error TS2717: Subsequent property declarations must have the same type.  Property 'addEventListener' must be of type '{ <K extends keyof WebSocketEventMap>(type: K, listener: (this: WebSocket, ev: WebSocketEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void; (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void; }', but here has type 'WebsocketEventListener'.
+node_modules/@types/react-native/globals.d.ts(387,5): error TS2717: Subsequent property declarations must have the same type.  Property 'removeEventListener' must be of type '{ <K extends keyof WebSocketEventMap>(type: K, listener: (this: WebSocket, ev: WebSocketEventMap[K]) => any, options?: boolean | EventListenerOptions): void; (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void; }', but here has type 'WebsocketEventListener'.
+node_modules/@types/react-native/globals.d.ts(390,13): error TS2403: Subsequent variable declarations must have the same type.  Variable 'WebSocket' must be of type '{ new (url: string | URL, protocols?: string | string[]): WebSocket; prototype: WebSocket; readonly CONNECTING: 0; readonly OPEN: 1; readonly CLOSING: 2; readonly CLOSED: 3; }', but here has type '{ new (uri: string, protocols?: string | string[], options?: { [optionName: string]: any; headers: { [headerName: string]: string; }; }): WebSocket; prototype: WebSocket; readonly CLOSED: number; readonly CLOSING: number; readonly CONNECTING: number; readonly OPEN: number; }'.
+node_modules/@types/react-native/globals.d.ts(414,15): error TS2300: Duplicate identifier 'AbortSignal'.
+node_modules/@types/react-native/globals.d.ts(414,15): error TS2420: Class 'AbortSignal' incorrectly implements interface 'EventTarget'.
+  Property 'dispatchEvent' is missing in type 'AbortSignal' but required in type 'EventTarget'.
+node_modules/@types/react-native/globals.d.ts(449,15): error TS2300: Duplicate identifier 'AbortController'.
+node_modules/@types/react-native/globals.d.ts(474,14): error TS2717: Subsequent property declarations must have the same type.  Property 'error' must be of type 'DOMException', but here has type 'Error'.
+node_modules/@types/react-native/globals.d.ts(481,14): error TS2717: Subsequent property declarations must have the same type.  Property 'readyState' must be of type '0 | 2 | 1', but here has type 'number'.
+node_modules/@types/react-native/index.d.ts(9873,11): error TS2451: Cannot redeclare block-scoped variable 'originalXMLHttpRequest'.
+node_modules/@types/react-native/index.d.ts(9875,11): error TS2451: Cannot redeclare block-scoped variable '__BUNDLE_START_TIME__'.
+node_modules/@types/react-native/index.d.ts(9876,11): error TS2451: Cannot redeclare block-scoped variable 'ErrorUtils'.
+node_modules/@types/react-native/index.d.ts(9883,11): error TS2451: Cannot redeclare block-scoped variable '__DEV__'.
+node_modules/@types/react-native/index.d.ts(9885,11): error TS2451: Cannot redeclare block-scoped variable 'HermesInternal'.
+node_modules/@types/react-native/legacy-properties.d.ts(1,1): error TS6200: Definitions of the following identifiers conflict with those in another file: TextProperties, TextPropertiesIOS, TextPropertiesAndroid, AccessibilityProperties, AccessibilityPropertiesIOS, AccessibilityPropertiesAndroid, TextInputProperties, TextInputIOSProperties, TextInputAndroidProperties, ViewProperties, ViewPropertiesIOS, ViewPropertiesAndroid, ScrollViewProperties, ScrollViewPropertiesIOS, ScrollViewPropertiesAndroid, InputAccessoryViewProperties, ActivityIndicatorProperties, ActivityIndicatorIOSProperties, DrawerLayoutAndroidProperties, ProgressBarAndroidProperties, RefreshControlProperties, RefreshControlPropertiesIOS, RefreshControlPropertiesAndroid, ImagePropertiesSourceOptions, ImageProperties, ImagePropertiesIOS, ImagePropertiesAndroid, ImageBackgroundProperties, FlatListProperties, VirtualizedListProperties, SectionListProperties, ModalProperties, TouchableWithoutFeedbackProperties, TouchableHighlightProperties, TouchableOpacityProperties, TouchableNativeFeedbackProperties, ButtonProperties, StatusBarProperties, StatusBarPropertiesIOS, StatusBarPropertiesAndroid, SwitchProperties, SwitchPropertiesIOS
+node_modules/@types/react-native/legacy-properties.d.ts(8,5): error TS2724: '"react-native"' has no exported member named 'DatePickerIOSProps'. Did you mean 'DatePickerIOSProperties'?
+node_modules/@types/react-native/legacy-properties.d.ts(17,5): error TS2724: '"react-native"' has no exported member named 'ListViewProps'. Did you mean 'ViewProps'?
+node_modules/@types/react-native/legacy-properties.d.ts(18,5): error TS2724: '"react-native"' has no exported member named 'MaskedViewIOSProps'. Did you mean 'MaskedViewIOSProperties'?
+node_modules/@types/react-native/legacy-properties.d.ts(20,5): error TS2724: '"react-native"' has no exported member named 'NavigatorIOSProps'. Did you mean 'NavigatorIOSProperties'?
+node_modules/@types/react-native/legacy-properties.d.ts(22,5): error TS2724: '"react-native"' has no exported member named 'ProgressViewIOSProps'. Did you mean 'ProgressViewIOSProperties'?
+node_modules/@types/react-native/legacy-properties.d.ts(23,5): error TS2724: '"react-native"' has no exported member named 'RecyclerViewBackedScrollViewProps'. Did you mean 'RecyclerViewBackedScrollViewProperties'?
+node_modules/@types/react-native/legacy-properties.d.ts(31,5): error TS2305: Module '"react-native"' has no exported member 'SliderProps'.
+node_modules/@types/react-native/legacy-properties.d.ts(32,5): error TS2724: '"react-native"' has no exported member named 'SliderPropsAndroid'. Did you mean 'SliderPropertiesAndroid'?
+node_modules/@types/react-native/legacy-properties.d.ts(33,5): error TS2305: Module '"react-native"' has no exported member 'SliderPropsIOS'.
+node_modules/@types/react-native/legacy-properties.d.ts(34,5): error TS2724: '"react-native"' has no exported member named 'SnapshotViewIOSProps'. Did you mean 'SnapshotViewIOSProperties'?
+node_modules/@types/react-native/legacy-properties.d.ts(38,5): error TS2724: '"react-native"' has no exported member named 'SwitchIOSProps'. Did you mean 'SwitchProps'?
+node_modules/@types/react-native/legacy-properties.d.ts(41,5): error TS2724: '"react-native"' has no exported member named 'TabBarIOSItemProps'. Did you mean 'TabBarIOSItemProperties'?
+node_modules/@types/react-native/legacy-properties.d.ts(42,5): error TS2305: Module '"react-native"' has no exported member 'TabBarIOSProps'.
+node_modules/@types/react-native/legacy-properties.d.ts(53,5): error TS2724: '"react-native"' has no exported member named 'ViewPagerAndroidProps'. Did you mean 'ViewPagerAndroidProperties'?
+node_modules/@types/react/global.d.ts(155,11): error TS2300: Duplicate identifier 'FormData'.
+node_modules/react-native-gesture-handler/lib/typescript/components/Pressable/Pressable.d.ts(1,8): error TS1259: Module '"/Users/raffaysajjad/Documents/Finly/finly-native/node_modules/@types/react/index"' can only be default-imported using the 'esModuleInterop' flag
+node_modules/react-native-gesture-handler/lib/typescript/components/Text.d.ts(1,8): error TS1259: Module '"/Users/raffaysajjad/Documents/Finly/finly-native/node_modules/@types/react/index"' can only be default-imported using the 'esModuleInterop' flag
+node_modules/react-native-gesture-handler/lib/typescript/handlers/ForceTouchGestureHandler.d.ts(1,8): error TS1259: Module '"/Users/raffaysajjad/Documents/Finly/finly-native/node_modules/@types/react/index"' can only be default-imported using the 'esModuleInterop' flag
+node_modules/react-native-gesture-handler/lib/typescript/handlers/gestures/GestureDetector/index.d.ts(1,8): error TS1259: Module '"/Users/raffaysajjad/Documents/Finly/finly-native/node_modules/@types/react/index"' can only be default-imported using the 'esModuleInterop' flag
+node_modules/react-native-reanimated/lib/typescript/component/ScrollView.d.ts(2,8): error TS1259: Module '"/Users/raffaysajjad/Documents/Finly/finly-native/node_modules/@types/react/index"' can only be default-imported using the 'esModuleInterop' flag
+node_modules/react-native-reanimated/lib/typescript/createAnimatedComponent/AnimatedComponent.d.ts(2,13): error TS1259: Module '"/Users/raffaysajjad/Documents/Finly/finly-native/node_modules/@types/react/index"' can only be default-imported using the 'esModuleInterop' flag
+node_modules/react-native-reanimated/lib/typescript/jestUtils.d.ts(1,40): error TS2307: Cannot find module 'react-test-renderer' or its corresponding type declarations.
+node_modules/react-native/src/types/globals.d.ts(10,1): error TS6200: Definitions of the following identifiers conflict with those in another file: EndingType, BlobPart, BufferSource, FormData, RequestInfo, XMLHttpRequestResponseType, AbortSignal, AbortController
+node_modules/react-native/src/types/globals.d.ts(10,1): error TS6200: Definitions of the following identifiers conflict with those in another file: FormDataValue, FormDataPart, BodyInit_, HeadersInit_, RequestCredentials_, RequestMode_, ResponseType_, WebsocketMessageEventListener, WebsocketErrorEventListener, WebsocketOpenEventListener, WebsocketCloseEventListener, WebsocketEventListener
+node_modules/react-native/src/types/globals.d.ts(46,9): error TS2451: Cannot redeclare block-scoped variable 'originalXMLHttpRequest'.
+node_modules/react-native/src/types/globals.d.ts(48,9): error TS2451: Cannot redeclare block-scoped variable '__BUNDLE_START_TIME__'.
+node_modules/react-native/src/types/globals.d.ts(49,9): error TS2451: Cannot redeclare block-scoped variable 'ErrorUtils'.
+node_modules/react-native/src/types/globals.d.ts(56,9): error TS2451: Cannot redeclare block-scoped variable '__DEV__'.
+node_modules/react-native/src/types/globals.d.ts(58,9): error TS2451: Cannot redeclare block-scoped variable 'HermesInternal'.
+node_modules/react-native/src/types/globals.d.ts(166,7): error TS2403: Subsequent variable declarations must have the same type.  Variable 'Blob' must be of type '{ new (blobParts?: BlobPart[], options?: BlobPropertyBag): Blob; prototype: Blob; }', but here has type '{ new (blobParts?: (string | Blob)[], options?: BlobOptions): Blob; prototype: Blob; }'.
+node_modules/react-native/src/types/globals.d.ts(266,5): error TS2717: Subsequent property declarations must have the same type.  Property 'body' must be of type 'BodyInit', but here has type 'BodyInit_'.
+node_modules/react-native/src/types/globals.d.ts(275,5): error TS2717: Subsequent property declarations must have the same type.  Property 'signal' must be of type 'AbortSignal', but here has type 'AbortSignal'.
+node_modules/react-native/src/types/globals.d.ts(285,14): error TS2717: Subsequent property declarations must have the same type.  Property 'signal' must be of type 'AbortSignal', but here has type 'AbortSignal'.
+node_modules/react-native/src/types/globals.d.ts(289,7): error TS2403: Subsequent variable declarations must have the same type.  Variable 'Request' must be of type '{ new (input: RequestInfo | URL, init?: RequestInit): Request; prototype: Request; }', but here has type '{ new (input: string | Request, init?: RequestInit): Request; prototype: Request; }'.
+node_modules/react-native/src/types/globals.d.ts(313,7): error TS2403: Subsequent variable declarations must have the same type.  Variable 'Response' must be of type '{ new (body?: BodyInit, init?: ResponseInit): Response; prototype: Response; error(): Response; json(data: any, init?: ResponseInit): Response; redirect(url: string | URL, status?: number): Response; }', but here has type '{ new (body?: BodyInit_, init?: ResponseInit): Response; prototype: Response; error(): Response; json(data: any, init?: ResponseInit): Response; redirect: (url: string | URL, status?: number) => Response; }'.
+node_modules/react-native/src/types/globals.d.ts(398,5): error TS2717: Subsequent property declarations must have the same type.  Property 'abort' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/react-native/src/types/globals.d.ts(399,5): error TS2717: Subsequent property declarations must have the same type.  Property 'error' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/react-native/src/types/globals.d.ts(400,5): error TS2717: Subsequent property declarations must have the same type.  Property 'load' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/react-native/src/types/globals.d.ts(401,5): error TS2717: Subsequent property declarations must have the same type.  Property 'loadend' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/react-native/src/types/globals.d.ts(402,5): error TS2717: Subsequent property declarations must have the same type.  Property 'loadstart' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/react-native/src/types/globals.d.ts(403,5): error TS2717: Subsequent property declarations must have the same type.  Property 'progress' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/react-native/src/types/globals.d.ts(404,5): error TS2717: Subsequent property declarations must have the same type.  Property 'timeout' must be of type 'ProgressEvent<XMLHttpRequestEventTarget>', but here has type 'ProgressEvent<EventTarget>'.
+node_modules/react-native/src/types/globals.d.ts(471,7): error TS2403: Subsequent variable declarations must have the same type.  Variable 'URL' must be of type '{ new (url: string | URL, base?: string | URL): URL; prototype: URL; canParse(url: string | URL, base?: string | URL): boolean; createObjectURL(obj: Blob | MediaSource): string; parse(url: string | URL, base?: string | URL): URL; revokeObjectURL(url: string): void; }', but here has type '{ new (url: string | URL, base?: string | URL): URL; prototype: URL; createObjectURL(obj: Blob): string; revokeObjectURL(url: string): void; }'.
+node_modules/react-native/src/types/globals.d.ts(534,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onopen' must be of type '(this: WebSocket, ev: Event) => any', but here has type '() => void'.
+node_modules/react-native/src/types/globals.d.ts(535,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onmessage' must be of type '(this: WebSocket, ev: MessageEvent<any>) => any', but here has type '(event: WebSocketMessageEvent) => void'.
+node_modules/react-native/src/types/globals.d.ts(536,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onerror' must be of type '(this: WebSocket, ev: Event) => any', but here has type '(event: WebSocketErrorEvent) => void'.
+node_modules/react-native/src/types/globals.d.ts(537,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onclose' must be of type '(this: WebSocket, ev: CloseEvent) => any', but here has type '(event: WebSocketCloseEvent) => void'.
+node_modules/react-native/src/types/globals.d.ts(538,5): error TS2717: Subsequent property declarations must have the same type.  Property 'addEventListener' must be of type '{ <K extends keyof WebSocketEventMap>(type: K, listener: (this: WebSocket, ev: WebSocketEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void; (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void; }', but here has type 'WebsocketEventListener'.
+node_modules/react-native/src/types/globals.d.ts(539,5): error TS2717: Subsequent property declarations must have the same type.  Property 'removeEventListener' must be of type '{ <K extends keyof WebSocketEventMap>(type: K, listener: (this: WebSocket, ev: WebSocketEventMap[K]) => any, options?: boolean | EventListenerOptions): void; (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void; }', but here has type 'WebsocketEventListener'.
+node_modules/react-native/src/types/globals.d.ts(542,7): error TS2403: Subsequent variable declarations must have the same type.  Variable 'WebSocket' must be of type '{ new (url: string | URL, protocols?: string | string[]): WebSocket; prototype: WebSocket; readonly CONNECTING: 0; readonly OPEN: 1; readonly CLOSING: 2; readonly CLOSED: 3; }', but here has type '{ new (uri: string, protocols?: string | string[], options?: { [optionName: string]: any; headers: { [headerName: string]: string; }; }): WebSocket; prototype: WebSocket; readonly CLOSED: number; readonly CLOSING: number; readonly CONNECTING: number; readonly OPEN: number; }'.
+node_modules/react-native/src/types/globals.d.ts(627,14): error TS2717: Subsequent property declarations must have the same type.  Property 'error' must be of type 'DOMException', but here has type 'Error'.
+node_modules/react-native/src/types/globals.d.ts(640,14): error TS2717: Subsequent property declarations must have the same type.  Property 'readyState' must be of type '0 | 2 | 1', but here has type 'number'.
+node_modules/react-native/types/modules/BatchedBridge.d.ts(17,15): error TS2300: Duplicate identifier 'MessageQueue'.
+node_modules/react-native/types/modules/BatchedBridge.d.ts(27,18): error TS2300: Duplicate identifier 'BatchedBridge'.
+node_modules/react-native/types/modules/BatchedBridge.d.ts(31,18): error TS2300: Duplicate identifier 'MessageQueue'.
+node_modules/react-native/types/modules/Codegen.d.ts(10,1): error TS6200: Definitions of the following identifiers conflict with those in another file: codegenNativeCommands, NativeComponentType, codegenNativeComponent, BubblingEventHandler, DirectEventHandler, Double, Float, Int32, UnsafeObject, DefaultTypes, WithDefault
+node_modules/react-native/types/modules/Devtools.d.ts(11,15): error TS2300: Duplicate identifier 'StackFrame'.
+node_modules/react-native/types/public/DeprecatedPropertiesAlias.d.ts(10,1): error TS6200: Definitions of the following identifiers conflict with those in another file: TextProperties, TextPropertiesIOS, TextPropertiesAndroid, AccessibilityProperties, AccessibilityPropertiesIOS, AccessibilityPropertiesAndroid, TextInputProperties, TextInputIOSProperties, TextInputAndroidProperties, ViewProperties, ViewPropertiesIOS, ViewPropertiesAndroid, ScrollViewProperties, ScrollViewPropertiesIOS, ScrollViewPropertiesAndroid, InputAccessoryViewProperties, ActivityIndicatorProperties, ActivityIndicatorIOSProperties, DrawerLayoutAndroidProperties, ProgressBarAndroidProperties, RefreshControlProperties, RefreshControlPropertiesIOS, RefreshControlPropertiesAndroid, ImagePropertiesSourceOptions, ImageProperties, ImagePropertiesIOS, ImagePropertiesAndroid, ImageBackgroundProperties, FlatListProperties, VirtualizedListProperties, SectionListProperties, ModalProperties, TouchableWithoutFeedbackProperties, TouchableHighlightProperties, TouchableOpacityProperties, TouchableNativeFeedbackProperties, ButtonProperties, StatusBarProperties, StatusBarPropertiesIOS, StatusBarPropertiesAndroid, SwitchProperties, SwitchPropertiesIOS
+node_modules/typescript/lib/lib.dom.d.ts(23,1): error TS6200: Definitions of the following identifiers conflict with those in another file: EndingType, BlobPart, BufferSource, FormData, RequestInfo, XMLHttpRequestResponseType, AbortSignal, AbortController
+node_modules/typescript/lib/lib.dom.d.ts(2495,11): error TS2300: Duplicate identifier 'AbortController'.
+node_modules/typescript/lib/lib.dom.d.ts(2510,13): error TS2300: Duplicate identifier 'AbortController'.
+node_modules/typescript/lib/lib.dom.d.ts(2524,11): error TS2300: Duplicate identifier 'AbortSignal'.
+node_modules/typescript/lib/lib.dom.d.ts(2543,13): error TS2300: Duplicate identifier 'AbortSignal'.
+node_modules/typescript/lib/lib.dom.d.ts(9102,11): error TS2300: Duplicate identifier 'FormData'.
+node_modules/typescript/lib/lib.dom.d.ts(9122,13): error TS2300: Duplicate identifier 'FormData'.
+node_modules/typescript/lib/lib.dom.d.ts(23219,11): error TS2300: Duplicate identifier 'URL'.
+node_modules/typescript/lib/lib.dom.d.ts(23219,11): error TS2430: Interface 'URL' incorrectly extends interface 'import("node:url").URL'.
+  The types returned by 'searchParams[Symbol.iterator]()' are incompatible between these types.
+    Property '[Symbol.dispose]' is missing in type 'IterableIterator<[string, string]>' but required in type 'URLSearchParamsIterator<[string, string]>'.
+node_modules/typescript/lib/lib.dom.d.ts(23249,13): error TS2300: Duplicate identifier 'URL'.
+node_modules/typescript/lib/lib.dom.d.ts(23266,11): error TS2300: Duplicate identifier 'URLSearchParams'.
+node_modules/typescript/lib/lib.dom.d.ts(23266,11): error TS2430: Interface 'URLSearchParams' incorrectly extends interface 'import("node:url").URLSearchParams'.
+  The types returned by '[Symbol.iterator]()' are incompatible between these types.
+    Property '[Symbol.dispose]' is missing in type 'IterableIterator<[string, string]>' but required in type 'URLSearchParamsIterator<[string, string]>'.
+node_modules/typescript/lib/lib.dom.d.ts(23312,13): error TS2300: Duplicate identifier 'URLSearchParams'.
+node_modules/typescript/lib/lib.dom.d.ts(28790,6): error TS2300: Duplicate identifier 'RequestInfo'.
+node_modules/typescript/lib/lib.dom.d.ts(28983,6): error TS2300: Duplicate identifier 'XMLHttpRequestResponseType'.
+src/components/charts/index.ts(6,30): error TS6142: Module './BalanceChart' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/charts/BalanceChart.tsx', but '--jsx' is not set.
+src/components/charts/index.ts(7,31): error TS6142: Module './SpendingChart' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/charts/SpendingChart.tsx', but '--jsx' is not set.
+src/components/charts/index.ts(8,34): error TS6142: Module './CategoryBarChart' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/charts/CategoryBarChart.tsx', but '--jsx' is not set.
+src/components/charts/index.ts(9,32): error TS6142: Module './ChartContainer' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/charts/ChartContainer.tsx', but '--jsx' is not set.
+src/components/charts/index.ts(10,30): error TS6142: Module './ChartTooltip' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/charts/ChartTooltip.tsx', but '--jsx' is not set.
+src/components/charts/index.ts(11,37): error TS6142: Module './RangeSelectionBadge' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/charts/RangeSelectionBadge.tsx', but '--jsx' is not set.
+src/components/charts/index.ts(12,34): error TS6142: Module './SinglePointBadge' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/charts/SinglePointBadge.tsx', but '--jsx' is not set.
+src/components/filters/index.ts(6,15): error TS6142: Module './DateRangeFilter' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/filters/DateRangeFilter.tsx', but '--jsx' is not set.
+src/components/index.ts(7,15): error TS6142: Module './TransactionCard' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/TransactionCard.tsx', but '--jsx' is not set.
+src/components/index.ts(8,15): error TS6142: Module './CategoryCard' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/CategoryCard.tsx', but '--jsx' is not set.
+src/components/index.ts(9,15): error TS6142: Module './InsightCard' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/InsightCard.tsx', but '--jsx' is not set.
+src/components/index.ts(10,15): error TS6142: Module './StatCard' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/StatCard.tsx', but '--jsx' is not set.
+src/components/index.ts(11,15): error TS6142: Module './ExpenseOptionsSheet' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/ExpenseOptionsSheet.tsx', but '--jsx' is not set.
+src/components/index.ts(12,15): error TS6142: Module './SkeletonLoader' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/SkeletonLoader.tsx', but '--jsx' is not set.
+src/components/index.ts(13,15): error TS6142: Module './ConfettiCelebration' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/ConfettiCelebration.tsx', but '--jsx' is not set.
+src/components/index.ts(14,15): error TS6142: Module './BottomSheetBackground' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/BottomSheetBackground.tsx', but '--jsx' is not set.
+src/components/index.ts(15,15): error TS6142: Module './BottomSheetBackdrop' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/BottomSheetBackdrop.tsx', but '--jsx' is not set.
+src/components/index.ts(16,15): error TS6142: Module './PremiumBadge' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/PremiumBadge.tsx', but '--jsx' is not set.
+src/components/index.ts(17,15): error TS6142: Module './UpgradePrompt' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/UpgradePrompt.tsx', but '--jsx' is not set.
+src/components/index.ts(18,15): error TS6142: Module './platform/PlatformCard' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/platform/PlatformCard.tsx', but '--jsx' is not set.
+src/components/index.ts(19,15): error TS6142: Module './FeatureTooltip' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/FeatureTooltip.tsx', but '--jsx' is not set.
+src/components/index.ts(20,15): error TS6142: Module './CurrencyInput' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/CurrencyInput.tsx', but '--jsx' is not set.
+src/components/index.ts(21,15): error TS6142: Module './SpendingBreakdown' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/SpendingBreakdown.tsx', but '--jsx' is not set.
+src/components/index.ts(22,15): error TS6142: Module './DatePickerInput' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/DatePickerInput.tsx', but '--jsx' is not set.
+src/components/index.ts(23,42): error TS6142: Module './ErrorBoundary' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/ErrorBoundary.tsx', but '--jsx' is not set.
+src/components/index.ts(24,46): error TS6142: Module './FeatureComparison' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/FeatureComparison.tsx', but '--jsx' is not set.
+src/components/index.ts(25,39): error TS6142: Module './TrialBadge' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/TrialBadge.tsx', but '--jsx' is not set.
+src/components/index.ts(26,43): error TS6142: Module './AIAssistantFAB' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/AIAssistantFAB.tsx', but '--jsx' is not set.
+src/components/index.ts(29,35): error TS6142: Module './Header' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/Header.tsx', but '--jsx' is not set.
+src/components/index.ts(30,47): error TS6142: Module './DeleteAccountSheet' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/DeleteAccountSheet.tsx', but '--jsx' is not set.
+src/components/index.ts(31,42): error TS6142: Module './SectionHeader' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/SectionHeader.tsx', but '--jsx' is not set.
+src/components/index.ts(32,39): error TS6142: Module './FilterChip' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/FilterChip.tsx', but '--jsx' is not set.
+src/components/index.ts(33,40): error TS6142: Module './ProgressBar' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/ProgressBar.tsx', but '--jsx' is not set.
+src/components/index.ts(34,39): error TS6142: Module './EmptyState' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/EmptyState.tsx', but '--jsx' is not set.
+src/components/index.ts(35,38): error TS6142: Module './ChartCard' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/ChartCard.tsx', but '--jsx' is not set.
+src/components/index.ts(36,43): error TS6142: Module './ToggleSelector' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/ToggleSelector.tsx', but '--jsx' is not set.
+src/components/index.ts(37,39): error TS6142: Module './InputGroup' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/InputGroup.tsx', but '--jsx' is not set.
+src/components/index.ts(38,40): error TS6142: Module './SettingItem' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/SettingItem.tsx', but '--jsx' is not set.
+src/components/index.ts(39,42): error TS6142: Module './PrimaryButton' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/PrimaryButton.tsx', but '--jsx' is not set.
+src/components/index.ts(40,44): error TS6142: Module './SecondaryButton' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/SecondaryButton.tsx', but '--jsx' is not set.
+src/components/index.ts(41,41): error TS6142: Module './GradientCard' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/GradientCard.tsx', but '--jsx' is not set.
+src/components/index.ts(42,39): error TS6142: Module './IconButton' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/IconButton.tsx', but '--jsx' is not set.
+src/components/index.ts(43,34): error TS6142: Module './CurrencySelector' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/CurrencySelector.tsx', but '--jsx' is not set.
+src/components/index.ts(44,37): error TS6142: Module './CategoryPickerModal' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/CategoryPickerModal.tsx', but '--jsx' is not set.
+src/components/index.ts(45,37): error TS6142: Module './CreateCategoryModal' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/CreateCategoryModal.tsx', but '--jsx' is not set.
+src/components/index.ts(46,41): error TS6142: Module './PullToRefreshScrollView' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/PullToRefreshScrollView.tsx', but '--jsx' is not set.
+src/components/index.ts(47,39): error TS6142: Module './PullToRefreshFlatList' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/PullToRefreshFlatList.tsx', but '--jsx' is not set.
+src/components/index.ts(48,29): error TS6142: Module './AlertDialog' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/AlertDialog.tsx', but '--jsx' is not set.
+src/components/index.ts(49,45): error TS6142: Module './AlertDialog' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/AlertDialog.tsx', but '--jsx' is not set.
+src/components/index.ts(50,23): error TS6142: Module './Toast' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/Toast.tsx', but '--jsx' is not set.
+src/components/index.ts(51,44): error TS6142: Module './Toast' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/Toast.tsx', but '--jsx' is not set.
+src/components/index.ts(52,46): error TS6142: Module './NotificationPermissionBanner' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/NotificationPermissionBanner.tsx', but '--jsx' is not set.
+src/components/index.ts(53,38): error TS6142: Module './AnimatedSplashScreen' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/AnimatedSplashScreen.tsx', but '--jsx' is not set.
+src/components/index.ts(54,35): error TS6142: Module './PaymentIssueModal' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/PaymentIssueModal.tsx', but '--jsx' is not set.
+src/components/index.ts(55,32): error TS6142: Module './GradientHeader' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/GradientHeader.tsx', but '--jsx' is not set.
+src/components/index.ts(64,15): error TS6142: Module './FAQItem' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/FAQItem.tsx', but '--jsx' is not set.
+src/components/PremiumComponents/index.ts(6,28): error TS6142: Module './GlowButton' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/PremiumComponents/GlowButton.tsx', but '--jsx' is not set.
+src/components/PremiumComponents/index.ts(7,30): error TS6142: Module './AnimatedCard' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/PremiumComponents/AnimatedCard.tsx', but '--jsx' is not set.
+src/components/PremiumComponents/index.ts(8,32): error TS6142: Module './CountingNumber' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/PremiumComponents/CountingNumber.tsx', but '--jsx' is not set.
+src/components/PremiumComponents/index.ts(9,30): error TS6142: Module './ProgressRing' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/PremiumComponents/ProgressRing.tsx', but '--jsx' is not set.
+src/components/PremiumComponents/index.ts(10,31): error TS6142: Module './ShimmerLoader' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/PremiumComponents/ShimmerLoader.tsx', but '--jsx' is not set.
+src/components/PremiumComponents/index.ts(11,34): error TS6142: Module './SuccessAnimation' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/PremiumComponents/SuccessAnimation.tsx', but '--jsx' is not set.
+src/components/PremiumComponents/index.ts(12,27): error TS6142: Module './GlassCard' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/PremiumComponents/GlassCard.tsx', but '--jsx' is not set.
+src/components/PremiumComponents/index.ts(13,34): error TS6142: Module './InteractiveChart' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/PremiumComponents/InteractiveChart.tsx', but '--jsx' is not set.
+src/screens/OnboardingScreen.tsx(13,8): error TS1259: Module '"/Users/raffaysajjad/Documents/Finly/finly-native/node_modules/@types/react/index"' can only be default-imported using the 'esModuleInterop' flag
+src/screens/OnboardingScreen.tsx(18,26): error TS6142: Module '../contexts/ThemeContext' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/contexts/ThemeContext.tsx', but '--jsx' is not set.
+src/screens/OnboardingScreen.tsx(19,29): error TS6142: Module '../contexts/CurrencyContext' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/contexts/CurrencyContext.tsx', but '--jsx' is not set.
+src/screens/OnboardingScreen.tsx(33,28): error TS6142: Module '../contexts/AppFlowContext' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/contexts/AppFlowContext.tsx', but '--jsx' is not set.
+src/screens/OnboardingScreen.tsx(34,32): error TS6142: Module '../contexts/PerformanceContext' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/contexts/PerformanceContext.tsx', but '--jsx' is not set.
+src/screens/OnboardingScreen.tsx(36,26): error TS6142: Module '../components/onboarding/AIIntroSlide' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/onboarding/AIIntroSlide.tsx', but '--jsx' is not set.
+src/screens/OnboardingScreen.tsx(37,48): error TS6142: Module '../components/onboarding/PersonaSelectionSlide' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/onboarding/PersonaSelectionSlide.tsx', but '--jsx' is not set.
+src/screens/OnboardingScreen.tsx(38,28): error TS6142: Module '../components/onboarding/AICategoryChat' was resolved to '/Users/raffaysajjad/Documents/Finly/finly-native/src/components/onboarding/AICategoryChat.tsx', but '--jsx' is not set.
+src/screens/OnboardingScreen.tsx(43,10): error TS2305: Module '"../components"' has no exported member 'CurrencyInput'.
+src/screens/OnboardingScreen.tsx(521,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(523,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(523,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: ViewProps): View', gave the following error.
+    Type '{ key: string; style: { flexDirection: "row"; alignItems: "center"; }; }' is not assignable to type 'ViewProps'.
+      Property 'key' does not exist on type 'ViewProps'.
+  Overload 2 of 2, '(props: ViewProps, context: any): View', gave the following error.
+    Type '{ key: string; style: { flexDirection: "row"; alignItems: "center"; }; }' is not assignable to type 'ViewProps'.
+      Property 'key' does not exist on type 'ViewProps'.
+src/screens/OnboardingScreen.tsx(524,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(533,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(545,15): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(578,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(585,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(586,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(588,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(589,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(616,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(620,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(621,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(623,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(624,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(629,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(631,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(642,15): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(643,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(645,15): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(673,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(677,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(705,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(709,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(747,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(751,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(752,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(754,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(755,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(759,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(760,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(761,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(771,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(772,15): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(777,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(778,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(786,15): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(797,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(798,19): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(799,21): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(800,21): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(802,19): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(807,19): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(837,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(841,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(842,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(844,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(845,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(849,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(850,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(855,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(856,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(859,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(864,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(865,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(883,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(884,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(885,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(887,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(888,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(890,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(891,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(913,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(914,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(915,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(917,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(918,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(920,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(921,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(922,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(945,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(946,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(947,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(949,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(950,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(952,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(954,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(968,15): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(969,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(970,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(971,19): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(972,19): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(975,52): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(992,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(993,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(994,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(996,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(997,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(999,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1000,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1001,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1036,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1040,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1041,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1043,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1044,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1049,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1050,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1051,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1052,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1054,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1055,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1056,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1058,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1059,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1060,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1088,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1092,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1159,5): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1160,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1161,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1167,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1168,9): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: ScrollViewProps): ScrollView', gave the following error.
+    Type '{ ref: RefObject<ScrollView>; horizontal: true; pagingEnabled: true; showsHorizontalScrollIndicator: false; onScroll: (...args: any[]) => void; scrollEventThrottle: number; scrollEnabled: boolean; }' is not assignable to type 'ScrollViewProps'.
+      Property 'ref' does not exist on type 'ScrollViewProps'.
+  Overload 2 of 2, '(props: ScrollViewProps, context: any): ScrollView', gave the following error.
+    Type '{ ref: RefObject<ScrollView>; horizontal: true; pagingEnabled: true; showsHorizontalScrollIndicator: false; onScroll: (...args: any[]) => void; scrollEventThrottle: number; scrollEnabled: boolean; }' is not assignable to type 'ScrollViewProps'.
+      Property 'ref' does not exist on type 'ScrollViewProps'.
+src/screens/OnboardingScreen.tsx(1180,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1201,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1217,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1219,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1226,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1231,32): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1235,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1245,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1246,15): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/screens/OnboardingScreen.tsx(1250,17): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+src/services/apiCacheService.ts(245,25): error TS2802: Type 'Set<string>' can only be iterated through when using the '--downlevelIteration' flag or with a '--target' of 'es2015' or higher.
+src/services/apiCacheService.ts(283,25): error TS2802: Type 'Set<string>' can only be iterated through when using the '--downlevelIteration' flag or with a '--target' of 'es2015' or higher.

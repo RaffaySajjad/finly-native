@@ -1,5 +1,5 @@
 <resources>
-  <string name="app_name">Finly AI</string>
+  <string name="app_name">Expense Tracker - Finly AI</string>
 
   <!-- Quick Action Shortcuts -->
   <string name="shortcut_voice_short">Voice Entry</string>

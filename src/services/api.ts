@@ -103,6 +103,127 @@ export const apiService = {
   },
 
   /**
+   * Get available personas for onboarding
+   */
+  async getPersonas(): Promise<Array<{
+    id: string;
+    name: string;
+    icon: string;
+    emoji: string;
+    description: string;
+    categoryCount: number;
+  }>> {
+    try {
+      const response = await api.get<Array<{
+        id: string;
+        name: string;
+        icon: string;
+        emoji: string;
+        description: string;
+        categoryCount: number;
+      }>>(API_ENDPOINTS.CATEGORIES.PERSONAS);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to fetch personas');
+      }
+      return response.data || [];
+    } catch (error) {
+      console.error('[API] Get personas error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Setup categories from a selected persona
+   */
+  async setupCategoriesFromPersona(
+    personaId: string,
+    monthlyIncome: number
+  ): Promise<Category[]> {
+    try {
+      const response = await api.post<Category[]>(
+        API_ENDPOINTS.CATEGORIES.SETUP_FROM_PERSONA,
+        { personaId, monthlyIncome }
+      );
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to setup categories');
+      }
+      return response.data || [];
+    } catch (error) {
+      console.error('[API] Setup from persona error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Setup categories from AI-generated response
+   */
+  async setupCategoriesFromAI(
+    categories: Array<{
+      name: string;
+      icon: string;
+      color: string;
+      percent: number;
+      budgetType?: 'MONTHLY' | 'ROLLOVER';
+    }>,
+    monthlyIncome: number
+  ): Promise<Category[]> {
+    try {
+      const response = await api.post<Category[]>(
+        API_ENDPOINTS.CATEGORIES.SETUP_FROM_AI,
+        { categories, monthlyIncome }
+      );
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to setup categories');
+      }
+      return response.data || [];
+    } catch (error) {
+      console.error('[API] Setup from AI error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Generate personalized categories using AI
+   */
+  async generateCategoriesFromAI(
+    description: string,
+    monthlyIncome: number,
+    currencyCode: string
+  ): Promise<Array<{
+    name: string;
+    icon: string;
+    color: string;
+    percent: number;
+    budgetType: 'MONTHLY' | 'ROLLOVER';
+    description?: string;
+  }>> {
+    try {
+      const response = await api.post<{
+        categories: Array<{
+          name: string;
+          icon: string;
+          color: string;
+          percent: number;
+          budgetType: 'MONTHLY' | 'ROLLOVER';
+          description?: string;
+        }>;
+      }>(API_ENDPOINTS.AI.GENERATE_CATEGORIES, {
+        description,
+        monthlyIncome,
+        // Currency code passed to AI stays in USD
+        currencyCode: 'USD',
+      });
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to generate categories');
+      }
+      return response.data?.categories || [];
+    } catch (error) {
+      console.error('[API] Generate categories from AI error:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Create a new category
    * Supports both MONTHLY and ROLLOVER budget types
    */
@@ -1284,7 +1405,8 @@ export const apiService = {
       return {
         startingBalance: response.data?.startingBalance ?? balance,
         originalBalanceAmount: response.data?.originalBalanceAmount ?? undefined,
-        originalBalanceCurrency: response.data?.originalBalanceCurrency ?? undefined
+        originalBalanceCurrency: response.data?.originalBalanceCurrency ?? undefined,
+        baseCurrency: response.data?.baseCurrency ?? undefined
       };
     } catch (error) {
       console.error('[API] Adjust balance error:', error);
@@ -1649,6 +1771,41 @@ export const apiService = {
       return response.data!;
     } catch (error) {
       console.error('[API] Update goal error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update user's timezone (auto-detected from device)
+   */
+  async updateTimezone(timezone: string): Promise<void> {
+    try {
+      const response = await api.post('/notifications/timezone', { timezone });
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to update timezone');
+      }
+    } catch (error) {
+      console.error('[API] Update timezone error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update user's base currency (anchor currency for financial tracking)
+   * @param baseCurrency - Currency code (e.g., USD, PKR, GBP)
+   */
+  async updateBaseCurrency(baseCurrency: string): Promise<{ baseCurrency: string }> {
+    try {
+      const response = await api.put<{ baseCurrency: string }>(
+        API_ENDPOINTS.AUTH.UPDATE_BASE_CURRENCY,
+        { baseCurrency }
+      );
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to update base currency');
+      }
+      return response.data!;
+    } catch (error) {
+      console.error('[API] Update base currency error:', error);
       throw error;
     }
   }

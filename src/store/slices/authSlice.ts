@@ -22,6 +22,8 @@ interface User {
   originalBalanceAmount?: number | null;
   originalBalanceCurrency?: string | null;
   startingBalance?: number;
+  baseCurrency?: string;
+  currency?: string;
 }
 
 interface AuthState {

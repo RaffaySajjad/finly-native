@@ -41,6 +41,7 @@ import { typography, spacing, borderRadius, elevation } from '../theme';
 import { Animated } from 'react-native';
 import { glowEffects, shadowPresets, brandGradients } from '../theme/DesignTokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { reviewService } from '../services/reviewService';
 
 // Cast colors to the expected type for LinearGradient to avoid lint errors
 const expenseColors = brandGradients.expense.colors as [string, string, ...string[]];
@@ -426,6 +427,11 @@ const SharedBottomSheet: React.FC = () => {
       // Trigger dashboard refresh
       onTransactionAdded();
 
+      // Track transaction for review prompts (only for new transactions, not edits)
+      if (!isEditingExpense) {
+        reviewService.trackTransaction();
+      }
+
       // Premium haptic feedback on success
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -523,6 +529,11 @@ const SharedBottomSheet: React.FC = () => {
 
       // Trigger dashboard refresh
       onTransactionAdded();
+
+      // Track transaction for review prompts (only for new transactions, not edits)
+      if (!isEditingIncome) {
+        reviewService.trackTransaction();
+      }
 
       // Premium haptic feedback on success
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

@@ -12,6 +12,8 @@
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { RootState } from '../store';
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -56,6 +58,7 @@ export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isFlowStateLoading, setIsFlowStateLoading] = useState(true);
 
   const refreshFlowState = useCallback(async () => {
+    setIsFlowStateLoading(true);
     const [onboarding, paywall, income, category] = await Promise.all([
       readBooleanFlag(ONBOARDING_STORAGE_KEY),
       readBooleanFlag(PAYWALL_COMPLETE_KEY),
@@ -145,6 +148,13 @@ export const AppFlowProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     refreshFlowState();
   }, [refreshFlowState]);
+
+  // IMPORTANT: Re-read flags when authentication status changes (login/logout)
+  // This ensures that flags synced from the backend during login are reflected immediately.
+  const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
+  useEffect(() => {
+    refreshFlowState();
+  }, [isAuthenticated, refreshFlowState]);
 
   // Refresh when coming back to foreground (covers external storage changes / account deletion flows).
   useEffect(() => {

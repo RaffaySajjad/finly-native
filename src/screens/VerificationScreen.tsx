@@ -354,9 +354,12 @@ const styles = StyleSheet.create({
     flex: 1,
     aspectRatio: 1,
     borderRadius: borderRadius.md,
-    borderWidth: 1,
+    borderWidth: 2,
     textAlign: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
     fontSize: 24,
+    lineHeight: 20,
     fontWeight: '700',
   },
   verifyButton: {

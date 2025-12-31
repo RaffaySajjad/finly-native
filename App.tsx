@@ -25,6 +25,7 @@ import { checkAuthStatus } from './src/store/slices/authSlice';
 import { checkSubscriptionStatus } from './src/store/slices/subscriptionSlice';
 import AppNavigator from './src/navigation/AppNavigator';
 import { ErrorBoundary, AnimatedSplashScreen } from './src/components';
+import { useAlert } from './src/hooks/useAlert';
 import { BiometricLockScreen } from './src/screens/BiometricLockScreen';
 import { isBiometricLoginEnabled, isBiometricAvailable } from './src/services/biometricService';
 import { onAuthFailure } from './src/services/apiClient';
@@ -39,6 +40,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 // React Navigation / screens perf: native screen primitives + freezing offscreen screens.
 // This reduces memory + unnecessary renders on complex tab/stack setups.
 import { enableFreeze, enableScreens } from 'react-native-screens';
+import { reviewService } from './src/services/reviewService';
 enableScreens(true);
 enableFreeze(true);
 
@@ -119,6 +121,9 @@ const AppContent = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [loadingStatus, setLoadingStatus] = useState<string | undefined>(undefined);
 
+  // Use the global alert system
+  const { showAlert, AlertComponent } = useAlert();
+
   // Track app state to detect background → foreground transitions
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
@@ -174,6 +179,7 @@ const AppContent = () => {
           dispatch(checkAuthStatus()).unwrap(),
           refreshFlowState(),
           checkBiometricState(),
+          reviewService.initialize(), // Initialize review service for smart review prompts
         ]);
 
         console.log('[App] Auth check complete:', { isAuthenticated: !!authResult?.user });
@@ -202,6 +208,24 @@ const AppContent = () => {
 
     initialize();
   }, [dispatch, refreshFlowState, checkBiometricState]);
+
+  /**
+   * Register global alert handler for ReviewService
+   */
+  useEffect(() => {
+    reviewService.setPromptHandler((options) => {
+      showAlert({
+        title: options.title,
+        message: options.message,
+        type: options.type,
+        buttons: options.buttons,
+      });
+    });
+
+    return () => {
+      reviewService.setPromptHandler(null);
+    };
+  }, [showAlert]);
 
   /**
    * Set isReady only when all necessary state is loaded
@@ -320,6 +344,9 @@ const AppContent = () => {
           loadingStatus={loadingStatus}
         />
       )}
+
+      {/* Global Alert System */}
+      {AlertComponent}
     </>
   );
 };

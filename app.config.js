@@ -64,7 +64,8 @@ module.exports = ({ config }) => {
   }
 
   // Safely merge config with defaults
-  const existingExpo = config?.expo || {};
+  // In Expo, 'config' passed here is already the contents of app.json (the 'expo' object)
+  const existingExpo = config || {};
   const existingIOS = existingExpo.ios || {};
   const existingInfoPlist = existingIOS.infoPlist || {};
   const existingExtra = existingExpo.extra || {};
@@ -83,55 +84,52 @@ module.exports = ({ config }) => {
     : 'com.raffay.finly';
 
   return {
-    ...config,
-    expo: {
-      ...existingExpo,
-      extra: {
-        ...existingExtra,
-        env,
-        apiUrl,
-        // EAS projectId - required for EAS CLI to detect project
-        eas: {
-          projectId:
-            existingEas.projectId || 'dfa0ffd0-4dca-4765-b6dd-1ca535a8e731'
+    ...existingExpo,
+    extra: {
+      ...existingExtra,
+      env,
+      apiUrl,
+      // EAS projectId - required for EAS CLI to detect project
+      eas: {
+        projectId:
+          existingEas.projectId || 'dfa0ffd0-4dca-4765-b6dd-1ca535a8e731'
+      }
+    },
+    ios: {
+      ...existingIOS,
+      infoPlist: {
+        ...existingInfoPlist,
+        NSAppTransportSecurity: {
+          NSAllowsLocalNetworking: true,
+          NSExceptionDomains: iosATSDomains
         }
       },
-      ios: {
-        ...existingIOS,
-        infoPlist: {
-          ...existingInfoPlist,
-          NSAppTransportSecurity: {
-            NSAllowsLocalNetworking: true,
-            NSExceptionDomains: iosATSDomains
-          }
-        },
-        bundleIdentifier
-      },
-      scheme: 'finly',
-      android: {
-        ...existingExpo.android,
-        package: bundleIdentifier
-      },
-      plugins: [
-        ...(existingExpo.plugins || []),
-        [
-          'expo-notifications',
-          {
-            icon: './assets/icon.png',
-            color: '#6366F1',
-            sounds: ['default'],
-            mode: isDevelopment ? 'development' : 'production'
-          }
-        ],
-        // Quick Actions plugin for home screen shortcuts (3D Touch iOS / Long Press Android)
-        'expo-quick-actions'
+      bundleIdentifier
+    },
+    scheme: 'finly',
+    android: {
+      ...existingExpo.android,
+      package: bundleIdentifier
+    },
+    plugins: [
+      ...(existingExpo.plugins || []),
+      [
+        'expo-notifications',
+        {
+          icon: './assets/icon.png',
+          color: '#6366F1',
+          sounds: ['default'],
+          mode: isDevelopment ? 'development' : 'production'
+        }
       ],
-      notification: {
-        icon: './assets/icon.png',
-        color: '#6366F1',
-        androidMode: 'default',
-        androidCollapsedTitle: 'New insight'
-      }
+      // Quick Actions plugin for home screen shortcuts (3D Touch iOS / Long Press Android)
+      'expo-quick-actions'
+    ],
+    notification: {
+      icon: './assets/icon.png',
+      color: '#6366F1',
+      androidMode: 'default',
+      androidCollapsedTitle: 'New insight'
     }
   };
 };

@@ -20,6 +20,7 @@ import { useSmoothRangeSelection } from './hooks/useSmoothRangeSelection';
 import { useDynamicYAxis } from './hooks/useDynamicYAxis';
 import { RangeSelectionBadge } from './RangeSelectionBadge';
 import { SinglePointBadge } from './SinglePointBadge';
+import ChartEmptyState from './ChartEmptyState';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -249,15 +250,12 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({
 
       {/* Empty state when no data */}
       {!hasData && (
-        <View style={styles.emptyState}>
-          <Icon name="chart-line-variant" size={40} color={theme.textTertiary} />
-          <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
-            No spending data for this period
-          </Text>
-          <Text style={[styles.emptyStateHint, { color: theme.textTertiary }]}>
-            Add expenses to see your spending history
-          </Text>
-        </View>
+        <ChartEmptyState
+          variant="line"
+          title="No spending data for this period"
+          subtitle="Add expenses to see your spending history"
+          compact
+        />
       )}
 
       {/* Chart area with gesture handler */}
